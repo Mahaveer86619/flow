@@ -1,0 +1,2201 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>ytmusicapi — API Reference</title>
+        <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+        <style>
+            :root {
+                --bg: #0d0d0d;
+                --surface: #161616;
+                --surface2: #1e1e1e;
+                --border: #2a2a2a;
+                --border2: #333;
+                --text: #e8e8e8;
+                --text2: #888;
+                --text3: #555;
+                --accent: #e8ff5a;
+                --accent2: #a8ff78;
+                --red: #ff6b6b;
+                --blue: #6bbbff;
+                --orange: #ffb347;
+                --mono: "IBM Plex Mono", monospace;
+                --sans: "IBM Plex Sans", sans-serif;
+            }
+
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+
+            body {
+                background: var(--bg);
+                color: var(--text);
+                font-family: var(--sans);
+                font-size: 14px;
+                line-height: 1.6;
+            }
+
+            a {
+                color: var(--accent);
+                text-decoration: none;
+            }
+            a:hover {
+                text-decoration: underline;
+            }
+
+            /* LAYOUT */
+            .layout {
+                display: flex;
+                min-height: 100vh;
+            }
+
+            /* SIDEBAR */
+            aside {
+                width: 240px;
+                min-width: 240px;
+                background: var(--surface);
+                border-right: 1px solid var(--border);
+                position: sticky;
+                top: 0;
+                height: 100vh;
+                overflow-y: auto;
+                padding: 0 0 2rem;
+            }
+
+            .sidebar-header {
+                padding: 1.5rem 1.25rem 1rem;
+                border-bottom: 1px solid var(--border);
+                margin-bottom: 0.5rem;
+            }
+
+            .sidebar-header .pkg {
+                font-family: var(--mono);
+                font-size: 13px;
+                font-weight: 600;
+                color: var(--accent);
+                letter-spacing: 0.02em;
+            }
+
+            .sidebar-header .version {
+                font-family: var(--mono);
+                font-size: 11px;
+                color: var(--text3);
+                margin-top: 2px;
+            }
+
+            .sidebar-section {
+                padding: 0.75rem 1.25rem 0.25rem;
+                font-size: 10px;
+                font-weight: 500;
+                letter-spacing: 0.1em;
+                text-transform: uppercase;
+                color: var(--text3);
+            }
+
+            .sidebar-link {
+                display: block;
+                padding: 0.3rem 1.25rem;
+                font-family: var(--mono);
+                font-size: 12px;
+                color: var(--text2);
+                cursor: pointer;
+                transition:
+                    color 0.1s,
+                    background 0.1s;
+                border-left: 2px solid transparent;
+            }
+
+            .sidebar-link:hover {
+                color: var(--text);
+                background: var(--surface2);
+            }
+            .sidebar-link.active {
+                color: var(--accent);
+                border-left-color: var(--accent);
+                background: rgba(232, 255, 90, 0.04);
+            }
+
+            /* MAIN */
+            main {
+                flex: 1;
+                max-width: 860px;
+                padding: 2.5rem 3rem;
+                overflow-x: hidden;
+            }
+
+            /* TOP HERO */
+            .hero {
+                margin-bottom: 3rem;
+                padding-bottom: 2rem;
+                border-bottom: 1px solid var(--border);
+            }
+
+            .hero h1 {
+                font-family: var(--mono);
+                font-size: 28px;
+                font-weight: 600;
+                color: var(--accent);
+                margin-bottom: 0.5rem;
+            }
+
+            .hero .subtitle {
+                color: var(--text2);
+                font-size: 14px;
+                margin-bottom: 1rem;
+            }
+
+            .hero .links {
+                display: flex;
+                gap: 1rem;
+                flex-wrap: wrap;
+            }
+
+            .pill {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                font-family: var(--mono);
+                font-size: 11px;
+                padding: 4px 10px;
+                border-radius: 3px;
+                border: 1px solid var(--border2);
+                color: var(--text2);
+            }
+
+            .pill.warn {
+                border-color: rgba(255, 179, 71, 0.4);
+                color: var(--orange);
+                background: rgba(255, 179, 71, 0.06);
+            }
+            .pill.info {
+                border-color: rgba(107, 187, 255, 0.4);
+                color: var(--blue);
+                background: rgba(107, 187, 255, 0.06);
+            }
+            .pill.ok {
+                border-color: rgba(168, 255, 120, 0.4);
+                color: var(--accent2);
+                background: rgba(168, 255, 120, 0.06);
+            }
+
+            /* SECTION */
+            .doc-section {
+                margin-bottom: 4rem;
+            }
+
+            .section-title {
+                font-family: var(--mono);
+                font-size: 11px;
+                font-weight: 600;
+                letter-spacing: 0.12em;
+                text-transform: uppercase;
+                color: var(--text3);
+                padding-bottom: 0.6rem;
+                border-bottom: 1px solid var(--border);
+                margin-bottom: 1.5rem;
+            }
+
+            /* SETUP BLOCK */
+            .setup-step {
+                margin-bottom: 1.5rem;
+            }
+
+            .setup-step h3 {
+                font-family: var(--mono);
+                font-size: 13px;
+                font-weight: 500;
+                color: var(--text);
+                margin-bottom: 0.5rem;
+            }
+
+            .setup-step p {
+                color: var(--text2);
+                font-size: 13px;
+                margin-bottom: 0.6rem;
+            }
+
+            /* CODE BLOCKS */
+            pre {
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: 4px;
+                padding: 1rem 1.25rem;
+                overflow-x: auto;
+                font-family: var(--mono);
+                font-size: 12.5px;
+                line-height: 1.7;
+            }
+
+            code {
+                font-family: var(--mono);
+            }
+
+            .kw {
+                color: #c792ea;
+            }
+            .fn {
+                color: #82aaff;
+            }
+            .str {
+                color: #c3e88d;
+            }
+            .cm {
+                color: #546e7a;
+                font-style: italic;
+            }
+            .num {
+                color: var(--orange);
+            }
+            .var {
+                color: #f78c6c;
+            }
+            .cls {
+                color: var(--accent);
+            }
+
+            /* METHOD CARDS */
+            .method {
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: 4px;
+                margin-bottom: 1.5rem;
+                overflow: hidden;
+            }
+
+            .method-head {
+                padding: 1rem 1.25rem;
+                border-bottom: 1px solid var(--border);
+                display: flex;
+                align-items: flex-start;
+                justify-content: space-between;
+                gap: 1rem;
+            }
+
+            .method-name {
+                font-family: var(--mono);
+                font-size: 14px;
+                font-weight: 600;
+                color: var(--accent);
+            }
+
+            .method-name .cls-name {
+                color: var(--text3);
+                font-weight: 400;
+            }
+
+            .method-badge {
+                font-family: var(--mono);
+                font-size: 10px;
+                padding: 2px 8px;
+                border-radius: 2px;
+                white-space: nowrap;
+                flex-shrink: 0;
+                margin-top: 2px;
+            }
+
+            .badge-auth {
+                background: rgba(255, 179, 71, 0.12);
+                color: var(--orange);
+                border: 1px solid rgba(255, 179, 71, 0.3);
+            }
+            .badge-open {
+                background: rgba(168, 255, 120, 0.1);
+                color: var(--accent2);
+                border: 1px solid rgba(168, 255, 120, 0.25);
+            }
+
+            .method-body {
+                padding: 1.25rem;
+            }
+
+            .method-desc {
+                color: var(--text2);
+                font-size: 13px;
+                margin-bottom: 1rem;
+                line-height: 1.65;
+            }
+
+            /* SIGNATURE */
+            .sig-block {
+                background: var(--bg);
+                border: 1px solid var(--border);
+                border-radius: 3px;
+                padding: 0.75rem 1rem;
+                font-family: var(--mono);
+                font-size: 12px;
+                margin-bottom: 1.25rem;
+                overflow-x: auto;
+                white-space: pre;
+            }
+
+            .sig-fn {
+                color: var(--blue);
+            }
+            .sig-param {
+                color: var(--text);
+            }
+            .sig-default {
+                color: var(--text3);
+            }
+            .sig-type {
+                color: #c792ea;
+            }
+            .sig-ret {
+                color: var(--accent2);
+            }
+
+            /* PARAMS TABLE */
+            .params-label {
+                font-size: 10px;
+                font-weight: 500;
+                letter-spacing: 0.1em;
+                text-transform: uppercase;
+                color: var(--text3);
+                margin-bottom: 0.5rem;
+            }
+
+            table.params {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 12.5px;
+                margin-bottom: 1.25rem;
+            }
+
+            table.params th {
+                text-align: left;
+                color: var(--text3);
+                font-weight: 400;
+                font-size: 11px;
+                padding: 0 0.75rem 0.4rem 0;
+                border-bottom: 1px solid var(--border);
+                text-transform: uppercase;
+                letter-spacing: 0.06em;
+            }
+
+            table.params td {
+                padding: 0.45rem 0.75rem 0.45rem 0;
+                border-bottom: 1px solid var(--border);
+                vertical-align: top;
+            }
+
+            table.params tr:last-child td {
+                border-bottom: none;
+            }
+
+            td.p-name {
+                font-family: var(--mono);
+                color: var(--blue);
+                white-space: nowrap;
+            }
+            td.p-type {
+                font-family: var(--mono);
+                color: #c792ea;
+                white-space: nowrap;
+            }
+
+            .req-badge {
+                display: inline-block;
+                font-family: var(--mono);
+                font-size: 10px;
+                padding: 1px 5px;
+                border-radius: 2px;
+                background: rgba(255, 107, 107, 0.12);
+                color: var(--red);
+                border: 1px solid rgba(255, 107, 107, 0.25);
+            }
+
+            .opt-badge {
+                display: inline-block;
+                font-family: var(--mono);
+                font-size: 10px;
+                padding: 1px 5px;
+                border-radius: 2px;
+                background: var(--surface2);
+                color: var(--text3);
+                border: 1px solid var(--border);
+            }
+
+            td.p-desc {
+                color: var(--text2);
+                line-height: 1.5;
+            }
+
+            /* RETURNS */
+            .returns-block {
+                background: var(--bg);
+                border-left: 3px solid var(--accent2);
+                padding: 0.6rem 0.9rem;
+                font-size: 12.5px;
+                color: var(--text2);
+                margin-bottom: 1.25rem;
+                border-radius: 0 3px 3px 0;
+            }
+
+            .returns-block strong {
+                color: var(--accent2);
+                font-family: var(--mono);
+                font-size: 11px;
+                font-weight: 500;
+                letter-spacing: 0.06em;
+                text-transform: uppercase;
+                display: block;
+                margin-bottom: 3px;
+            }
+
+            /* EXAMPLE */
+            .example-label {
+                font-size: 10px;
+                font-weight: 500;
+                letter-spacing: 0.1em;
+                text-transform: uppercase;
+                color: var(--text3);
+                margin-bottom: 0.5rem;
+            }
+
+            /* NOTE BOXES */
+            .note {
+                background: rgba(107, 187, 255, 0.06);
+                border: 1px solid rgba(107, 187, 255, 0.2);
+                border-radius: 4px;
+                padding: 0.75rem 1rem;
+                font-size: 13px;
+                color: var(--blue);
+                margin: 1rem 0;
+                line-height: 1.6;
+            }
+
+            .note.warn {
+                background: rgba(255, 179, 71, 0.06);
+                border-color: rgba(255, 179, 71, 0.2);
+                color: var(--orange);
+            }
+
+            .note.tip {
+                background: rgba(168, 255, 120, 0.05);
+                border-color: rgba(168, 255, 120, 0.2);
+                color: var(--accent2);
+            }
+
+            /* INLINE CODE */
+            p code,
+            li code,
+            td code {
+                background: var(--surface2);
+                border: 1px solid var(--border);
+                padding: 1px 5px;
+                border-radius: 3px;
+                font-size: 12px;
+                color: var(--blue);
+            }
+
+            ul {
+                padding-left: 1.25rem;
+            }
+            li {
+                color: var(--text2);
+                font-size: 13px;
+                margin-bottom: 0.3rem;
+            }
+
+            /* SCROLLBAR */
+            ::-webkit-scrollbar {
+                width: 6px;
+                height: 6px;
+            }
+            ::-webkit-scrollbar-track {
+                background: transparent;
+            }
+            ::-webkit-scrollbar-thumb {
+                background: var(--border2);
+                border-radius: 3px;
+            }
+            ::-webkit-scrollbar-thumb:hover {
+                background: #444;
+            }
+
+            /* RESPONSIVE */
+            @media (max-width: 768px) {
+                aside {
+                    display: none;
+                }
+                main {
+                    padding: 1.5rem;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="layout">
+            <!-- SIDEBAR -->
+            <aside>
+                <div class="sidebar-header">
+                    <div class="pkg">ytmusicapi</div>
+                    <div class="version">v1.11.5 · unofficial</div>
+                </div>
+
+                <div class="sidebar-section">Setup</div>
+                <a class="sidebar-link" href="#setup">Installation</a>
+                <a class="sidebar-link" href="#auth">Authentication</a>
+                <a class="sidebar-link" href="#init">YTMusic()</a>
+
+                <div class="sidebar-section">Search</div>
+                <a class="sidebar-link" href="#search">search()</a>
+                <a class="sidebar-link" href="#suggestions">get_search_suggestions()</a>
+                <a class="sidebar-link" href="#remove-suggestions">remove_search_suggestions()</a>
+
+                <div class="sidebar-section">Browsing</div>
+                <a class="sidebar-link" href="#get-home">get_home()</a>
+                <a class="sidebar-link" href="#get-artist">get_artist()</a>
+                <a class="sidebar-link" href="#get-artist-albums">get_artist_albums()</a>
+                <a class="sidebar-link" href="#get-album">get_album()</a>
+                <a class="sidebar-link" href="#get-album-browse-id">get_album_browse_id()</a>
+                <a class="sidebar-link" href="#get-song">get_song()</a>
+                <a class="sidebar-link" href="#get-lyrics">get_lyrics()</a>
+
+                <div class="sidebar-section">Playback</div>
+                <a class="sidebar-link" href="#get-watch-playlist">get_watch_playlist()</a>
+                <a class="sidebar-link" href="#get-watch-shuffle">get_watch_playlist_shuffle()</a>
+
+                <div class="sidebar-section">Library</div>
+                <a class="sidebar-link" href="#get-library-playlists">get_library_playlists()</a>
+                <a class="sidebar-link" href="#get-library-songs">get_library_songs()</a>
+                <a class="sidebar-link" href="#get-library-albums">get_library_albums()</a>
+                <a class="sidebar-link" href="#get-library-artists">get_library_artists()</a>
+                <a class="sidebar-link" href="#get-liked-songs">get_liked_songs()</a>
+
+                <div class="sidebar-section">Playlists</div>
+                <a class="sidebar-link" href="#get-playlist">get_playlist()</a>
+                <a class="sidebar-link" href="#create-playlist">create_playlist()</a>
+                <a class="sidebar-link" href="#edit-playlist">edit_playlist()</a>
+                <a class="sidebar-link" href="#delete-playlist">delete_playlist()</a>
+                <a class="sidebar-link" href="#add-playlist-items">add_playlist_items()</a>
+                <a class="sidebar-link" href="#remove-playlist-items">remove_playlist_items()</a>
+
+                <div class="sidebar-section">Ratings</div>
+                <a class="sidebar-link" href="#rate-song">rate_song()</a>
+                <a class="sidebar-link" href="#rate-playlist">rate_playlist()</a>
+                <a class="sidebar-link" href="#subscribe-artists">subscribe_artists()</a>
+
+                <div class="sidebar-section">History</div>
+                <a class="sidebar-link" href="#get-history">get_history()</a>
+                <a class="sidebar-link" href="#add-history-item">add_history_item()</a>
+                <a class="sidebar-link" href="#remove-history-items">remove_history_items()</a>
+
+                <div class="sidebar-section">Explore</div>
+                <a class="sidebar-link" href="#get-mood-categories">get_mood_categories()</a>
+                <a class="sidebar-link" href="#get-mood-playlists">get_mood_playlists()</a>
+                <a class="sidebar-link" href="#get-charts">get_charts()</a>
+            </aside>
+
+            <!-- MAIN -->
+            <main>
+                <!-- HERO -->
+                <div class="hero">
+                    <h1>ytmusicapi</h1>
+                    <p class="subtitle">Unofficial Python 3 API for YouTube Music — emulates web client requests using cookie/OAuth auth.</p>
+                    <div class="links">
+                        <span class="pill ok">Python ≥ 3.10</span>
+                        <span class="pill info">v1.11.5</span>
+                        <span class="pill warn">unofficial — not endorsed by Google</span>
+                    </div>
+                </div>
+
+                <!-- SETUP -->
+                <div class="doc-section" id="setup">
+                    <div class="section-title">Installation</div>
+
+                    <div class="setup-step">
+                        <h3>Install via pip</h3>
+                        <pre><span class="cm"># requires Python 3.10+</span>
+pip install ytmusicapi</pre>
+                    </div>
+                </div>
+
+                <!-- AUTH -->
+                <div class="doc-section" id="auth">
+                    <div class="section-title">Authentication</div>
+
+                    <p style="color: var(--text2); font-size: 13px; margin-bottom: 1rem">Two authentication methods are supported. OAuth is recommended for production apps.</p>
+
+                    <div class="setup-step">
+                        <h3>OAuth (recommended)</h3>
+                        <p>Runs a one-time CLI flow, saves credentials to a JSON file.</p>
+                        <pre><span class="kw">from</span> <span class="cls">ytmusicapi</span> <span class="kw">import</span> <span class="fn">YTMusic</span>, <span class="fn">setup_oauth</span>
+
+<span class="cm"># one-time setup — opens browser, saves oauth.json</span>
+<span class="fn">setup_oauth</span>(filepath=<span class="str">'oauth.json'</span>, open_browser=<span class="kw">True</span>)
+
+<span class="cm"># use going forward</span>
+<span class="var">yt</span> = <span class="fn">YTMusic</span>(<span class="str">'oauth.json'</span>)</pre>
+                    </div>
+
+                    <div class="setup-step">
+                        <h3>Browser cookies</h3>
+                        <p>Paste request headers from browser DevTools. Less stable than OAuth.</p>
+                        <pre><span class="kw">from</span> <span class="cls">ytmusicapi</span> <span class="kw">import</span> <span class="fn">YTMusic</span>, <span class="fn">setup</span>
+
+<span class="cm"># one-time setup — follow CLI prompts</span>
+<span class="fn">setup</span>(filepath=<span class="str">'browser.json'</span>)
+
+<span class="var">yt</span> = <span class="fn">YTMusic</span>(<span class="str">'browser.json'</span>)</pre>
+                    </div>
+
+                    <div class="setup-step">
+                        <h3>Unauthenticated</h3>
+                        <p>Search and browse only. No library, history, or playlist write access.</p>
+                        <pre><span class="var">yt</span> = <span class="fn">YTMusic</span>()</pre>
+                    </div>
+                </div>
+
+                <!-- INIT -->
+                <div class="doc-section" id="init">
+                    <div class="section-title">Initialisation</div>
+
+                    <div class="method">
+                        <div class="method-head">
+                            <div>
+                                <div class="method-name"><span class="cls-name">YTMusic.</span>__init__</div>
+                            </div>
+                            <span class="method-badge badge-open">no auth needed</span>
+                        </div>
+                        <div class="method-body">
+                            <p class="method-desc">Creates a new YTMusic instance. Pass an auth file path for authenticated requests.</p>
+
+                            <div class="sig-block">
+                                <span class="sig-fn">YTMusic</span>(<span class="sig-param">auth</span><span class="sig-default">: str | Dict | None = None</span>,
+                                <span class="sig-param">user</span><span class="sig-default">: str | None = None</span>, <span class="sig-param">requests_session</span
+                                ><span class="sig-default">: bool = True</span>, <span class="sig-param">proxies</span
+                                ><span class="sig-default">: Dict[str,str] | None = None</span>, <span class="sig-param">language</span
+                                ><span class="sig-default">: str = 'en'</span>, <span class="sig-param">location</span><span class="sig-default">: str = ''</span>)
+                            </div>
+
+                            <div class="params-label">Parameters</div>
+                            <table class="params">
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th></th>
+                                    <th>Description</th>
+                                </tr>
+                                <tr>
+                                    <td class="p-name">auth</td>
+                                    <td class="p-type">str | Dict | None</td>
+                                    <td><span class="opt-badge">optional</span></td>
+                                    <td class="p-desc">Path to <code>oauth.json</code> or <code>browser.json</code>, or a dict of auth headers. Omit for unauthenticated use.</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-name">user</td>
+                                    <td class="p-type">str | None</td>
+                                    <td><span class="opt-badge">optional</span></td>
+                                    <td class="p-desc">Brand account channel ID. Use when your Google account manages multiple YouTube channels.</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-name">requests_session</td>
+                                    <td class="p-type">bool</td>
+                                    <td><span class="opt-badge">optional</span></td>
+                                    <td class="p-desc">Reuse HTTP session across requests for performance. Default <code>True</code>.</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-name">proxies</td>
+                                    <td class="p-type">Dict[str,str] | None</td>
+                                    <td><span class="opt-badge">optional</span></td>
+                                    <td class="p-desc">Proxy config passed to <code>requests</code>, e.g. <code>{'http': 'http://proxy:8080'}</code>.</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-name">language</td>
+                                    <td class="p-type">str</td>
+                                    <td><span class="opt-badge">optional</span></td>
+                                    <td class="p-desc">
+                                        BCP-47 language code for response data. Default <code>'en'</code>. See <code>ytmusicapi/locales/</code> for supported values.
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="p-name">location</td>
+                                    <td class="p-type">str</td>
+                                    <td><span class="opt-badge">optional</span></td>
+                                    <td class="p-desc">ISO 3166-1 country code to override server-determined location, e.g. <code>'IN'</code>, <code>'US'</code>.</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ========== SEARCH ========== -->
+                <div class="doc-section" id="search">
+                    <div class="section-title">Search</div>
+
+                    <div class="method">
+                        <div class="method-head">
+                            <div>
+                                <div class="method-name"><span class="cls-name">yt.</span>search</div>
+                            </div>
+                            <span class="method-badge badge-open">no auth needed</span>
+                        </div>
+                        <div class="method-body">
+                            <p class="method-desc">Search YouTube Music. Returns mixed results or filtered by type. The primary entry point for finding content to play.</p>
+
+                            <div class="sig-block">
+                                <span class="sig-fn">search</span>(<span class="sig-param">query</span><span class="sig-type">: str</span>, <span class="sig-param">filter</span
+                                ><span class="sig-default">: str | None = None</span>, <span class="sig-param">scope</span><span class="sig-default">: str | None = None</span>,
+                                <span class="sig-param">limit</span><span class="sig-default">: int = 20</span>, <span class="sig-param">ignore_spelling</span
+                                ><span class="sig-default">: bool = False</span>) <span class="sig-ret">→ List[Dict]</span>
+                            </div>
+
+                            <div class="params-label">Parameters</div>
+                            <table class="params">
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th></th>
+                                    <th>Description</th>
+                                </tr>
+                                <tr>
+                                    <td class="p-name">query</td>
+                                    <td class="p-type">str</td>
+                                    <td><span class="req-badge">required</span></td>
+                                    <td class="p-desc">Search query string.</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-name">filter</td>
+                                    <td class="p-type">str | None</td>
+                                    <td><span class="opt-badge">optional</span></td>
+                                    <td class="p-desc">
+                                        Restrict results to one type: <code>songs</code> · <code>videos</code> · <code>albums</code> · <code>artists</code> ·
+                                        <code>playlists</code> · <code>community_playlists</code> · <code>featured_playlists</code> · <code>uploads</code>. Omit for mixed results.
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="p-name">scope</td>
+                                    <td class="p-type">str | None</td>
+                                    <td><span class="opt-badge">optional</span></td>
+                                    <td class="p-desc">Restrict to <code>'library'</code> or <code>'uploads'</code> (authenticated only).</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-name">limit</td>
+                                    <td class="p-type">int</td>
+                                    <td><span class="opt-badge">optional</span></td>
+                                    <td class="p-desc">Maximum number of results. Default <code>20</code>.</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-name">ignore_spelling</td>
+                                    <td class="p-type">bool</td>
+                                    <td><span class="opt-badge">optional</span></td>
+                                    <td class="p-desc">Disable autocorrect. Default <code>False</code>.</td>
+                                </tr>
+                            </table>
+
+                            <div class="returns-block">
+                                <strong>Returns</strong>
+                                List of result dicts. Each has <code>resultType</code> (<code>'song'</code>, <code>'video'</code>, <code>'album'</code>, <code>'artist'</code>,
+                                <code>'playlist'</code>), <code>videoId</code>/<code>browseId</code>/<code>playlistId</code>, <code>title</code>, <code>artists</code>,
+                                <code>album</code>, <code>duration</code>, <code>thumbnails</code>, <code>isExplicit</code>.
+                            </div>
+
+                            <div class="example-label">Example</div>
+                            <pre><span class="var">results</span> = <span class="var">yt</span>.<span class="fn">search</span>(<span class="str">'Daft Punk', filter=<span class="str">'songs'</span>, limit=<span class="num">10</span>)
+
+<span class="kw">for</span> <span class="var">r</span> <span class="kw">in</span> <span class="var">results</span>:
+    <span class="fn">print</span>(<span class="var">r</span>[<span class="str">'videoId'</span>], <span class="var">r</span>[<span class="str">'title'</span>], <span class="var">r</span>[<span class="str">'artists'</span>][<span class="num">0</span>][<span class="str">'name'</span>])
+
+<span class="cm"># result shape (songs filter):</span>
+<span class="cm"># {</span>
+<span class="cm">#   "resultType": "song",</span>
+<span class="cm">#   "videoId": "5NV6Rdv1h3I",</span>
+<span class="cm">#   "title": "Get Lucky",</span>
+<span class="cm">#   "artists": [{"name": "Daft Punk", "id": "UCWjnMTMBtT1D3ZNNFZ..."}],</span>
+<span class="cm">#   "album": {"name": "Random Access Memories", "id": "MPREb_..."},</span>
+<span class="cm">#   "duration": "6:08",</span>
+<span class="cm">#   "thumbnails": [{"url": "https://...", "width": 226, "height": 226}],</span>
+<span class="cm">#   "isExplicit": false</span>
+<span class="cm"># }</span></span></pre>
+                        </div>
+                    </div>
+
+                    <div class="method" id="suggestions">
+                        <div class="method-head">
+                            <div>
+                                <div class="method-name"><span class="cls-name">yt.</span>get_search_suggestions</div>
+                            </div>
+                            <span class="method-badge badge-open">no auth needed</span>
+                        </div>
+                        <div class="method-body">
+                            <p class="method-desc">Returns autocomplete suggestions for a partial query. Use this to power a live search box.</p>
+
+                            <div class="sig-block">
+                                <span class="sig-fn">get_search_suggestions</span>(<span class="sig-param">query</span><span class="sig-type">: str</span>,
+                                <span class="sig-param">detailed_runs</span><span class="sig-default">: bool = False</span>) <span class="sig-ret">→ List[str] | List[Dict]</span>
+                            </div>
+
+                            <div class="params-label">Parameters</div>
+                            <table class="params">
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th></th>
+                                    <th>Description</th>
+                                </tr>
+                                <tr>
+                                    <td class="p-name">query</td>
+                                    <td class="p-type">str</td>
+                                    <td><span class="req-badge">required</span></td>
+                                    <td class="p-desc">Partial query string.</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-name">detailed_runs</td>
+                                    <td class="p-type">bool</td>
+                                    <td><span class="opt-badge">optional</span></td>
+                                    <td class="p-desc">
+                                        If <code>True</code>, returns run objects with <code>text</code> and <code>bold</code> fields for rendering highlighted suggestions.
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <div class="returns-block">
+                                <strong>Returns</strong>
+                                List of suggestion strings. If <code>detailed_runs=True</code>, list of dicts with <code>text</code> (str) and <code>runs</code> (list of
+                                <code>{text, bold}</code>).
+                            </div>
+
+                            <div class="example-label">Example</div>
+                            <pre><span class="var">suggestions</span> = <span class="var">yt</span>.<span class="fn">get_search_suggestions</span>(<span class="str">'daft p'</span>)
+<span class="cm"># ['Daft Punk', 'Daft Punk - Get Lucky', 'Daft Punk discovery', ...]</span>
+
+<span class="cm"># with bold-run highlights for a search-as-you-type UI:</span>
+<span class="var">detailed</span> = <span class="var">yt</span>.<span class="fn">get_search_suggestions</span>(<span class="str">'daft p'</span>, detailed_runs=<span class="kw">True</span>)
+<span class="cm"># [{"text": "Daft Punk", "runs": [{"text": "daft p", "bold": true}, {"text": "unk", "bold": false}]}, ...]</span></pre>
+                        </div>
+                    </div>
+
+                    <div class="method" id="remove-suggestions">
+                        <div class="method-head">
+                            <div>
+                                <div class="method-name"><span class="cls-name">yt.</span>remove_search_suggestions</div>
+                            </div>
+                            <span class="method-badge badge-auth">auth required</span>
+                        </div>
+                        <div class="method-body">
+                            <p class="method-desc">Remove one or more items from the user's search suggestion history.</p>
+
+                            <div class="sig-block">
+                                <span class="sig-fn">remove_search_suggestions</span>(<span class="sig-param">suggestions</span><span class="sig-type">: List[Dict]</span>)
+                                <span class="sig-ret">→ bool</span>
+                            </div>
+
+                            <div class="returns-block">
+                                <strong>Returns</strong>
+                                <code>True</code> if successful.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ========== BROWSING ========== -->
+                <div class="doc-section">
+                    <div class="section-title">Browsing</div>
+
+                    <div class="method" id="get-home">
+                        <div class="method-head">
+                            <div>
+                                <div class="method-name"><span class="cls-name">yt.</span>get_home</div>
+                            </div>
+                            <span class="method-badge badge-open">no auth needed</span>
+                        </div>
+                        <div class="method-body">
+                            <p class="method-desc">
+                                Returns the YouTube Music home feed — curated shelves of playlists and albums based on your listening history (or generic when unauthenticated).
+                            </p>
+
+                            <div class="sig-block">
+                                <span class="sig-fn">get_home</span>(<span class="sig-param">limit</span><span class="sig-default">: int = 3</span>)
+                                <span class="sig-ret">→ List[Dict]</span>
+                            </div>
+
+                            <div class="params-label">Parameters</div>
+                            <table class="params">
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th></th>
+                                    <th>Description</th>
+                                </tr>
+                                <tr>
+                                    <td class="p-name">limit</td>
+                                    <td class="p-type">int</td>
+                                    <td><span class="opt-badge">optional</span></td>
+                                    <td class="p-desc">Number of shelves to load. Default <code>3</code>.</td>
+                                </tr>
+                            </table>
+
+                            <div class="returns-block">
+                                <strong>Returns</strong>
+                                List of shelf dicts: <code>{title: str, contents: List[{title, browseId, thumbnails, ...}]}</code>
+                            </div>
+
+                            <div class="example-label">Example</div>
+                            <pre><span class="var">home</span> = <span class="var">yt</span>.<span class="fn">get_home</span>(limit=<span class="num">5</span>)
+<span class="kw">for</span> <span class="var">shelf</span> <span class="kw">in</span> <span class="var">home</span>:
+    <span class="fn">print</span>(<span class="var">shelf</span>[<span class="str">'title'</span>])          <span class="cm"># e.g. "Quick picks", "Recommended albums"</span>
+    <span class="kw">for</span> <span class="var">item</span> <span class="kw">in</span> <span class="var">shelf</span>[<span class="str">'contents'</span>]:
+        <span class="fn">print</span>(<span class="str">' -'</span>, <span class="var">item</span>[<span class="str">'title'</span>])</pre>
+                        </div>
+                    </div>
+
+                    <div class="method" id="get-artist">
+                        <div class="method-head">
+                            <div>
+                                <div class="method-name"><span class="cls-name">yt.</span>get_artist</div>
+                            </div>
+                            <span class="method-badge badge-open">no auth needed</span>
+                        </div>
+                        <div class="method-body">
+                            <p class="method-desc">Returns complete artist page data including top songs, albums, singles, and related artists.</p>
+
+                            <div class="sig-block">
+                                <span class="sig-fn">get_artist</span>(<span class="sig-param">channelId</span><span class="sig-type">: str</span>)
+                                <span class="sig-ret">→ Dict</span>
+                            </div>
+
+                            <div class="params-label">Parameters</div>
+                            <table class="params">
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th></th>
+                                    <th>Description</th>
+                                </tr>
+                                <tr>
+                                    <td class="p-name">channelId</td>
+                                    <td class="p-type">str</td>
+                                    <td><span class="req-badge">required</span></td>
+                                    <td class="p-desc">Artist channel ID. Get this from <code>search(filter='artists')</code> results.</td>
+                                </tr>
+                            </table>
+
+                            <div class="returns-block">
+                                <strong>Returns</strong>
+                                Dict with <code>name</code>, <code>description</code>, <code>views</code>, <code>subscribers</code>, <code>thumbnails</code>,
+                                <code>songs.results[]</code>, <code>albums.results[]</code>, <code>singles.results[]</code>, <code>related.results[]</code>.
+                            </div>
+
+                            <div class="example-label">Example</div>
+                            <pre><span class="var">artist</span> = <span class="var">yt</span>.<span class="fn">get_artist</span>(<span class="str">'UCiMhD4jzUqG-IgPzUmmytRQ'</span>)
+<span class="fn">print</span>(<span class="var">artist</span>[<span class="str">'name'</span>], <span class="var">artist</span>[<span class="str">'subscribers'</span>])
+
+<span class="kw">for</span> <span class="var">song</span> <span class="kw">in</span> <span class="var">artist</span>[<span class="str">'songs'</span>][<span class="str">'results'</span>]:
+    <span class="fn">print</span>(<span class="var">song</span>[<span class="str">'videoId'</span>], <span class="var">song</span>[<span class="str">'title'</span>])</pre>
+                        </div>
+                    </div>
+
+                    <div class="method" id="get-artist-albums">
+                        <div class="method-head">
+                            <div>
+                                <div class="method-name"><span class="cls-name">yt.</span>get_artist_albums</div>
+                            </div>
+                            <span class="method-badge badge-open">no auth needed</span>
+                        </div>
+                        <div class="method-body">
+                            <p class="method-desc">
+                                Fetches the full list of albums or singles for an artist. Call this when the artist page shows a "see all" link (browse token present).
+                            </p>
+
+                            <div class="sig-block">
+                                <span class="sig-fn">get_artist_albums</span>(<span class="sig-param">channelId</span><span class="sig-type">: str</span>,
+                                <span class="sig-param">params</span><span class="sig-type">: str</span>) <span class="sig-ret">→ List[Dict]</span>
+                            </div>
+
+                            <div class="params-label">Parameters</div>
+                            <table class="params">
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th></th>
+                                    <th>Description</th>
+                                </tr>
+                                <tr>
+                                    <td class="p-name">channelId</td>
+                                    <td class="p-type">str</td>
+                                    <td><span class="req-badge">required</span></td>
+                                    <td class="p-desc">Artist channel ID.</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-name">params</td>
+                                    <td class="p-type">str</td>
+                                    <td><span class="req-badge">required</span></td>
+                                    <td class="p-desc"><code>params</code> token from <code>get_artist()['albums']['params']</code> or <code>['singles']['params']</code>.</td>
+                                </tr>
+                            </table>
+
+                            <div class="returns-block">
+                                <strong>Returns</strong>
+                                List of album dicts: <code>{title, browseId, year, thumbnails, isExplicit}</code>
+                            </div>
+
+                            <div class="example-label">Example</div>
+                            <pre><span class="var">artist</span> = <span class="var">yt</span>.<span class="fn">get_artist</span>(<span class="str">'UCiMhD4jzUqG-IgPzUmmytRQ'</span>)
+<span class="var">params</span> = <span class="var">artist</span>[<span class="str">'albums'</span>][<span class="str">'params'</span>]
+<span class="var">all_albums</span> = <span class="var">yt</span>.<span class="fn">get_artist_albums</span>(<span class="str">'UCiMhD4jzUqG-IgPzUmmytRQ'</span>, <span class="var">params</span>)</pre>
+                        </div>
+                    </div>
+
+                    <div class="method" id="get-album">
+                        <div class="method-head">
+                            <div>
+                                <div class="method-name"><span class="cls-name">yt.</span>get_album</div>
+                            </div>
+                            <span class="method-badge badge-open">no auth needed</span>
+                        </div>
+                        <div class="method-body">
+                            <p class="method-desc">Returns full album metadata and its complete track listing.</p>
+
+                            <div class="sig-block">
+                                <span class="sig-fn">get_album</span>(<span class="sig-param">browseId</span><span class="sig-type">: str</span>)
+                                <span class="sig-ret">→ Dict</span>
+                            </div>
+
+                            <div class="params-label">Parameters</div>
+                            <table class="params">
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th></th>
+                                    <th>Description</th>
+                                </tr>
+                                <tr>
+                                    <td class="p-name">browseId</td>
+                                    <td class="p-type">str</td>
+                                    <td><span class="req-badge">required</span></td>
+                                    <td class="p-desc">Album browse ID. Starts with <code>MPREb_</code>. Get from search results or <code>get_album_browse_id()</code>.</td>
+                                </tr>
+                            </table>
+
+                            <div class="returns-block">
+                                <strong>Returns</strong>
+                                Dict with <code>title</code>, <code>artists[]</code>, <code>year</code>, <code>duration</code>, <code>trackCount</code>, <code>description</code>,
+                                <code>thumbnails[]</code>, <code>tracks[]</code>. Each track has <code>videoId</code>, <code>title</code>, <code>trackNumber</code>,
+                                <code>duration</code>, <code>isExplicit</code>, <code>feedbackTokens</code>.
+                            </div>
+
+                            <div class="example-label">Example</div>
+                            <pre><span class="var">album</span> = <span class="var">yt</span>.<span class="fn">get_album</span>(<span class="str">'MPREb_9nqEki4ZDpp'</span>)
+<span class="fn">print</span>(<span class="var">album</span>[<span class="str">'title'</span>], <span class="var">album</span>[<span class="str">'year'</span>], <span class="str">f"</span>{<span class="var">album</span>[<span class="str">'trackCount'</span>]}<span class="str"> tracks"</span>)
+
+<span class="kw">for</span> <span class="var">track</span> <span class="kw">in</span> <span class="var">album</span>[<span class="str">'tracks'</span>]:
+    <span class="fn">print</span>(<span class="var">track</span>[<span class="str">'trackNumber'</span>], <span class="var">track</span>[<span class="str">'title'</span>], <span class="var">track</span>[<span class="str">'videoId'</span>])</pre>
+                        </div>
+                    </div>
+
+                    <div class="method" id="get-album-browse-id">
+                        <div class="method-head">
+                            <div>
+                                <div class="method-name"><span class="cls-name">yt.</span>get_album_browse_id</div>
+                            </div>
+                            <span class="method-badge badge-open">no auth needed</span>
+                        </div>
+                        <div class="method-body">
+                            <p class="method-desc">Converts an audio playlist ID (format <code>OLAK5uy_...</code>) to the browseId format needed by <code>get_album()</code>.</p>
+
+                            <div class="sig-block">
+                                <span class="sig-fn">get_album_browse_id</span>(<span class="sig-param">audioPlaylistId</span><span class="sig-type">: str</span>)
+                                <span class="sig-ret">→ str | None</span>
+                            </div>
+
+                            <div class="example-label">Example</div>
+                            <pre><span class="var">browse_id</span> = <span class="var">yt</span>.<span class="fn">get_album_browse_id</span>(<span class="str">'OLAK5uy_nbdczNSGGNu1a_LjKnXI5AZMkol4K0i4M'</span>)
+<span class="var">album</span> = <span class="var">yt</span>.<span class="fn">get_album</span>(<span class="var">browse_id</span>)</pre>
+                        </div>
+                    </div>
+
+                    <div class="method" id="get-song">
+                        <div class="method-head">
+                            <div>
+                                <div class="method-name"><span class="cls-name">yt.</span>get_song</div>
+                            </div>
+                            <span class="method-badge badge-open">no auth needed</span>
+                        </div>
+                        <div class="method-body">
+                            <p class="method-desc">Returns metadata and adaptive streaming URLs for a song or video. This is what you call to get playable audio stream URLs.</p>
+
+                            <div class="note warn">
+                                Streaming URLs expire after ~6 hours and may require cipher decoding. For reliable playback consider using <code>yt-dlp</code> alongside ytmusicapi
+                                for stream extraction.
+                            </div>
+
+                            <div class="sig-block">
+                                <span class="sig-fn">get_song</span>(<span class="sig-param">videoId</span><span class="sig-type">: str</span>,
+                                <span class="sig-param">signatureTimestamp</span><span class="sig-default">: int | None = None</span>) <span class="sig-ret">→ Dict</span>
+                            </div>
+
+                            <div class="params-label">Parameters</div>
+                            <table class="params">
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th></th>
+                                    <th>Description</th>
+                                </tr>
+                                <tr>
+                                    <td class="p-name">videoId</td>
+                                    <td class="p-type">str</td>
+                                    <td><span class="req-badge">required</span></td>
+                                    <td class="p-desc">YouTube video ID.</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-name">signatureTimestamp</td>
+                                    <td class="p-type">int | None</td>
+                                    <td><span class="opt-badge">optional</span></td>
+                                    <td class="p-desc">
+                                        Current YouTube signature timestamp. Omit to use library default; providing an outdated value may produce invalid stream URLs.
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <div class="returns-block">
+                                <strong>Returns</strong>
+                                Dict with <code>videoDetails</code> (title, author, lengthSeconds, viewCount), <code>playabilityStatus</code>, and
+                                <code>streamingData.adaptiveFormats[]</code>. Each format has <code>itag</code>, <code>url</code>, <code>mimeType</code>, <code>bitrate</code>,
+                                <code>audioQuality</code>, <code>contentLength</code>.
+                            </div>
+
+                            <div class="example-label">Example</div>
+                            <pre><span class="var">song</span> = <span class="var">yt</span>.<span class="fn">get_song</span>(<span class="str">'4y33h81phKU'</span>)
+
+<span class="cm"># filter to audio-only formats</span>
+<span class="var">audio_formats</span> = [
+    <span class="var">f</span> <span class="kw">for</span> <span class="var">f</span> <span class="kw">in</span> <span class="var">song</span>[<span class="str">'streamingData'</span>][<span class="str">'adaptiveFormats'</span>]
+    <span class="kw">if</span> <span class="str">'audio'</span> <span class="kw">in</span> <span class="var">f</span>[<span class="str">'mimeType'</span>]
+]
+
+<span class="cm"># sort by bitrate, pick highest quality</span>
+<span class="var">best</span> = <span class="fn">sorted</span>(<span class="var">audio_formats</span>, key=<span class="kw">lambda</span> <span class="var">x</span>: <span class="var">x</span>[<span class="str">'bitrate'</span>])[-<span class="num">1</span>]
+<span class="fn">print</span>(<span class="var">best</span>[<span class="str">'mimeType'</span>], <span class="var">best</span>[<span class="str">'audioQuality'</span>])
+<span class="fn">print</span>(<span class="var">best</span>[<span class="str">'url'</span>])  <span class="cm"># pass to audio player / requests / ffmpeg</span>
+
+<span class="cm"># common audio itags: 140 = m4a/128kbps, 251 = webm/opus/160kbps</span></pre>
+                        </div>
+                    </div>
+
+                    <div class="method" id="get-lyrics">
+                        <div class="method-head">
+                            <div>
+                                <div class="method-name"><span class="cls-name">yt.</span>get_lyrics</div>
+                            </div>
+                            <span class="method-badge badge-open">no auth needed</span>
+                        </div>
+                        <div class="method-body">
+                            <p class="method-desc">
+                                Fetches lyrics for a song. The <code>browseId</code> must come from <code>get_watch_playlist()</code>'s <code>lyrics</code> key.
+                            </p>
+
+                            <div class="sig-block">
+                                <span class="sig-fn">get_lyrics</span>(<span class="sig-param">browseId</span><span class="sig-type">: str</span>,
+                                <span class="sig-param">timestamps</span><span class="sig-default">: bool = False</span>) <span class="sig-ret">→ Dict | None</span>
+                            </div>
+
+                            <div class="params-label">Parameters</div>
+                            <table class="params">
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th></th>
+                                    <th>Description</th>
+                                </tr>
+                                <tr>
+                                    <td class="p-name">browseId</td>
+                                    <td class="p-type">str</td>
+                                    <td><span class="req-badge">required</span></td>
+                                    <td class="p-desc">Lyrics browse ID from <code>get_watch_playlist()['lyrics']</code>.</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-name">timestamps</td>
+                                    <td class="p-type">bool</td>
+                                    <td><span class="opt-badge">optional</span></td>
+                                    <td class="p-desc">Return timed lyrics (LRC-style) when available. Default <code>False</code>.</td>
+                                </tr>
+                            </table>
+
+                            <div class="returns-block">
+                                <strong>Returns</strong>
+                                <code>{lyrics: str, source: str}</code> — or <code>TimedLyrics</code> with <code>.lyrics</code> (list of <code>LyricLine</code> with
+                                <code>text</code>, <code>start_time</code>, <code>end_time</code>) when <code>timestamps=True</code>. Returns <code>None</code> if no lyrics
+                                available.
+                            </div>
+
+                            <div class="example-label">Example</div>
+                            <pre><span class="var">watch</span> = <span class="var">yt</span>.<span class="fn">get_watch_playlist</span>(videoId=<span class="str">'4y33h81phKU'</span>)
+<span class="var">lyrics_id</span> = <span class="var">watch</span>.get(<span class="str">'lyrics'</span>)
+
+<span class="kw">if</span> <span class="var">lyrics_id</span>:
+    <span class="var">lyrics</span> = <span class="var">yt</span>.<span class="fn">get_lyrics</span>(<span class="var">lyrics_id</span>)
+    <span class="fn">print</span>(<span class="var">lyrics</span>[<span class="str">'lyrics'</span>])
+    <span class="fn">print</span>(<span class="str">'Source:'</span>, <span class="var">lyrics</span>[<span class="str">'source'</span>])
+
+<span class="cm"># timed lyrics for karaoke / synced display:</span>
+<span class="var">timed</span> = <span class="var">yt</span>.<span class="fn">get_lyrics</span>(<span class="var">lyrics_id</span>, timestamps=<span class="kw">True</span>)
+<span class="kw">for</span> <span class="var">line</span> <span class="kw">in</span> <span class="var">timed</span>.<span class="var">lyrics</span>:
+    <span class="fn">print</span>(<span class="var">line</span>.<span class="var">start_time</span>, <span class="var">line</span>.<span class="var">text</span>)</pre>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ========== PLAYBACK ========== -->
+                <div class="doc-section">
+                    <div class="section-title">Playback Queues</div>
+
+                    <div class="method" id="get-watch-playlist">
+                        <div class="method-head">
+                            <div>
+                                <div class="method-name"><span class="cls-name">yt.</span>get_watch_playlist</div>
+                            </div>
+                            <span class="method-badge badge-open">no auth needed</span>
+                        </div>
+                        <div class="method-body">
+                            <p class="method-desc">
+                                Returns the playback queue that appears when you press play on a song in YouTube Music. Also returns the lyrics browse ID. Core method for building
+                                an "up next" queue.
+                            </p>
+
+                            <div class="note tip">
+                                This is the starting point for the playback flow: call this → get track list → call <code>get_song(videoId)</code> for stream URLs → call
+                                <code>get_lyrics()</code> for lyrics.
+                            </div>
+
+                            <div class="sig-block">
+                                <span class="sig-fn">get_watch_playlist</span>(<span class="sig-param">videoId</span><span class="sig-default">: str | None = None</span>,
+                                <span class="sig-param">playlistId</span><span class="sig-default">: str | None = None</span>, <span class="sig-param">limit</span
+                                ><span class="sig-default">: int = 25</span>, <span class="sig-param">params</span><span class="sig-default">: str | None = None</span>)
+                                <span class="sig-ret">→ Dict</span>
+                            </div>
+
+                            <div class="params-label">Parameters</div>
+                            <table class="params">
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th></th>
+                                    <th>Description</th>
+                                </tr>
+                                <tr>
+                                    <td class="p-name">videoId</td>
+                                    <td class="p-type">str | None</td>
+                                    <td><span class="opt-badge">optional</span></td>
+                                    <td class="p-desc">Seed track video ID. At least one of <code>videoId</code> or <code>playlistId</code> is required.</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-name">playlistId</td>
+                                    <td class="p-type">str | None</td>
+                                    <td><span class="opt-badge">optional</span></td>
+                                    <td class="p-desc">Playlist ID to generate queue from.</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-name">limit</td>
+                                    <td class="p-type">int</td>
+                                    <td><span class="opt-badge">optional</span></td>
+                                    <td class="p-desc">Maximum number of tracks in the queue. Default <code>25</code>.</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-name">params</td>
+                                    <td class="p-type">str | None</td>
+                                    <td><span class="opt-badge">optional</span></td>
+                                    <td class="p-desc">Optional params string for radio/shuffle mode variants.</td>
+                                </tr>
+                            </table>
+
+                            <div class="returns-block">
+                                <strong>Returns</strong>
+                                <code>{tracks: List[Dict], playlist: str, lyrics: str | None}</code>. Each track has <code>videoId</code>, <code>title</code>, <code>byline</code>,
+                                <code>length</code>, <code>thumbnail[]</code>, <code>likeStatus</code>, <code>feedbackTokens</code>.
+                            </div>
+
+                            <div class="example-label">Example</div>
+                            <pre><span class="var">queue</span> = <span class="var">yt</span>.<span class="fn">get_watch_playlist</span>(videoId=<span class="str">'4y33h81phKU'</span>, limit=<span class="num">50</span>)
+
+<span class="fn">print</span>(<span class="str">'Queue playlist ID:'</span>, <span class="var">queue</span>[<span class="str">'playlist'</span>])
+<span class="fn">print</span>(<span class="str">'Lyrics ID:'</span>, <span class="var">queue</span>[<span class="str">'lyrics'</span>])
+
+<span class="kw">for</span> <span class="var">track</span> <span class="kw">in</span> <span class="var">queue</span>[<span class="str">'tracks'</span>]:
+    <span class="fn">print</span>(<span class="var">track</span>[<span class="str">'title'</span>], <span class="str">'-'</span>, <span class="var">track</span>[<span class="str">'byline'</span>], <span class="var">track</span>[<span class="str">'length'</span>])
+
+<span class="cm"># full playback flow:</span>
+<span class="var">first_track</span> = <span class="var">queue</span>[<span class="str">'tracks'</span>][<span class="num">0</span>]
+<span class="var">song_data</span>   = <span class="var">yt</span>.<span class="fn">get_song</span>(<span class="var">first_track</span>[<span class="str">'videoId'</span>])
+<span class="var">lyrics_data</span> = <span class="var">yt</span>.<span class="fn">get_lyrics</span>(<span class="var">queue</span>[<span class="str">'lyrics'</span>]) <span class="kw">if</span> <span class="var">queue</span>[<span class="str">'lyrics'</span>] <span class="kw">else</span> <span class="kw">None</span></pre>
+                        </div>
+                    </div>
+
+                    <div class="method" id="get-watch-shuffle">
+                        <div class="method-head">
+                            <div>
+                                <div class="method-name"><span class="cls-name">yt.</span>get_watch_playlist_shuffle</div>
+                            </div>
+                            <span class="method-badge badge-open">no auth needed</span>
+                        </div>
+                        <div class="method-body">
+                            <p class="method-desc">Same as <code>get_watch_playlist()</code> but returns tracks in a shuffled order.</p>
+
+                            <div class="sig-block">
+                                <span class="sig-fn">get_watch_playlist_shuffle</span>(<span class="sig-param">videoId</span><span class="sig-default">: str | None = None</span>,
+                                <span class="sig-param">playlistId</span><span class="sig-default">: str | None = None</span>, <span class="sig-param">limit</span
+                                ><span class="sig-default">: int = 50</span>) <span class="sig-ret">→ Dict</span>
+                            </div>
+
+                            <div class="returns-block">
+                                <strong>Returns</strong>
+                                Same structure as <code>get_watch_playlist()</code>.
+                            </div>
+
+                            <div class="example-label">Example</div>
+                            <pre><span class="var">shuffled</span> = <span class="var">yt</span>.<span class="fn">get_watch_playlist_shuffle</span>(playlistId=<span class="str">'PLQwVIlKxHM6rz0fDJVv_0UlXGEWf-bFys'</span>)
+<span class="kw">for</span> <span class="var">t</span> <span class="kw">in</span> <span class="var">shuffled</span>[<span class="str">'tracks'</span>]:
+    <span class="fn">print</span>(<span class="var">t</span>[<span class="str">'title'</span>])</pre>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ========== LIBRARY ========== -->
+                <div class="doc-section">
+                    <div class="section-title">Library</div>
+
+                    <div class="method" id="get-library-playlists">
+                        <div class="method-head">
+                            <div>
+                                <div class="method-name"><span class="cls-name">yt.</span>get_library_playlists</div>
+                            </div>
+                            <span class="method-badge badge-auth">auth required</span>
+                        </div>
+                        <div class="method-body">
+                            <p class="method-desc">Returns all playlists saved to the user's library.</p>
+
+                            <div class="sig-block">
+                                <span class="sig-fn">get_library_playlists</span>(<span class="sig-param">limit</span><span class="sig-default">: int = 25</span>)
+                                <span class="sig-ret">→ List[Dict]</span>
+                            </div>
+
+                            <div class="returns-block">
+                                <strong>Returns</strong>
+                                List of <code>{playlistId, title, thumbnails[], count}</code>
+                            </div>
+
+                            <div class="example-label">Example</div>
+                            <pre><span class="var">playlists</span> = <span class="var">yt</span>.<span class="fn">get_library_playlists</span>(limit=<span class="num">50</span>)
+<span class="kw">for</span> <span class="var">pl</span> <span class="kw">in</span> <span class="var">playlists</span>:
+    <span class="fn">print</span>(<span class="var">pl</span>[<span class="str">'playlistId'</span>], <span class="var">pl</span>[<span class="str">'title'</span>], <span class="var">pl</span>[<span class="str">'count'</span>], <span class="str">'tracks'</span>)</pre>
+                        </div>
+                    </div>
+
+                    <div class="method" id="get-library-songs">
+                        <div class="method-head">
+                            <div>
+                                <div class="method-name"><span class="cls-name">yt.</span>get_library_songs</div>
+                            </div>
+                            <span class="method-badge badge-auth">auth required</span>
+                        </div>
+                        <div class="method-body">
+                            <p class="method-desc">Returns songs saved in the user's library. Does not include liked videos.</p>
+
+                            <div class="sig-block">
+                                <span class="sig-fn">get_library_songs</span>(<span class="sig-param">limit</span><span class="sig-default">: int = 25</span>,
+                                <span class="sig-param">validate_responses</span><span class="sig-default">: bool = False</span>, <span class="sig-param">order</span
+                                ><span class="sig-default">: str | None = None</span>) <span class="sig-ret">→ List[Dict]</span>
+                            </div>
+
+                            <div class="params-label">Parameters</div>
+                            <table class="params">
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th></th>
+                                    <th>Description</th>
+                                </tr>
+                                <tr>
+                                    <td class="p-name">limit</td>
+                                    <td class="p-type">int</td>
+                                    <td><span class="opt-badge">optional</span></td>
+                                    <td class="p-desc">Max results.</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-name">validate_responses</td>
+                                    <td class="p-type">bool</td>
+                                    <td><span class="opt-badge">optional</span></td>
+                                    <td class="p-desc">Re-fetch if response count doesn't match expected. Useful for large libraries.</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-name">order</td>
+                                    <td class="p-type">str | None</td>
+                                    <td><span class="opt-badge">optional</span></td>
+                                    <td class="p-desc"><code>'a_to_z'</code> · <code>'z_to_a'</code> · <code>'recently_added'</code></td>
+                                </tr>
+                            </table>
+
+                            <div class="returns-block">
+                                <strong>Returns</strong>
+                                List of track dicts: <code>videoId</code>, <code>title</code>, <code>artists[]</code>, <code>album</code>, <code>duration</code>,
+                                <code>likeStatus</code>, <code>feedbackTokens</code>, <code>thumbnails[]</code>.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="method" id="get-library-albums">
+                        <div class="method-head">
+                            <div>
+                                <div class="method-name"><span class="cls-name">yt.</span>get_library_albums</div>
+                            </div>
+                            <span class="method-badge badge-auth">auth required</span>
+                        </div>
+                        <div class="method-body">
+                            <p class="method-desc">Returns albums saved to the user's library.</p>
+
+                            <div class="sig-block">
+                                <span class="sig-fn">get_library_albums</span>(<span class="sig-param">limit</span><span class="sig-default">: int = 25</span>,
+                                <span class="sig-param">order</span><span class="sig-default">: str | None = None</span>) <span class="sig-ret">→ List[Dict]</span>
+                            </div>
+
+                            <div class="returns-block">
+                                <strong>Returns</strong>
+                                List of <code>{browseId, title, artists[], year, thumbnails[]}</code>. Pass <code>browseId</code> to <code>get_album()</code> to load tracks.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="method" id="get-library-artists">
+                        <div class="method-head">
+                            <div>
+                                <div class="method-name"><span class="cls-name">yt.</span>get_library_artists</div>
+                            </div>
+                            <span class="method-badge badge-auth">auth required</span>
+                        </div>
+                        <div class="method-body">
+                            <p class="method-desc">Returns artists subscribed to in the user's library.</p>
+
+                            <div class="sig-block">
+                                <span class="sig-fn">get_library_artists</span>(<span class="sig-param">limit</span><span class="sig-default">: int = 25</span>,
+                                <span class="sig-param">order</span><span class="sig-default">: str | None = None</span>) <span class="sig-ret">→ List[Dict]</span>
+                            </div>
+
+                            <div class="returns-block">
+                                <strong>Returns</strong>
+                                List of <code>{channelId, artist, subscribers, thumbnails[]}</code>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="method" id="get-liked-songs">
+                        <div class="method-head">
+                            <div>
+                                <div class="method-name"><span class="cls-name">yt.</span>get_liked_songs</div>
+                            </div>
+                            <span class="method-badge badge-auth">auth required</span>
+                        </div>
+                        <div class="method-body">
+                            <p class="method-desc">Returns the contents of the user's "Liked Songs" playlist.</p>
+
+                            <div class="sig-block">
+                                <span class="sig-fn">get_liked_songs</span>(<span class="sig-param">limit</span><span class="sig-default">: int = 100</span>)
+                                <span class="sig-ret">→ Dict</span>
+                            </div>
+
+                            <div class="returns-block">
+                                <strong>Returns</strong>
+                                Same structure as <code>get_playlist()</code>.
+                            </div>
+
+                            <div class="example-label">Example</div>
+                            <pre><span class="var">liked</span> = <span class="var">yt</span>.<span class="fn">get_liked_songs</span>(limit=<span class="num">500</span>)
+<span class="kw">for</span> <span class="var">track</span> <span class="kw">in</span> <span class="var">liked</span>[<span class="str">'tracks'</span>]:
+    <span class="fn">print</span>(<span class="var">track</span>[<span class="str">'title'</span>], <span class="var">track</span>[<span class="str">'videoId'</span>])</pre>
+                        </div>
+                    </div>
+                </div>
+
+                                <!-- ========== PLAYLISTS ========== -->
+                <div class="doc-section">
+                    <div class="section-title">Playlists</div>
+
+                    <div class="method" id="get-playlist">
+                        <div class="method-head">
+                            <div>
+                                <div class="method-name"><span class="cls-name">YTMusic.</span>get_playlist</div>
+                            </div>
+                            <span class="method-badge badge-open">no auth needed</span>
+                        </div>
+                        <div class="method-body">
+                            <p class="method-desc">Returns a dictionary with information about the playlist, including a list of playlist items in the <code>tracks</code> key.</p>
+
+                            <div class="sig-block">
+                                <span class="sig-fn">get_playlist</span>(<span class="sig-param">playlistId</span><span class="sig-type">: str</span>,
+                                <span class="sig-param">limit</span><span class="sig-default">: int | None = 100</span>, <span class="sig-param">related</span
+                                ><span class="sig-default">: bool = False</span>, <span class="sig-param">suggestions_limit</span><span class="sig-default">: int = 0</span>)
+                                <span class="sig-ret">→ dict[str, Any]</span>
+                            </div>
+
+                            <div class="params-label">Parameters</div>
+                            <table class="params">
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th></th>
+                                    <th>Description</th>
+                                </tr>
+                                <tr>
+                                    <td class="p-name">playlistId</td>
+                                    <td class="p-type">str</td>
+                                    <td><span class="req-badge">required</span></td>
+                                    <td class="p-desc">The unique ID of the playlist.</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-name">limit</td>
+                                    <td class="p-type">int | None</td>
+                                    <td><span class="opt-badge">optional</span></td>
+                                    <td class="p-desc">Number of songs to return (default is 100, <code>None</code> retrieves all).</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="method" id="create-playlist">
+                        <div class="method-head">
+                            <div>
+                                <div class="method-name"><span class="cls-name">YTMusic.</span>create_playlist</div>
+                            </div>
+                            <span class="method-badge badge-auth">auth required</span>
+                        </div>
+                        <div class="method-body">
+                            <p class="method-desc">Creates a new empty playlist (or initializes it with specific videos) and returns its ID.</p>
+
+                            <div class="sig-block">
+                                <span class="sig-fn">create_playlist</span>(<span class="sig-param">title</span><span class="sig-type">: str</span>,
+                                <span class="sig-param">description</span><span class="sig-type">: str</span>, <span class="sig-param">privacy_status</span
+                                ><span class="sig-default">: str = 'PRIVATE'</span>, <span class="sig-param">video_ids</span
+                                ><span class="sig-default">: list[str] | None = None</span>, <span class="sig-param">source_playlist</span
+                                ><span class="sig-default">: str | None = None</span>) <span class="sig-ret">→ str | dict[str, Any]</span>
+                            </div>
+
+                            <div class="params-label">Parameters</div>
+                            <table class="params">
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th></th>
+                                    <th>Description</th>
+                                </tr>
+                                <tr>
+                                    <td class="p-name">privacy_status</td>
+                                    <td class="p-type">str</td>
+                                    <td><span class="opt-badge">optional</span></td>
+                                    <td class="p-desc">Can be <code>PUBLIC</code>, <code>PRIVATE</code>, or <code>UNLISTED</code>.</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="method" id="edit-playlist">
+                        <div class="method-head">
+                            <div>
+                                <div class="method-name"><span class="cls-name">YTMusic.</span>edit_playlist</div>
+                            </div>
+                            <span class="method-badge badge-auth">auth required</span>
+                        </div>
+                        <div class="method-body">
+                            <p class="method-desc">Edit the title, description, or privacy status of an existing playlist. You can also move items within it or append another playlist to it.</p>
+
+                            <div class="sig-block">
+                                <span class="sig-fn">edit_playlist</span>(<span class="sig-param">playlistId</span><span class="sig-type">: str</span>,
+                                <span class="sig-param">title</span><span class="sig-default">: str | None = None</span>, <span class="sig-param">description</span
+                                ><span class="sig-default">: str | None = None</span>, <span class="sig-param">privacyStatus</span
+                                ><span class="sig-default">: str | None = None</span>, <span class="sig-param">moveItem</span
+                                ><span class="sig-default">: str | tuple[str, str] | None = None</span>, <span class="sig-param">addPlaylistId</span
+                                ><span class="sig-default">: str | None = None</span>, <span class="sig-param">addToTop</span
+                                ><span class="sig-default">: bool | None = None</span>) <span class="sig-ret">→ str | dict[str, Any]</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="method" id="delete-playlist">
+                        <div class="method-head">
+                            <div>
+                                <div class="method-name"><span class="cls-name">YTMusic.</span>delete_playlist</div>
+                            </div>
+                            <span class="method-badge badge-auth">auth required</span>
+                        </div>
+                        <div class="method-body">
+                            <p class="method-desc">Permanently deletes a playlist by its ID and returns the status string or full response.</p>
+
+                            <div class="sig-block">
+                                <span class="sig-fn">delete_playlist</span>(<span class="sig-param">playlistId</span><span class="sig-type">: str</span>)
+                                <span class="sig-ret">→ str | dict[str, Any]</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="method" id="add-playlist-items">
+                        <div class="method-head">
+                            <div>
+                                <div class="method-name"><span class="cls-name">YTMusic.</span>add_playlist_items</div>
+                            </div>
+                            <span class="method-badge badge-auth">auth required</span>
+                        </div>
+                        <div class="method-body">
+                            <p class="method-desc">Adds a list of songs (via video IDs) or an entire source playlist to an existing playlist.</p>
+
+                            <div class="sig-block">
+                                <span class="sig-fn">add_playlist_items</span>(<span class="sig-param">playlistId</span><span class="sig-type">: str</span>,
+                                <span class="sig-param">videoIds</span><span class="sig-default">: list[str] | None = None</span>, <span class="sig-param">source_playlist</span
+                                ><span class="sig-default">: str | None = None</span>, <span class="sig-param">duplicates</span><span class="sig-default">: bool = False</span>)
+                                <span class="sig-ret">→ str | dict[str, Any]</span>
+                            </div>
+
+                            <div class="params-label">Parameters</div>
+                            <table class="params">
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th></th>
+                                    <th>Description</th>
+                                </tr>
+                                <tr>
+                                    <td class="p-name">duplicates</td>
+                                    <td class="p-type">bool</td>
+                                    <td><span class="opt-badge">optional</span></td>
+                                    <td class="p-desc">If <code>False</code>, returns an error if duplicates exist and no items are added.</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="method" id="remove-playlist-items">
+                        <div class="method-head">
+                            <div>
+                                <div class="method-name"><span class="cls-name">YTMusic.</span>remove_playlist_items</div>
+                            </div>
+                            <span class="method-badge badge-auth">auth required</span>
+                        </div>
+                        <div class="method-body">
+                            <p class="method-desc">
+                                Removes specified songs from an existing playlist. The <code>videos</code> parameter must be a list of dictionaries containing both <code>videoId</code> and <code>setVideoId</code>.
+                            </p>
+
+                            <div class="sig-block">
+                                <span class="sig-fn">remove_playlist_items</span>(<span class="sig-param">playlistId</span><span class="sig-type">: str</span>,
+                                <span class="sig-param">videos</span><span class="sig-type">: list[dict[str, Any]]</span>) <span class="sig-ret">→ str | dict[str, Any]</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- ========== RATINGS ========== -->
+                <div class="doc-section">
+                    <div class="section-title">Ratings & Subscriptions</div>
+
+                    <div class="method" id="rate-song">
+                        <div class="method-head">
+                            <div>
+                                <div class="method-name"><span class="cls-name">yt.</span>rate_song</div>
+                            </div>
+                            <span class="method-badge badge-auth">auth required</span>
+                        </div>
+                        <div class="method-body">
+                            <p class="method-desc">Like or dislike a song. Maps to the thumbs up/down in YouTube Music.</p>
+
+                            <div class="sig-block">
+                                <span class="sig-fn">rate_song</span>(<span class="sig-param">videoId</span><span class="sig-type">: str</span>,
+                                <span class="sig-param">rating</span><span class="sig-default">: str = 'INDIFFERENT'</span>) <span class="sig-ret">→ Dict</span>
+                            </div>
+
+                            <div class="params-label">Parameters</div>
+                            <table class="params">
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th></th>
+                                    <th>Description</th>
+                                </tr>
+                                <tr>
+                                    <td class="p-name">videoId</td>
+                                    <td class="p-type">str</td>
+                                    <td><span class="req-badge">required</span></td>
+                                    <td class="p-desc">Video ID to rate.</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-name">rating</td>
+                                    <td class="p-type">str</td>
+                                    <td><span class="opt-badge">optional</span></td>
+                                    <td class="p-desc"><code>'LIKE'</code> · <code>'DISLIKE'</code> · <code>'INDIFFERENT'</code> (removes rating).</td>
+                                </tr>
+                            </table>
+
+                            <div class="example-label">Example</div>
+                            <pre><span class="var">yt</span>.<span class="fn">rate_song</span>(<span class="str">'4y33h81phKU'</span>, <span class="str">'LIKE'</span>)
+<span class="var">yt</span>.<span class="fn">rate_song</span>(<span class="str">'4y33h81phKU'</span>, <span class="str">'INDIFFERENT'</span>)  <span class="cm"># remove</span></pre>
+                        </div>
+                    </div>
+
+                    <div class="method" id="rate-playlist">
+                        <div class="method-head">
+                            <div>
+                                <div class="method-name"><span class="cls-name">yt.</span>rate_playlist</div>
+                            </div>
+                            <span class="method-badge badge-auth">auth required</span>
+                        </div>
+                        <div class="method-body">
+                            <p class="method-desc">Save or unsave a playlist/album to library. Disliking affects recommendations.</p>
+
+                            <div class="sig-block">
+                                <span class="sig-fn">rate_playlist</span>(<span class="sig-param">playlistId</span><span class="sig-type">: str</span>,
+                                <span class="sig-param">rating</span><span class="sig-default">: str = 'INDIFFERENT'</span>) <span class="sig-ret">→ Dict</span>
+                            </div>
+
+                            <div class="params-label">Parameters</div>
+                            <table class="params">
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th></th>
+                                    <th>Description</th>
+                                </tr>
+                                <tr>
+                                    <td class="p-name">playlistId</td>
+                                    <td class="p-type">str</td>
+                                    <td><span class="req-badge">required</span></td>
+                                    <td class="p-desc">Playlist or album ID.</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-name">rating</td>
+                                    <td class="p-type">str</td>
+                                    <td><span class="opt-badge">optional</span></td>
+                                    <td class="p-desc"><code>'LIKE'</code> (save to library) · <code>'DISLIKE'</code> · <code>'INDIFFERENT'</code> (remove from library).</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="method" id="subscribe-artists">
+                        <div class="method-head">
+                            <div>
+                                <div class="method-name"><span class="cls-name">yt.</span>subscribe_artists / unsubscribe_artists</div>
+                            </div>
+                            <span class="method-badge badge-auth">auth required</span>
+                        </div>
+                        <div class="method-body">
+                            <p class="method-desc">Subscribe to or unsubscribe from artist channels.</p>
+
+                            <div class="sig-block">
+                                <span class="sig-fn">subscribe_artists</span>(<span class="sig-param">channelIds</span><span class="sig-type">: List[str]</span>)
+                                <span class="sig-ret">→ Dict</span> <span class="sig-fn">unsubscribe_artists</span>(<span class="sig-param">channelIds</span
+                                ><span class="sig-type">: List[str]</span>) <span class="sig-ret">→ Dict</span>
+                            </div>
+
+                            <div class="example-label">Example</div>
+                            <pre><span class="var">yt</span>.<span class="fn">subscribe_artists</span>([<span class="str">'UCiMhD4jzUqG-IgPzUmmytRQ'</span>])
+<span class="var">yt</span>.<span class="fn">unsubscribe_artists</span>([<span class="str">'UCiMhD4jzUqG-IgPzUmmytRQ'</span>])</pre>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ========== HISTORY ========== -->
+                <div class="doc-section">
+                    <div class="section-title">Play History</div>
+
+                    <div class="method" id="get-history">
+                        <div class="method-head">
+                            <div>
+                                <div class="method-name"><span class="cls-name">yt.</span>get_history</div>
+                            </div>
+                            <span class="method-badge badge-auth">auth required</span>
+                        </div>
+                        <div class="method-body">
+                            <p class="method-desc">Returns the user's recently played songs.</p>
+
+                            <div class="sig-block"><span class="sig-fn">get_history</span>() <span class="sig-ret">→ List[Dict]</span></div>
+
+                            <div class="returns-block">
+                                <strong>Returns</strong>
+                                List of track dicts with <code>videoId</code>, <code>title</code>, <code>artists[]</code>, <code>album</code>, <code>duration</code>,
+                                <code>thumbnails[]</code>, <code>played</code> (date string), <code>feedbackToken</code>.
+                            </div>
+
+                            <div class="example-label">Example</div>
+                            <pre><span class="var">history</span> = <span class="var">yt</span>.<span class="fn">get_history</span>()
+<span class="kw">for</span> <span class="var">track</span> <span class="kw">in</span> <span class="var">history</span>[:<span class="num">10</span>]:
+    <span class="fn">print</span>(<span class="var">track</span>[<span class="str">'title'</span>], <span class="var">track</span>.get(<span class="str">'played'</span>))</pre>
+                        </div>
+                    </div>
+
+                    <div class="method" id="add-history-item">
+                        <div class="method-head">
+                            <div>
+                                <div class="method-name"><span class="cls-name">yt.</span>add_history_item</div>
+                            </div>
+                            <span class="method-badge badge-auth">auth required</span>
+                        </div>
+                        <div class="method-body">
+                            <p class="method-desc">Manually record a song as played. Pass the full song dict from <code>get_song()</code>.</p>
+
+                            <div class="sig-block">
+                                <span class="sig-fn">add_history_item</span>(<span class="sig-param">song</span><span class="sig-type">: Dict</span>)
+                                <span class="sig-ret">→ None</span>
+                            </div>
+
+                            <div class="example-label">Example</div>
+                            <pre><span class="var">song</span> = <span class="var">yt</span>.<span class="fn">get_song</span>(<span class="str">'4y33h81phKU'</span>)
+<span class="var">yt</span>.<span class="fn">add_history_item</span>(<span class="var">song</span>)</pre>
+                        </div>
+                    </div>
+
+                    <div class="method" id="remove-history-items">
+                        <div class="method-head">
+                            <div>
+                                <div class="method-name"><span class="cls-name">yt.</span>remove_history_items</div>
+                            </div>
+                            <span class="method-badge badge-auth">auth required</span>
+                        </div>
+                        <div class="method-body">
+                            <p class="method-desc">Remove items from play history by their feedback tokens.</p>
+
+                            <div class="sig-block">
+                                <span class="sig-fn">remove_history_items</span>(<span class="sig-param">feedbackTokens</span><span class="sig-type">: List[str]</span>)
+                                <span class="sig-ret">→ Dict</span>
+                            </div>
+
+                            <div class="note warn">Does not work with brand accounts.</div>
+
+                            <div class="example-label">Example</div>
+                            <pre><span class="var">history</span> = <span class="var">yt</span>.<span class="fn">get_history</span>()
+<span class="var">tokens</span> = [<span class="var">h</span>[<span class="str">'feedbackToken'</span>] <span class="kw">for</span> <span class="var">h</span> <span class="kw">in</span> <span class="var">history</span>[:<span class="num">5</span>]]
+<span class="var">yt</span>.<span class="fn">remove_history_items</span>(<span class="var">tokens</span>)</pre>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ========== EXPLORE ========== -->
+                <div class="doc-section">
+                    <div class="section-title">Explore</div>
+
+                    <div class="method" id="get-mood-categories">
+                        <div class="method-head">
+                            <div>
+                                <div class="method-name"><span class="cls-name">yt.</span>get_mood_categories</div>
+                            </div>
+                            <span class="method-badge badge-open">no auth needed</span>
+                        </div>
+                        <div class="method-body">
+                            <p class="method-desc">Returns the "Moods & Genres" category tree from YouTube Music's Explore section.</p>
+
+                            <div class="sig-block"><span class="sig-fn">get_mood_categories</span>() <span class="sig-ret">→ Dict[str, List[Dict]]</span></div>
+
+                            <div class="returns-block">
+                                <strong>Returns</strong>
+                                Dict where keys are category names (e.g. <code>'For you'</code>, <code>'Genres'</code>, <code>'Moods & moments'</code>) and values are lists of
+                                <code>{title: str, params: str}</code>. Pass <code>params</code> to <code>get_mood_playlists()</code>.
+                            </div>
+
+                            <div class="example-label">Example</div>
+                            <pre><span class="var">moods</span> = <span class="var">yt</span>.<span class="fn">get_mood_categories</span>()
+<span class="cm"># {</span>
+<span class="cm">#   "For you": [{"title": "1980s", "params": "ggMPOg1u..."}, ...],</span>
+<span class="cm">#   "Genres":  [{"title": "Dance & Electronic", "params": "ggMPOg1u..."}, ...],</span>
+<span class="cm">#   "Moods & moments": [{"title": "Chill", "params": "ggMPOg1u..."}, ...]</span>
+<span class="cm"># }</span>
+<span class="kw">for</span> <span class="var">section</span>, <span class="var">items</span> <span class="kw">in</span> <span class="var">moods</span>.<span class="fn">items</span>():
+    <span class="fn">print</span>(<span class="var">section</span>, [<span class="var">i</span>[<span class="str">'title'</span>] <span class="kw">for</span> <span class="var">i</span> <span class="kw">in</span> <span class="var">items</span>])</pre>
+                        </div>
+                    </div>
+
+                    <div class="method" id="get-mood-playlists">
+                        <div class="method-head">
+                            <div>
+                                <div class="method-name"><span class="cls-name">yt.</span>get_mood_playlists</div>
+                            </div>
+                            <span class="method-badge badge-open">no auth needed</span>
+                        </div>
+                        <div class="method-body">
+                            <p class="method-desc">Get the list of playlists for a specific mood or genre.</p>
+
+                            <div class="sig-block">
+                                <span class="sig-fn">get_mood_playlists</span>(<span class="sig-param">params</span><span class="sig-type">: str</span>)
+                                <span class="sig-ret">→ List[Dict]</span>
+                            </div>
+
+                            <div class="params-label">Parameters</div>
+                            <table class="params">
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th></th>
+                                    <th>Description</th>
+                                </tr>
+                                <tr>
+                                    <td class="p-name">params</td>
+                                    <td class="p-type">str</td>
+                                    <td><span class="req-badge">required</span></td>
+                                    <td class="p-desc"><code>params</code> token from <code>get_mood_categories()</code>.</td>
+                                </tr>
+                            </table>
+
+                            <div class="returns-block">
+                                <strong>Returns</strong>
+                                List of <code>{title, playlistId, thumbnails[]}</code>
+                            </div>
+
+                            <div class="example-label">Example</div>
+                            <pre><span class="var">moods</span> = <span class="var">yt</span>.<span class="fn">get_mood_categories</span>()
+<span class="var">chill_params</span> = <span class="var">moods</span>[<span class="str">'Moods & moments'</span>][<span class="num">0</span>][<span class="str">'params'</span>]
+<span class="var">playlists</span> = <span class="var">yt</span>.<span class="fn">get_mood_playlists</span>(<span class="var">chill_params</span>)
+<span class="kw">for</span> <span class="var">pl</span> <span class="kw">in</span> <span class="var">playlists</span>:
+    <span class="fn">print</span>(<span class="var">pl</span>[<span class="str">'title'</span>], <span class="var">pl</span>[<span class="str">'playlistId'</span>])</pre>
+                        </div>
+                    </div>
+
+                    <div class="method" id="get-charts">
+                        <div class="method-head">
+                            <div>
+                                <div class="method-name"><span class="cls-name">yt.</span>get_charts</div>
+                            </div>
+                            <span class="method-badge badge-open">no auth needed</span>
+                        </div>
+                        <div class="method-body">
+                            <p class="method-desc">Returns trending charts data: top songs, videos, artists, and trending tracks.</p>
+
+                            <div class="sig-block">
+                                <span class="sig-fn">get_charts</span>(<span class="sig-param">country</span><span class="sig-default">: str = 'ZZ'</span>)
+                                <span class="sig-ret">→ Dict</span>
+                            </div>
+
+                            <div class="params-label">Parameters</div>
+                            <table class="params">
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th></th>
+                                    <th>Description</th>
+                                </tr>
+                                <tr>
+                                    <td class="p-name">country</td>
+                                    <td class="p-type">str</td>
+                                    <td><span class="opt-badge">optional</span></td>
+                                    <td class="p-desc">
+                                        ISO 3166-1 country code e.g. <code>'IN'</code>, <code>'US'</code>, <code>'GB'</code>. Use <code>'ZZ'</code> for global. Default
+                                        <code>'ZZ'</code>.
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <div class="returns-block">
+                                <strong>Returns</strong>
+                                Dict with <code>songs.items[]</code>, <code>videos.items[]</code>, <code>artists.items[]</code>, <code>trending.items[]</code> (not present for
+                                global charts). US charts include additional <code>genres</code> section. Songs section requires authenticated premium account.
+                            </div>
+
+                            <div class="example-label">Example</div>
+                            <pre><span class="var">charts</span> = <span class="var">yt</span>.<span class="fn">get_charts</span>(country=<span class="str">'IN'</span>)
+<span class="kw">for</span> <span class="var">song</span> <span class="kw">in</span> <span class="var">charts</span>[<span class="str">'videos'</span>][<span class="str">'items'</span>]:
+    <span class="fn">print</span>(<span class="var">song</span>[<span class="str">'title'</span>], <span class="var">song</span>[<span class="str">'artists'</span>][<span class="num">0</span>][<span class="str">'name'</span>])</pre>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="border-top: 1px solid var(--border); padding-top: 1.5rem; margin-top: 1rem; color: var(--text3); font-size: 12px; font-family: var(--mono)">
+                    ytmusicapi is not affiliated with or endorsed by Google / YouTube.<br />
+                    Source: <a href="https://github.com/sigma67/ytmusicapi">github.com/sigma67/ytmusicapi</a> ·
+                    <a href="https://ytmusicapi.readthedocs.io">ytmusicapi.readthedocs.io</a>
+                </div>
+            </main>
+        </div>
+
+        <script>
+            const links = document.querySelectorAll(".sidebar-link");
+            const sections = document.querySelectorAll("[id]");
+
+            const observer = new IntersectionObserver(
+                (entries) => {
+                    entries.forEach((entry) => {
+                        if (entry.isIntersecting) {
+                            links.forEach((l) => l.classList.remove("active"));
+                            const active = document.querySelector(`.sidebar-link[href="#${entry.target.id}"]`);
+                            if (active) active.classList.add("active");
+                        }
+                    });
+                },
+                { rootMargin: "-10% 0px -85% 0px" },
+            );
+
+            sections.forEach((s) => observer.observe(s));
+        </script>
+
+        <script>
+            // Interactive API Tester Logic
+            document.addEventListener("DOMContentLoaded", () => {
+                // 1. Add Configuration UI at the top of main
+                const main = document.querySelector("main");
+                const hero = main.querySelector(".hero");
+
+                const configDiv = document.createElement("div");
+                configDiv.className = "api-config";
+                configDiv.style.background = "var(--surface)";
+                configDiv.style.border = "1px solid var(--border)";
+                configDiv.style.borderRadius = "4px";
+                configDiv.style.padding = "1.25rem";
+                configDiv.style.marginBottom = "2rem";
+                configDiv.innerHTML = `
+                    <h3 style="font-family: var(--mono); font-size: 14px; font-weight: 600; color: var(--accent); margin-bottom: 0.5rem;">Interactive API Config</h3>
+                    <p style="color: var(--text2); font-size: 13px; margin-bottom: 1rem;">Set the base URL for the API server to test the endpoints directly from this page.</p>
+                    <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                        <label style="font-family: var(--mono); font-size: 12px; color: var(--text3);">Base URL</label>
+                        <input type="text" id="api-base-url" value="http://localhost:8000" style="flex: 1; min-width: 200px; max-width: 400px; background: var(--bg); color: var(--text); border: 1px solid var(--border); padding: 6px 12px; border-radius: 3px; font-family: var(--mono); font-size: 12px;" />
+                        <select id="api-method" style="background: var(--bg); color: var(--text); border: 1px solid var(--border); padding: 6px 12px; border-radius: 3px; font-family: var(--mono); font-size: 12px;">
+                            <option value="POST">POST (JSON Body)</option>
+                            <option value="GET">GET (Query Params)</option>
+                        </select>
+                    </div>
+                `;
+                if (hero) {
+                    hero.insertAdjacentElement("afterend", configDiv);
+                }
+
+                // 2. Add Try It forms to each method
+                const methods = document.querySelectorAll(".method");
+                methods.forEach(method => {
+                    const nameEl = method.querySelector(".method-name");
+                    if (!nameEl) return;
+
+                    let rawName = nameEl.textContent.trim();
+                    // Skip init
+                    if (rawName.includes("__init__")) return;
+
+                    // Extract method name (e.g. yt.search -> search, yt.subscribe_artists / unsubscribe_artists -> subscribe_artists)
+                    rawName = rawName.replace("yt.", "").split("/")[0].trim();
+
+                    const paramsTable = method.querySelector("table.params");
+                    const params = [];
+                    if (paramsTable) {
+                        const rows = paramsTable.querySelectorAll("tr");
+                        rows.forEach((row, idx) => {
+                            if (idx === 0) return; // header
+                            const pNameEl = row.querySelector(".p-name");
+                            const pTypeEl = row.querySelector(".p-type");
+                            if (pNameEl) {
+                                params.push({
+                                    name: pNameEl.textContent.trim(),
+                                    type: pTypeEl ? pTypeEl.textContent.trim() : "string"
+                                });
+                            }
+                        });
+                    }
+
+                    const testerDiv = document.createElement("div");
+                    testerDiv.style.marginTop = "1.5rem";
+                    testerDiv.style.paddingTop = "1.5rem";
+                    testerDiv.style.borderTop = "1px solid var(--border)";
+
+                    let formHtml = `
+                        <div style="font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--accent2); margin-bottom: 1rem; text-transform: uppercase; letter-spacing: 0.1em;">Try it out</div>
+                        <form class="interactive-form" data-endpoint="/${rawName}" style="display: flex; flex-direction: column; gap: 0.75rem;">
+                    `;
+
+                    if (params.length === 0) {
+                        formHtml += `<div style="font-size: 12px; color: var(--text3); font-style: italic;">No parameters required.</div>`;
+                    }
+
+                    params.forEach(p => {
+                        formHtml += `
+                            <div style="display: flex; align-items: center; gap: 1rem;">
+                                <label style="width: 150px; font-family: var(--mono); font-size: 12px; color: var(--text);">${p.name}</label>
+                                <input type="text" name="${p.name}" placeholder="Type: ${p.type.replace(/"/g, '&quot;')}" style="flex: 1; background: var(--bg); color: var(--text); border: 1px solid var(--border); padding: 6px 12px; border-radius: 3px; font-family: var(--mono); font-size: 12px;" />
+                            </div>
+                        `;
+                    });
+
+                    formHtml += `
+                            <div style="margin-top: 0.5rem;">
+                                <button type="submit" style="background: rgba(168, 255, 120, 0.1); color: var(--accent2); border: 1px solid rgba(168, 255, 120, 0.25); padding: 6px 16px; border-radius: 3px; font-family: var(--mono); font-size: 12px; font-weight: 600; cursor: pointer; transition: background 0.1s;">Send Request</button>
+                            </div>
+                        </form>
+                        <div class="response-container" style="display: none; margin-top: 1rem;">
+                            <div style="font-size: 10px; color: var(--text3); font-family: var(--mono); text-transform: uppercase; margin-bottom: 0.5rem; letter-spacing: 0.1em;">Response <span class="status-code"></span></div>
+                            <pre class="response-body" style="margin: 0; max-height: 400px; overflow-y: auto; font-size: 12px; border: 1px solid var(--border); padding: 1rem; border-radius: 4px; background: var(--bg);"></pre>
+                        </div>
+                    `;
+
+                    testerDiv.innerHTML = formHtml;
+
+                    const methodBody = method.querySelector(".method-body");
+                    if (methodBody) {
+                        methodBody.appendChild(testerDiv);
+                    }
+
+                    // Add event listener
+                    const form = testerDiv.querySelector("form");
+                    const btn = form.querySelector("button");
+                    const resContainer = testerDiv.querySelector(".response-container");
+                    const resBody = testerDiv.querySelector(".response-body");
+                    const resStatus = testerDiv.querySelector(".status-code");
+
+                    btn.addEventListener("mouseover", () => btn.style.background = "rgba(168, 255, 120, 0.2)");
+                    btn.addEventListener("mouseout", () => btn.style.background = "rgba(168, 255, 120, 0.1)");
+
+                    form.addEventListener("submit", async (e) => {
+                        e.preventDefault();
+                        const baseUrl = document.getElementById("api-base-url").value.replace(/\/$/, "");
+                        const httpMethod = document.getElementById("api-method").value;
+                        const endpoint = form.getAttribute("data-endpoint");
+
+                        const formData = new FormData(form);
+                        const payload = {};
+                        for (let [k, v] of formData.entries()) {
+                            if (v.trim() !== "") {
+                                try {
+                                    // Try to parse valid JSON (for booleans, arrays, dicts)
+                                    payload[k] = JSON.parse(v);
+                                } catch(err) {
+                                    // If not valid JSON, pass as string
+                                    payload[k] = v;
+                                }
+                            }
+                        }
+
+                        resContainer.style.display = "block";
+                        resBody.textContent = "Loading...";
+                        resStatus.textContent = "";
+                        resBody.style.color = "var(--text)";
+
+                        try {
+                            let url = baseUrl + endpoint;
+                            let options = { method: httpMethod };
+
+                            if (httpMethod === "GET") {
+                                const params = new URLSearchParams();
+                                for (let key in payload) {
+                                    params.append(key, typeof payload[key] === 'object' ? JSON.stringify(payload[key]) : payload[key]);
+                                }
+                                if ([...params].length > 0) {
+                                    url += "?" + params.toString();
+                                }
+                            } else {
+                                options.headers = { "Content-Type": "application/json" };
+                                options.body = JSON.stringify(payload);
+                            }
+
+                            const response = await fetch(url, options);
+                            resStatus.textContent = \`[\${response.status} \${response.statusText}]\`;
+                            resStatus.style.color = response.ok ? "var(--accent2)" : "var(--red)";
+
+                            let data;
+                            try {
+                                data = await response.json();
+                                resBody.textContent = JSON.stringify(data, null, 2);
+                            } catch(err) {
+                                data = await response.text();
+                                resBody.textContent = data;
+                            }
+                        } catch (err) {
+                            resStatus.textContent = "[Fetch Error]";
+                            resStatus.style.color = "var(--red)";
+                            resBody.textContent = err.message + "\\n\\nMake sure your API server is running and CORS is enabled.";
+                            resBody.style.color = "var(--red)";
+                        }
+                    });
+                });
+            });
+        </script>
+    </body>
+</html>
