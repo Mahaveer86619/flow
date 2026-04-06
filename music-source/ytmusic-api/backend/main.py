@@ -1,4 +1,5 @@
 import os
+from typing import Any, Dict, List, Optional, Union
 
 import httpx
 import yt_dlp
@@ -7,6 +8,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 AUTH_FILE = "/data/auth.json"
 STATIC_DIR = "/app/static"
@@ -250,6 +252,139 @@ async def stream_audio(video_id: str, request: Request):
         headers=passthrough,
         media_type=upstream.headers.get("content-type", "audio/webm"),
     )
+
+
+import urllib.parse
+
+from fastapi.responses import Response
+
+
+@app.get("/api/proxy-image")
+async def proxy_image(url: str):
+    try:
+        decoded_url = urllib.parse.unquote(url)
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(decoded_url)
+            return Response(
+                content=resp.content,
+                media_type=resp.headers.get("Content-Type", "image/jpeg"),
+            )
+    except Exception as e:
+        raise HTTPException(500, f"Image proxy failed: {e}")
+
+
+# ── Albums ────────────────────────────────────────────────────────────────────
+
+
+@app.get("/api/albums/{browse_id}")
+def get_album(browse_id: str):
+    try:
+        return get_ytm().get_album(browseId=browse_id)
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+# ── Playlists ─────────────────────────────────────────────────────────────────
+
+
+@app.get("/api/playlists/{playlist_id}")
+def get_playlist(playlist_id: str, limit: int = 100):
+    try:
+        actual_limit = None if limit <= 0 else limit
+        return get_ytm().get_playlist(playlistId=playlist_id, limit=actual_limit)
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+class CreatePlaylistRequest(BaseModel):
+    title: str
+    description: str
+    privacy_status: str = "PRIVATE"
+    video_ids: Optional[List[str]] = None
+    source_playlist: Optional[str] = None
+
+
+@app.post("/api/playlists")
+def create_playlist(req: CreatePlaylistRequest):
+    try:
+        res = get_ytm().create_playlist(
+            title=req.title,
+            description=req.description,
+            privacy_status=req.privacy_status,
+            video_ids=req.video_ids,
+            source_playlist=req.source_playlist,
+        )
+        return {"id": res}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+class EditPlaylistRequest(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    privacyStatus: Optional[str] = None
+    moveItem: Optional[Union[str, tuple[str, str]]] = None
+    addPlaylistId: Optional[str] = None
+    addToTop: Optional[bool] = None
+
+
+@app.patch("/api/playlists/{playlist_id}")
+def edit_playlist(playlist_id: str, req: EditPlaylistRequest):
+    try:
+        res = get_ytm().edit_playlist(
+            playlistId=playlist_id,
+            title=req.title,
+            description=req.description,
+            privacyStatus=req.privacyStatus,
+            moveItem=req.moveItem,
+            addPlaylistId=req.addPlaylistId,
+            addToTop=req.addToTop,
+        )
+        return {"status": res}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.delete("/api/playlists/{playlist_id}")
+def delete_playlist(playlist_id: str):
+    try:
+        res = get_ytm().delete_playlist(playlistId=playlist_id)
+        return {"status": res}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+class AddPlaylistItemsRequest(BaseModel):
+    videoIds: Optional[List[str]] = None
+    source_playlist: Optional[str] = None
+    duplicates: bool = False
+
+
+@app.post("/api/playlists/{playlist_id}/items")
+def add_playlist_items(playlist_id: str, req: AddPlaylistItemsRequest):
+    try:
+        res = get_ytm().add_playlist_items(
+            playlistId=playlist_id,
+            videoIds=req.videoIds,
+            source_playlist=req.source_playlist,
+            duplicates=req.duplicates,
+        )
+        return {"status": res}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+class RemovePlaylistItemsRequest(BaseModel):
+    videos: List[Dict[str, Any]]
+
+
+@app.delete("/api/playlists/{playlist_id}/items")
+def remove_playlist_items(playlist_id: str, req: RemovePlaylistItemsRequest):
+    try:
+        res = get_ytm().remove_playlist_items(playlistId=playlist_id, videos=req.videos)
+        return {"status": res}
+    except Exception as e:
+        raise HTTPException(500, str(e))
 
 
 # ── Static frontend (must be last) ────────────────────────────────────────────
