@@ -2,13 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'cubits/home_cubit.dart';
-import 'cubits/library_cubit.dart';
-import 'cubits/player_cubit.dart';
-import 'cubits/search_cubit.dart';
-import 'repositories/mock_song_repository.dart';
-import 'repositories/song_repository.dart';
-import 'screens/splash/splash_screen.dart';
+import 'data/repositories/song_repository_impl.dart';
+import 'data/sources/mock_song_data_source.dart';
+import 'domain/usecases/get_categories_usecase.dart';
+import 'domain/usecases/get_playlists_usecase.dart';
+import 'domain/usecases/get_songs_usecase.dart';
+import 'domain/usecases/search_songs_usecase.dart';
+import 'presentation/blocs/player/player_bloc.dart';
+import 'presentation/cubits/home/home_cubit.dart';
+import 'presentation/cubits/library/library_cubit.dart';
+import 'presentation/cubits/search/search_cubit.dart';
+import 'presentation/screens/splash/splash_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,28 +25,30 @@ void main() {
   );
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
-  // Repository is provided via RepositoryProvider — BLoC's built-in DI
-  // mechanism for non-Bloc objects. Swap MockSongRepository here to connect
-  // a real data source without touching any Cubit or View.
+  // Build the dependency graph:
+  //   MockSongDataSource → SongRepositoryImpl → use cases → BLoC/Cubits
+  final dataSource = MockSongDataSource();
+  final repository = SongRepositoryImpl(dataSource);
+
+  final getSongs = GetSongsUseCase(repository);
+  final getPlaylists = GetPlaylistsUseCase(repository);
+  final getCategories = GetCategoriesUseCase(repository);
+  final searchSongs = SearchSongsUseCase(repository);
+
   runApp(
-    RepositoryProvider<SongRepository>(
-      create: (_) => MockSongRepository(),
-      child: Builder(
-        builder: (ctx) {
-          final repo = ctx.read<SongRepository>();
-          return MultiBlocProvider(
-            providers: [
-              // Shared across all screens
-              BlocProvider(create: (_) => PlayerCubit()),
-              // Per-screen cubits injected with the repository
-              BlocProvider(create: (_) => HomeCubit(repo)),
-              BlocProvider(create: (_) => SearchCubit(repo)),
-              BlocProvider(create: (_) => LibraryCubit(repo)),
-            ],
-            child: const FlowApp(),
-          );
-        },
-      ),
+    MultiBlocProvider(
+      providers: [
+        BlocProvider(create: (_) => PlayerBloc()),
+        BlocProvider(create: (_) => HomeCubit(getSongs: getSongs)),
+        BlocProvider(
+          create: (_) => SearchCubit(
+            searchSongs: searchSongs,
+            getCategories: getCategories,
+          ),
+        ),
+        BlocProvider(create: (_) => LibraryCubit(getPlaylists: getPlaylists)),
+      ],
+      child: const FlowApp(),
     ),
   );
 }

@@ -1285,10 +1285,27 @@
             async function loadFeed() {
                 setLoading(true);
                 try {
-                    const r = await fetch("/api/feed");
-                    const data = await r.json();
-                    if (!r.ok) throw new Error(data.detail || `Feed error ${r.status}`);
-                    renderShelves(data, "Home Feed");
+                    const [feedRes, playlistsRes] = await Promise.all([fetch("/api/feed").catch(() => null), fetch("/api/library/playlists").catch(() => null)]);
+
+                    let feedData = [];
+                    if (feedRes && feedRes.ok) {
+                        feedData = await feedRes.json();
+                    }
+
+                    if (playlistsRes && playlistsRes.ok) {
+                        const pData = await playlistsRes.json();
+                        if (pData && pData.length > 0) {
+                            feedData.unshift({
+                                title: "Your Playlists",
+                                contents: pData,
+                            });
+                        }
+                    }
+
+                    if (!feedData || feedData.length === 0) {
+                        throw new Error("No feed data available.");
+                    }
+                    renderShelves(feedData, "Home Feed");
                 } catch (e) {
                     showToast(e.message);
                     showEmpty();

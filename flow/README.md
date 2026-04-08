@@ -1,123 +1,109 @@
-# flow
+# Flow
 
-A cross-platform music streaming app built with Flutter, targeting Android and desktop (Windows/Linux/macOS).
-
----
-
-## Architecture — MVVM
-
-The project follows the **Model–View–ViewModel** pattern using Flutter's `provider` package for dependency injection and reactive state management.
-
-```
-┌──────────┐   notifyListeners   ┌──────────────┐     fetches     ┌────────────┐
-│   View   │ ◀─────────────────  │  ViewModel   │ ──────────────▶ │ Repository │
-│ (Widget) │ ─────────────────▶  │ (ChangeNtfr) │ ◀────────────── │ (abstract) │
-└──────────┘   calls methods     └──────────────┘   data models   └────────────┘
-```
-
-| Layer | Responsibility | Location |
-|---|---|---|
-| **Model** | Plain data classes (no logic) | `lib/models/` |
-| **Repository** | Data access contract + implementations | `lib/repositories/` |
-| **ViewModel** | Business logic, state, commands | `lib/viewmodels/` |
-| **View** | Flutter widgets — render state, forward events | `lib/screens/`, `lib/widgets/` |
-
-### Key rules
-- Views only call ViewModel methods or read ViewModel properties — no business logic in widgets.
-- ViewModels depend on Repositories, never on Flutter widgets or `BuildContext`.
-- The Repository is an abstract interface; swap `MockSongRepository` for a real API implementation without touching any ViewModel or View.
-
----
-
-## Project structure
-
-```
-lib/
-├── main.dart                          # App entry, MultiProvider setup, theme
-│
-├── models/
-│   └── song.dart                      # Song, Playlist data classes
-│
-├── repositories/
-│   ├── song_repository.dart           # Abstract interface
-│   └── mock_song_repository.dart      # In-memory implementation (swap for real API)
-│
-├── viewmodels/
-│   ├── player_viewmodel.dart          # Playback state: song, queue, progress, liked, volume
-│   ├── home_viewmodel.dart            # Home screen data: greeting, featured, song rows
-│   ├── search_viewmodel.dart          # Search query state and filtered results
-│   └── library_viewmodel.dart        # Library filter tab and playlist list
-│
-├── screens/
-│   ├── splash_screen.dart             # Animated splash → MainScreen
-│   ├── main_screen.dart               # AppBar + bottom nav shell + bottom sheets
-│   ├── home_screen.dart               # Home tab (pure View)
-│   ├── search_screen.dart             # Search tab (holds TextEditingController as UI state)
-│   ├── library_screen.dart            # Library tab (pure View)
-│   └── player_screen.dart             # Full-screen music player
-│
-└── widgets/
-    ├── squiggly_progress_bar.dart     # Animated sine-wave seek bar (CustomPainter)
-    └── mini_player.dart               # Persistent mini player above bottom nav
-```
-
----
+A cross-platform music player built with Flutter. Responsive across mobile, tablet, and desktop with a full-featured player, home feed, search, and library.
 
 ## Features
 
-- **Splash screen** — "flow" logo with fade + scale animation, tagline subtitle
-- **Bottom navigation** — Home · Search · Library with Material 3 NavigationBar
-- **AppBar actions** — Notifications, Recently Played, Settings (modal bottom sheets)
-- **Home** — Time-aware greeting, quick-access grid, featured card, horizontal song rows
-- **Search** — Live filtering across title / artist / album; genre category grid
-- **Library** — Animated filter chips, Liked Songs count, playlist list
-- **Player** — Full-screen with per-song gradient background, playback controls, volume
-- **Squiggly progress bar** — Animated sine wave; played half in primary color; tap/drag to seek
-- **Mini player** — Shown above the nav bar when a song is playing; thin progress line at base
+- **Home feed** — Quick Access grid, Listening Again, Forgotten Favorites, Music For You, Trending Artists
+- **Search** — filter by songs, albums, artists
+- **Library** — playlists and saved music
+- **Player** — full-screen on mobile, persistent sidebar on desktop
+- **Queue** — reorderable playback queue
+- **Responsive layout** — three distinct shells based on screen width
 
----
+## Responsive Layout
 
-## Design
-
-| Token | Value |
+| Breakpoint | Shell |
 |---|---|
-| Seed color | `#7C3AED` (vivid violet) |
-| Design system | Material 3 (`useMaterial3: true`) |
-| Default theme | Dark |
-| Logo / heading font | Space Grotesk ExtraBold |
-| Body font | Outfit |
+| `< 700 px` (mobile) | Bottom navigation bar + mini-player overlay + full-screen player |
+| `700–1099 px` (tablet) | Same as mobile with wider content |
+| `≥ 1100 px` (desktop) | Navigation rail + content pane + permanent right-side player panel |
 
----
+## Tech Stack
 
-## Getting started
+- **Flutter** (Dart SDK ^3.11.4)
+- **flutter_bloc ^9.1.1** — state management via Cubits
+- **google_fonts ^6.2.1** — Outfit + Space Grotesk typefaces
+- **flutter_dotenv ^5.2.1** — runtime environment config
+- Material 3 with a custom purple seed color (`#7C3AED`), dark mode
 
-### Prerequisites
+## Project Structure
 
-- Flutter SDK ≥ 3.27 (project uses Flutter 3.41.6 stable)
-- Android SDK for Android target
-- Windows Developer Mode enabled for Windows desktop target (required for symlinks)
+```
+lib/
+├── main.dart                      # App entry point, DI setup
+├── models/
+│   └── song.dart                  # Song, Playlist models
+├── repositories/
+│   ├── song_repository.dart       # Abstract interface
+│   └── mock_song_repository.dart  # Mock implementation (swap for real API)
+├── cubits/                        # BLoC state management
+│   ├── player_cubit.dart          # Playback state, queue, progress
+│   ├── home_cubit.dart            # Home feed data
+│   ├── search_cubit.dart          # Search results
+│   └── library_cubit.dart         # Library contents
+├── screens/
+│   ├── main/                      # Root shell (mobile + desktop)
+│   ├── home/                      # Home feed
+│   ├── search/                    # Search
+│   ├── library/                   # Library
+│   ├── player/                    # Full-screen player (mobile)
+│   ├── queue/                     # Playback queue
+│   ├── playlist/                  # Playlist detail
+│   ├── artist/                    # Artist detail
+│   ├── list/                      # Generic song list
+│   └── splash/                    # Splash screen
+├── widgets/
+│   ├── mini_player.dart           # Collapsed player bar (mobile)
+│   ├── player_panel.dart          # Shared player UI (mobile + desktop sidebar)
+│   ├── song_card.dart             # Song tile used across feed sections
+│   ├── artist_card.dart           # Artist tile
+│   ├── album_art_widget.dart      # Artwork display
+│   ├── squiggly_progress_bar.dart # Custom seek bar
+│   └── section_header.dart        # "See all" row header
+└── core/
+    └── responsive/
+        ├── breakpoints.dart       # Screen-width thresholds
+        └── responsive_layout.dart
+```
 
-### Run
+## Getting Started
+
+**Prerequisites:** Flutter SDK ≥ 3.11.4
 
 ```bash
 flutter pub get
-flutter run                  # picks connected device / emulator
-flutter run -d windows       # Windows desktop
-flutter run -d linux         # Linux desktop
+flutter run
 ```
 
-### Replacing the mock data source
+To run on a specific platform:
+```bash
+flutter run -d windows
+flutter run -d android
+flutter run -d chrome
+```
 
-1. Implement `SongRepository` in a new class:
-   ```dart
-   class ApiSongRepository implements SongRepository {
-     @override
-     List<Song> getSongs() { /* fetch from API */ }
-     // ...
-   }
-   ```
-2. In `lib/main.dart`, replace `MockSongRepository()` with your implementation:
-   ```dart
-   final SongRepository songRepo = ApiSongRepository();
-   ```
-3. No ViewModel or View code needs to change.
+## Connecting to the Backend
+
+The app currently uses `MockSongRepository`. To connect to the live backend, implement `SongRepository` against the `ytmusic-api` server and swap it in `main.dart`:
+
+```dart
+// main.dart
+RepositoryProvider<SongRepository>(
+  create: (_) => ApiSongRepository(baseUrl: 'http://localhost:8000'),
+  // was: MockSongRepository()
+```
+
+See the root [`README.md`](../README.md) for backend setup.
+
+## Environment
+
+Create a `.env` file in the `flow/` directory (it is bundled as a Flutter asset):
+
+```
+API_BASE_URL=http://localhost:8000
+```
+
+## Supported Platforms
+
+Android, iOS, Windows, Linux, macOS, Web

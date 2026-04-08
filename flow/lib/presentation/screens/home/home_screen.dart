@@ -1,0 +1,541 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// HomeScreen — scrollable feed with music sections.
+//
+// Sections (all horizontally scrollable):
+//   1. Quick Access grid   — 2-col grid of recently accessed songs
+//   2. Listening Again     — standard horizontal song cards
+//   3. Forgotten Favorites — standard horizontal song cards
+//   4. Music For You       — 2-row horizontal grid (portrait cards)
+//   5. Trending Artists    — square artist cards
+// ─────────────────────────────────────────────────────────────────────────────
+
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../../../core/responsive/breakpoints.dart';
+import '../../../domain/entities/song.dart';
+import '../../blocs/player/player_bloc.dart';
+import '../../cubits/home/home_cubit.dart';
+import '../../widgets/artist_card.dart';
+import '../../widgets/section_header.dart';
+import '../../widgets/shimmer_box.dart';
+import '../../widgets/song_card.dart';
+import '../artist/artist_screen.dart';
+import '../list/list_screen.dart';
+import '../player/player_screen.dart';
+
+class HomeScreen extends StatelessWidget {
+  const HomeScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.watch<HomeCubit>().state;
+
+    if (state.isLoading) return const _HomeScreenSkeleton();
+
+    final isSmall = Breakpoints.isMobile(MediaQuery.sizeOf(context).width);
+
+    return CustomScrollView(
+      slivers: [
+        // ── Greeting ──────────────────────────────────────────────────────────
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+            child: Text(
+              state.greeting,
+              style: GoogleFonts.spaceGrotesk(
+                fontSize: isSmall ? 19.0 : 24.0,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ),
+
+        // ── Quick Access 2-col grid ───────────────────────────────────────────
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(0, 16, 0, 0),
+            child: SizedBox(
+              height: 130,
+              child: _QuickAccessGrid(
+                songs: state.quickAccess,
+                allSongs: state.allSongs,
+              ),
+            ),
+          ),
+        ),
+
+        // ── Listening Again ───────────────────────────────────────────────────
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 28, 16, 16),
+            child: SectionHeader(
+              title: 'Listening Again',
+              onSeeAll: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => ListScreen(
+                    title: 'Listening Again',
+                    songs: state.listeningAgain,
+                    allSongs: state.allSongs,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: SizedBox(
+            height: 190,
+            child: _HorizontalSongRow(
+              songs: state.listeningAgain,
+              allSongs: state.allSongs,
+            ),
+          ),
+        ),
+
+        // ── Forgotten Favorites ───────────────────────────────────────────────
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 28, 16, 16),
+            child: SectionHeader(
+              title: 'Forgotten Favorites',
+              onSeeAll: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => ListScreen(
+                    title: 'Forgotten Favorites',
+                    songs: state.forgottenFavorites,
+                    allSongs: state.allSongs,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: SizedBox(
+            height: 190,
+            child: _HorizontalSongRow(
+              songs: state.forgottenFavorites,
+              allSongs: state.allSongs,
+            ),
+          ),
+        ),
+
+        // ── Music For You — 2-row horizontal grid ─────────────────────────────
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 28, 16, 16),
+            child: SectionHeader(
+              title: 'Music For You',
+              onSeeAll: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => ListScreen(
+                    title: 'Music For You',
+                    songs: state.musicForYou,
+                    allSongs: state.allSongs,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: SizedBox(
+            height: 340,
+            child: _MusicForYouGrid(
+              songs: state.musicForYou,
+              allSongs: state.allSongs,
+            ),
+          ),
+        ),
+
+        // ── Trending Artists ──────────────────────────────────────────────────
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 28, 16, 16),
+            child: SectionHeader(
+              title: 'Trending Artists',
+              onSeeAll: () {/* TODO: navigate to artists list */},
+            ),
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: SizedBox(
+            height: 148,
+            child: _TrendingArtistRow(
+              artists: state.trendingArtists,
+              allSongs: state.allSongs,
+            ),
+          ),
+        ),
+
+        const SliverToBoxAdapter(child: SizedBox(height: 24)),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Skeleton — shown while HomeCubit.isLoading == true
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _HomeScreenSkeleton extends StatelessWidget {
+  const _HomeScreenSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      slivers: [
+        // Greeting placeholder
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+            child: ShimmerBox(width: 180, height: 26, borderRadius: 8),
+          ),
+        ),
+
+        // Quick Access grid skeleton
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            child: SizedBox(
+              height: 130,
+              child: GridView.builder(
+                scrollDirection: Axis.horizontal,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 10,
+                  crossAxisSpacing: 8,
+                  childAspectRatio: 0.35,
+                ),
+                itemCount: 6,
+                itemBuilder: (_, __) => const SkeletonQuickAccessTile(),
+              ),
+            ),
+          ),
+        ),
+
+        // Listening Again skeleton
+        _SkeletonSectionHeader(),
+        _SkeletonHorizontalRow(),
+
+        // Forgotten Favorites skeleton
+        _SkeletonSectionHeader(),
+        _SkeletonHorizontalRow(),
+
+        // Music For You skeleton
+        _SkeletonSectionHeader(),
+        SliverToBoxAdapter(
+          child: SizedBox(
+            height: 340,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: 5,
+              separatorBuilder: (_, __) => const SizedBox(width: 12),
+              itemBuilder: (_, __) => const SkeletonSongCard(cardWidth: 120),
+            ),
+          ),
+        ),
+
+        // Trending Artists skeleton
+        _SkeletonSectionHeader(),
+        SliverToBoxAdapter(
+          child: SizedBox(
+            height: 148,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: 5,
+              separatorBuilder: (_, __) => const SizedBox(width: 14),
+              itemBuilder: (_, __) => const SkeletonArtistCard(),
+            ),
+          ),
+        ),
+
+        const SliverToBoxAdapter(child: SizedBox(height: 24)),
+      ],
+    );
+  }
+}
+
+class _SkeletonSectionHeader extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 28, 16, 16),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            ShimmerBox(width: 140, height: 18, borderRadius: 7),
+            ShimmerBox(width: 55, height: 14, borderRadius: 6),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SkeletonHorizontalRow extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return SliverToBoxAdapter(
+      child: SizedBox(
+        height: 190,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          physics: const NeverScrollableScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          itemCount: 4,
+          separatorBuilder: (_, __) => const SizedBox(width: 14),
+          itemBuilder: (_, __) => const SkeletonSongCard(),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Quick Access grid (2-column, fixed height tiles)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _QuickAccessGrid extends StatelessWidget {
+  final List<Song> songs;
+  final List<Song> allSongs;
+  const _QuickAccessGrid({required this.songs, required this.allSongs});
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.builder(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisSpacing: 10,
+        crossAxisSpacing: 8,
+        childAspectRatio: 0.35,
+      ),
+      itemCount: songs.length,
+      itemBuilder: (context, i) =>
+          _QuickAccessTile(song: songs[i], allSongs: allSongs),
+    );
+  }
+}
+
+class _QuickAccessTile extends StatelessWidget {
+  final Song song;
+  final List<Song> allSongs;
+  const _QuickAccessTile({required this.song, required this.allSongs});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDesktop = Breakpoints.isDesktop(MediaQuery.sizeOf(context).width);
+
+    return GestureDetector(
+      onTap: () {
+        context.read<PlayerBloc>().add(
+          PlayQueueEvent(
+            songs: allSongs,
+            startIndex: allSongs.indexOf(song),
+          ),
+        );
+        if (!isDesktop) {
+          Navigator.of(context)
+              .push(MaterialPageRoute(builder: (_) => const PlayerScreen()));
+        }
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: colorScheme.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Row(
+          children: [
+            ShaderMask(
+              shaderCallback: (rect) {
+                return const LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  colors: [Colors.white, Colors.white, Colors.transparent],
+                  stops: [0.0, 0.7, 1.0],
+                ).createShader(rect);
+              },
+              blendMode: BlendMode.dstIn,
+              child: Container(
+                width: 60,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [song.colorPrimary, song.colorSecondary],
+                  ),
+                ),
+                child: const Icon(
+                  Icons.music_note_rounded,
+                  color: Colors.white,
+                  size: 28,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                song.title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Horizontal song row (Listening Again / Forgotten Favorites)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _HorizontalSongRow extends StatelessWidget {
+  final List<Song> songs;
+  final List<Song> allSongs;
+  const _HorizontalSongRow({required this.songs, required this.allSongs});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      itemCount: songs.length,
+      separatorBuilder: (_, __) => const SizedBox(width: 14),
+      itemBuilder: (context, i) => SongCard(
+        song: songs[i],
+        queue: allSongs,
+        index: allSongs.indexOf(songs[i]),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Music For You — 2-row horizontal grid (portrait cards)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _MusicForYouGrid extends StatelessWidget {
+  final List<Song> songs;
+  final List<Song> allSongs;
+  const _MusicForYouGrid({required this.songs, required this.allSongs});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDesktop = Breakpoints.isDesktop(MediaQuery.sizeOf(context).width);
+
+    return GridView.builder(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 10,
+        childAspectRatio: 0.72,
+      ),
+      itemCount: songs.length,
+      itemBuilder: (context, i) {
+        final song = songs[i];
+        return GestureDetector(
+          onTap: () {
+            context.read<PlayerBloc>().add(
+              PlayQueueEvent(
+                songs: List<Song>.from(allSongs),
+                startIndex: allSongs.indexOf(song),
+              ),
+            );
+            if (!isDesktop) {
+              Navigator.of(context)
+                  .push(MaterialPageRoute(builder: (_) => const PlayerScreen()));
+            }
+          },
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Container(
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [song.colorPrimary, song.colorSecondary],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.music_note_rounded,
+                    size: 32,
+                    color: Colors.white.withAlpha(45),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                song.title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
+              Text(
+                song.artist,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: colorScheme.onSurface.withAlpha(140),
+                ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Trending Artists row
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _TrendingArtistRow extends StatelessWidget {
+  final List<Map<String, dynamic>> artists;
+  final List<Song> allSongs;
+  const _TrendingArtistRow({required this.artists, required this.allSongs});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      itemCount: artists.length,
+      separatorBuilder: (_, __) => const SizedBox(width: 14),
+      itemBuilder: (context, i) => ArtistCard(
+        artist: artists[i],
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) =>
+                ArtistScreen(artist: artists[i], allSongs: allSongs),
+          ),
+        ),
+      ),
+    );
+  }
+}
