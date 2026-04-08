@@ -1,19 +1,25 @@
+import '../entities/home_data.dart';
 import '../entities/song.dart';
 
 // ── Repository Interface ──────────────────────────────────────────────────────
 //
-// Defined in domain so that use cases depend only on this abstraction.
-// The concrete implementation lives in the data layer and is injected at
-// the composition root (main.dart) — dependency inversion in action.
+// One method per screen's data need. The concrete implementation (data layer)
+// is injected at the composition root — the domain never knows which source.
 // ─────────────────────────────────────────────────────────────────────────────
 
 abstract class SongRepository {
-  /// Returns the full catalogue of available songs.
-  List<Song> getSongs();
+  /// Structured home screen data — all sections in one call.
+  Future<HomeData> getHomeData();
 
-  /// Returns all user playlists.
-  List<Playlist> getPlaylists();
+  /// Songs matching [query] via the backend search or local filter.
+  Future<List<Song>> searchSongs(String query);
 
-  /// Returns browse categories (name + color).
+  /// User playlist metadata for the library screen.
+  Future<List<Playlist>> getPlaylists();
+
+  /// Tracks for a playlist (for queue loading / playlist detail).
+  Future<List<Song>> getPlaylistTracks(String playlistId);
+
+  /// Static browse categories — synchronous, never needs the network.
   List<Map<String, dynamic>> getCategories();
 }

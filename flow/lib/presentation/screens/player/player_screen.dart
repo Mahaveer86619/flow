@@ -163,6 +163,7 @@ class _MainPlayerSection extends StatelessWidget {
                     size: size,
                     colorPrimary: song.colorPrimary,
                     colorSecondary: song.colorSecondary,
+                    thumbnailUrl: song.thumbnailUrl,
                   ),
                 );
               },

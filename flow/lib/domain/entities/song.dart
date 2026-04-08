@@ -17,7 +17,10 @@ class Song {
   final String album;
   final Duration duration;
 
-  /// Placeholder gradient colors used until real artwork URLs are available.
+  /// Remote thumbnail URL from the backend. Null for mock / offline songs.
+  final String? thumbnailUrl;
+
+  /// Gradient fallback colors used when [thumbnailUrl] is null or fails to load.
   final Color colorPrimary;
   final Color colorSecondary;
 
@@ -27,6 +30,7 @@ class Song {
     required this.artist,
     required this.album,
     required this.duration,
+    this.thumbnailUrl,
     required this.colorPrimary,
     required this.colorSecondary,
   });
@@ -39,11 +43,15 @@ class Playlist {
   final List<Song> songs;
   final Color color;
 
+  /// Remote thumbnail URL from the backend.
+  final String? thumbnailUrl;
+
   const Playlist({
     required this.id,
     required this.name,
     required this.description,
     required this.songs,
     required this.color,
+    this.thumbnailUrl,
   });
 }

@@ -1,28 +1,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// AlbumArtWidget — vinyl-style album art placeholder.
+// AlbumArtWidget — shows a network thumbnail when available, otherwise falls
+// back to the vinyl-style gradient placeholder.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import 'package:flutter/material.dart';
 
-/// Renders a square vinyl-record–style artwork tile.
-///
-/// Concentric rings over a gradient background mimic a physical record.
-/// The center hub shows a music note.
-///
-/// ── Replacing with real artwork ─────────────────────────────────────────────
-/// When your backend provides artwork URLs, replace the [Stack] body with:
-///
-///   ClipRRect(
-///     borderRadius: BorderRadius.circular(borderRadius),
-///     child: Image.network(
-///       artworkUrl,
-///       width: size, height: size,
-///       fit: BoxFit.cover,
-///       loadingBuilder: (_, child, progress) =>
-///           progress == null ? child : _PlaceholderRings(size: size, ...),
-///     ),
-///   )
-/// ────────────────────────────────────────────────────────────────────────────
 class AlbumArtWidget extends StatelessWidget {
   /// Side length of the square artwork tile in logical pixels.
   final double size;
@@ -32,16 +14,39 @@ class AlbumArtWidget extends StatelessWidget {
   /// Corner radius of the surrounding rounded rectangle.
   final double borderRadius;
 
+  /// Remote thumbnail URL. When non-null, a network image is shown instead of
+  /// the gradient placeholder. Falls back to the placeholder on error.
+  final String? thumbnailUrl;
+
   const AlbumArtWidget({
     super.key,
     required this.size,
     required this.colorPrimary,
     required this.colorSecondary,
     this.borderRadius = 24,
+    this.thumbnailUrl,
   });
 
   @override
   Widget build(BuildContext context) {
+    if (thumbnailUrl != null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(borderRadius),
+        child: Image.network(
+          thumbnailUrl!,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          loadingBuilder: (_, child, progress) =>
+              progress == null ? child : _buildVinyl(),
+          errorBuilder: (_, __, ___) => _buildVinyl(),
+        ),
+      );
+    }
+    return _buildVinyl();
+  }
+
+  Widget _buildVinyl() {
     return Container(
       width: size,
       height: size,
@@ -63,7 +68,6 @@ class AlbumArtWidget extends StatelessWidget {
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // Decorative highlight bubble (top-right corner)
           Positioned(
             right: size * 0.06,
             top: size * 0.06,
@@ -76,7 +80,6 @@ class AlbumArtWidget extends StatelessWidget {
               ),
             ),
           ),
-          // Outer vinyl ring
           Container(
             width: size * 0.78,
             height: size * 0.78,
@@ -89,7 +92,6 @@ class AlbumArtWidget extends StatelessWidget {
               ),
             ),
           ),
-          // Middle vinyl ring
           Container(
             width: size * 0.52,
             height: size * 0.52,
@@ -102,7 +104,6 @@ class AlbumArtWidget extends StatelessWidget {
               ),
             ),
           ),
-          // Center hub with music note icon
           Container(
             width: size * 0.26,
             height: size * 0.26,

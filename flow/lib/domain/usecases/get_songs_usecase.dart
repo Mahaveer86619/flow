@@ -1,15 +1,16 @@
 import '../entities/song.dart';
 import '../repositories/song_repository.dart';
 
-/// Returns the full song catalogue from the repository.
-///
-/// Use cases encapsulate a single business operation and act as the boundary
-/// between presentation (Cubits/BLoCs) and data (repositories).
-/// Swap the repository implementation without touching a single Cubit.
+/// Returns a flat song catalogue.
+/// Not used directly by any screen cubit — kept for compatibility and testing.
+/// Screens use [GetHomeDataUseCase] or [SearchSongsUseCase] instead.
 class GetSongsUseCase {
   final SongRepository _repository;
-
   const GetSongsUseCase(this._repository);
 
-  List<Song> call() => _repository.getSongs();
+  /// Falls back to fetching and flattening home data.
+  Future<List<Song>> call() async {
+    final home = await _repository.getHomeData();
+    return home.allSongs;
+  }
 }

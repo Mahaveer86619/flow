@@ -15,6 +15,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../blocs/player/player_bloc.dart';
+import '../../widgets/offline_banner.dart';
 import '../../widgets/player_panel.dart';
 import '../home/home_screen.dart';
 import '../library/library_screen.dart';
@@ -93,6 +94,7 @@ class _DesktopShellState extends State<DesktopShell>
           Expanded(
             child: Column(
               children: [
+                const OfflineBanner(),
                 _DesktopTopBar(),
                 Expanded(
                   child: IndexedStack(index: _index, children: _screens),

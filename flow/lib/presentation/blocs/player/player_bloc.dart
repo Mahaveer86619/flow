@@ -1,6 +1,12 @@
 import 'dart:async';
 import 'dart:math';
+import 'package:audio_service/audio_service.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:just_audio/just_audio.dart' hide PlayerState;
+import 'package:just_audio/just_audio.dart' as ja show PlayerState, ProcessingState;
+import '../../../core/logger/app_logger.dart';
+import '../../../core/platform/windows_media_session.dart';
+import '../../../core/storage/local_storage.dart';
 import '../../../domain/entities/song.dart';
 
 part 'player_event.dart';
@@ -8,29 +14,40 @@ part 'player_state.dart';
 
 // ── PlayerBloc ────────────────────────────────────────────────────────────────
 //
-// BLoC chosen over Cubit here because player logic involves many distinct
-// event types (play, pause, seek, skip, like, shuffle, repeat, volume) that
-// benefit from explicit event classes: they are self-documenting, easily
-// logged, and individually unit-testable.
+// Drives actual audio playback via just_audio (AudioPlayer).
+// Stream URL: GET $streamBaseUrl/api/stream/{videoId}  (server-side yt-dlp proxy)
 //
-// Flow: UI dispatches an event → BLoC handler runs → new PlayerState emitted
-//       → any BlocBuilder / context.watch<PlayerBloc> rebuilds.
+// Background audio + lock-screen controls are handled by just_audio_background
+// which wraps AudioPlayer transparently when JustAudioBackground.init() is
+// called in main().
 //
-// Progress timer: runs internally and dispatches [_ProgressTickEvent] every
-// 500 ms while playing. Using an internal event keeps the handler pure and
-// the timer logic out of the UI layer.
-//
-// To connect a real audio backend:
-//   1. Inject your audio service in the constructor.
-//   2. Call service methods inside the relevant handlers.
-//   3. Listen to service position streams and add [_ProgressTickEvent] /
-//      [SkipNextEvent] as needed.
+// Internal events (_PositionUpdateEvent, _BufferingChangedEvent,
+// _TrackCompletedEvent) are dispatched by AudioPlayer stream subscriptions so
+// all state mutations remain inside the BLoC and are fully testable.
 // ─────────────────────────────────────────────────────────────────────────────
 
 class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
-  Timer? _progressTimer;
+  final AudioPlayer _audioPlayer;
+  final String _streamBaseUrl;
+  final LocalStorage _storage;
+  final WindowsMediaSession _mediaSession;
 
-  PlayerBloc() : super(const PlayerState()) {
+  StreamSubscription<Duration>? _positionSub;
+  StreamSubscription<Duration?>? _durationSub;
+  StreamSubscription<ja.PlayerState>? _playerStateSub;
+
+  static const _tag = 'PlayerBloc';
+
+  PlayerBloc({
+    required String streamBaseUrl,
+    LocalStorage? storage,
+    AudioPlayer? audioPlayer,
+    WindowsMediaSession? mediaSession,
+  })  : _streamBaseUrl = streamBaseUrl,
+        _storage = storage ?? LocalStorage.instance,
+        _audioPlayer = audioPlayer ?? AudioPlayer(),
+        _mediaSession = mediaSession ?? WindowsMediaSession.instance,
+        super(const PlayerState()) {
     on<PlayQueueEvent>(_onPlayQueue);
     on<PlaySingleEvent>(_onPlaySingle);
     on<TogglePlayPauseEvent>(_onTogglePlayPause);
@@ -41,132 +58,282 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     on<ToggleRepeatEvent>(_onToggleRepeat);
     on<ToggleLikeEvent>(_onToggleLike);
     on<SetVolumeEvent>(_onSetVolume);
-    on<_ProgressTickEvent>(_onProgressTick);
+    on<_PositionUpdateEvent>(_onPositionUpdate);
+    on<_BufferingChangedEvent>(_onBufferingChanged);
+    on<_TrackCompletedEvent>(_onTrackCompleted);
+
+    on<_RestoreStateEvent>(_onRestoreState);
+
+    _subscribeToPlayer();
+    add(const _RestoreStateEvent());
+
+    // Initialise Windows SMTC — no-op on other platforms
+    _mediaSession.init(
+      onPlay:     () { if (!isClosed) add(const TogglePlayPauseEvent()); },
+      onPause:    () { if (!isClosed) add(const TogglePlayPauseEvent()); },
+      onNext:     () { if (!isClosed) add(const SkipNextEvent()); },
+      onPrevious: () { if (!isClosed) add(const SkipPreviousEvent()); },
+    );
   }
 
-  // ── Event handlers ───────────────────────────────────────────────────────────
+  // ── AudioPlayer subscriptions ─────────────────────────────────────────────
+
+  void _subscribeToPlayer() {
+    // Position updates — throttled to once per 500 ms by just_audio internally
+    _positionSub = _audioPlayer.positionStream.listen((pos) {
+      if (!isClosed) add(_PositionUpdateEvent(pos, _audioPlayer.duration));
+    });
+
+    // Duration updates (available once the stream is loaded)
+    _durationSub = _audioPlayer.durationStream.listen((dur) {
+      if (!isClosed && dur != null) {
+        add(_PositionUpdateEvent(_audioPlayer.position, dur));
+      }
+    });
+
+    // Buffering / playing state + completion detection
+    _playerStateSub = _audioPlayer.playerStateStream.listen((ps) {
+      if (isClosed) return;
+      if (ps.processingState == ja.ProcessingState.completed) {
+        add(const _TrackCompletedEvent());
+      } else {
+        final buffering = ps.processingState == ja.ProcessingState.loading ||
+            ps.processingState == ja.ProcessingState.buffering;
+        add(_BufferingChangedEvent(
+          isBuffering: buffering,
+          isPlaying: ps.playing,
+        ));
+      }
+    });
+  }
+
+  // ── Restore ───────────────────────────────────────────────────────────────
+
+  void _onRestoreState(_RestoreStateEvent event, Emitter<PlayerState> emit) {
+    final likedIds = _storage.likedSongIds;
+    final volume = _storage.volume;
+    final shuffle = _storage.isShuffle;
+    final repeat = _storage.isRepeat;
+    AppLogger.i(_tag,
+        'Restored — liked=${likedIds.length} vol=$volume '
+        'shuffle=$shuffle repeat=$repeat');
+    _audioPlayer.setVolume(volume);
+    emit(state.copyWith(
+      likedSongIds: likedIds,
+      volume: volume,
+      isShuffle: shuffle,
+      isRepeat: repeat,
+    ));
+  }
+
+  // ── Event handlers ────────────────────────────────────────────────────────
 
   void _onPlayQueue(PlayQueueEvent event, Emitter<PlayerState> emit) {
+    if (event.songs.isEmpty) return;
     final idx = event.startIndex.clamp(0, event.songs.length - 1);
+    AppLogger.i(_tag, 'PlayQueue: ${event.songs.length} songs, start=$idx');
     emit(state.copyWith(queue: List.from(event.songs), queueIndex: idx));
     _playSong(event.songs[idx], emit);
   }
 
   void _onPlaySingle(PlaySingleEvent event, Emitter<PlayerState> emit) {
+    AppLogger.i(_tag, 'PlaySingle: "${event.song.title}"');
     emit(state.copyWith(queue: [event.song], queueIndex: 0));
     _playSong(event.song, emit);
   }
 
   void _onTogglePlayPause(
-    TogglePlayPauseEvent event,
-    Emitter<PlayerState> emit,
-  ) {
+      TogglePlayPauseEvent event, Emitter<PlayerState> emit) {
     if (state.isPlaying) {
-      _progressTimer?.cancel();
+      AppLogger.d(_tag, 'Pause');
+      _audioPlayer.pause();
+      _mediaSession.setPlaybackStatus(false);
       emit(state.copyWith(isPlaying: false));
     } else {
+      AppLogger.d(_tag, 'Resume');
+      _audioPlayer.play();
+      _mediaSession.setPlaybackStatus(true);
       emit(state.copyWith(isPlaying: true));
-      _startTimer();
     }
   }
 
-  void _onSeekTo(SeekToEvent event, Emitter<PlayerState> emit) =>
-      emit(state.copyWith(progress: event.fraction.clamp(0.0, 1.0)));
+  void _onSeekTo(SeekToEvent event, Emitter<PlayerState> emit) {
+    final dur = _audioPlayer.duration ?? state.actualDuration ?? state.currentSong?.duration;
+    if (dur != null && dur.inMilliseconds > 0) {
+      final target = Duration(
+        milliseconds: (event.fraction.clamp(0.0, 1.0) * dur.inMilliseconds).round(),
+      );
+      AppLogger.d(_tag,
+          'Seek → ${(event.fraction * 100).toStringAsFixed(1)}%  ($target)');
+      _audioPlayer.seek(target);
+    }
+  }
 
   void _onSkipNext(SkipNextEvent event, Emitter<PlayerState> emit) {
     if (state.queue.isEmpty) return;
     final nextIdx = state.isShuffle
         ? Random().nextInt(state.queue.length)
         : (state.queueIndex + 1) % state.queue.length;
+    AppLogger.i(_tag, 'SkipNext → idx=$nextIdx');
     emit(state.copyWith(queueIndex: nextIdx));
     _playSong(state.queue[nextIdx], emit);
   }
 
   void _onSkipPrevious(SkipPreviousEvent event, Emitter<PlayerState> emit) {
+    // If more than 5 % into the track, restart instead of going back
     if (state.progress > 0.05) {
-      emit(state.copyWith(progress: 0.0));
+      AppLogger.d(_tag, 'SkipPrev: restart');
+      _audioPlayer.seek(Duration.zero);
       return;
     }
     if (state.queue.isEmpty) return;
     final prevIdx =
         (state.queueIndex - 1 + state.queue.length) % state.queue.length;
+    AppLogger.i(_tag, 'SkipPrev → idx=$prevIdx');
     emit(state.copyWith(queueIndex: prevIdx));
     _playSong(state.queue[prevIdx], emit);
   }
 
-  void _onToggleShuffle(ToggleShuffleEvent event, Emitter<PlayerState> emit) =>
-      emit(state.copyWith(isShuffle: !state.isShuffle));
+  void _onToggleShuffle(ToggleShuffleEvent event, Emitter<PlayerState> emit) {
+    final next = !state.isShuffle;
+    AppLogger.i(_tag, 'Shuffle → $next');
+    _storage.saveShuffle(next);
+    emit(state.copyWith(isShuffle: next));
+  }
 
-  void _onToggleRepeat(ToggleRepeatEvent event, Emitter<PlayerState> emit) =>
-      emit(state.copyWith(isRepeat: !state.isRepeat));
+  void _onToggleRepeat(ToggleRepeatEvent event, Emitter<PlayerState> emit) {
+    final next = !state.isRepeat;
+    AppLogger.i(_tag, 'Repeat → $next');
+    _storage.saveRepeat(next);
+    emit(state.copyWith(isRepeat: next));
+  }
 
   void _onToggleLike(ToggleLikeEvent event, Emitter<PlayerState> emit) {
     final liked = List<String>.from(state.likedSongIds);
-    liked.contains(event.song.id)
-        ? liked.remove(event.song.id)
-        : liked.add(event.song.id);
+    if (liked.contains(event.song.id)) {
+      liked.remove(event.song.id);
+      AppLogger.i(_tag, 'Unlike: "${event.song.title}"');
+    } else {
+      liked.add(event.song.id);
+      AppLogger.i(_tag, 'Like: "${event.song.title}"');
+    }
+    _storage.saveLikedSongIds(liked);
     emit(state.copyWith(likedSongIds: liked));
   }
 
-  void _onSetVolume(SetVolumeEvent event, Emitter<PlayerState> emit) =>
-      emit(state.copyWith(volume: event.volume.clamp(0.0, 1.0)));
+  void _onSetVolume(SetVolumeEvent event, Emitter<PlayerState> emit) {
+    final vol = event.volume.clamp(0.0, 1.0);
+    AppLogger.d(_tag, 'Volume → ${(vol * 100).toStringAsFixed(0)}%');
+    _audioPlayer.setVolume(vol);
+    _storage.saveVolume(vol);
+    emit(state.copyWith(volume: vol));
+  }
 
-  void _onProgressTick(_ProgressTickEvent event, Emitter<PlayerState> emit) {
-    if (!state.isPlaying) return;
-    final newProgress = state.progress + event.delta;
-    if (newProgress >= 1.0) {
-      if (state.isRepeat) {
-        emit(state.copyWith(progress: 0.0));
-      } else if (state.queue.length > 1) {
-        add(const SkipNextEvent());
-      } else {
-        _progressTimer?.cancel();
-        emit(state.copyWith(progress: 1.0, isPlaying: false));
-      }
-    } else {
-      emit(state.copyWith(progress: newProgress));
+  void _onPositionUpdate(
+      _PositionUpdateEvent event, Emitter<PlayerState> emit) {
+    emit(state.copyWith(
+      position: event.position,
+      actualDuration: event.duration,
+    ));
+    // Throttle SMTC timeline updates to once every ~2 s to avoid overhead
+    final pos = event.position;
+    final dur = event.duration;
+    if (dur != null && pos.inSeconds % 2 == 0) {
+      _mediaSession.updateTimeline(pos, dur);
     }
   }
 
-  // ── Private helpers ──────────────────────────────────────────────────────────
+  void _onBufferingChanged(
+      _BufferingChangedEvent event, Emitter<PlayerState> emit) {
+    emit(state.copyWith(
+      isBuffering: event.isBuffering,
+      isPlaying: event.isPlaying,
+    ));
+  }
+
+  void _onTrackCompleted(
+      _TrackCompletedEvent event, Emitter<PlayerState> emit) {
+    if (state.isRepeat) {
+      AppLogger.d(_tag, 'Track completed — repeat, restarting');
+      _audioPlayer.seek(Duration.zero);
+      _audioPlayer.play();
+    } else if (state.queue.length > 1) {
+      AppLogger.d(_tag, 'Track completed — advancing to next');
+      add(const SkipNextEvent());
+    } else {
+      AppLogger.d(_tag, 'Track completed — end of queue');
+      _mediaSession.setStopped();
+      emit(state.copyWith(isPlaying: false));
+    }
+  }
+
+  // ── Private helpers ───────────────────────────────────────────────────────
 
   void _playSong(Song song, Emitter<PlayerState> emit) {
-    _progressTimer?.cancel();
+    AppLogger.i(_tag, 'Playing: "${song.title}" by ${song.artist}');
+
+    // Update recently played
     final recent = [
       song,
       ...state.recentlyPlayed.where((s) => s.id != song.id),
     ];
     if (recent.length > 20) recent.removeLast();
-    emit(
-      state.copyWith(
-        currentSong: song,
-        isPlaying: true,
-        progress: 0.0,
-        recentlyPlayed: recent,
-      ),
-    );
-    _startTimer();
+    _storage.saveRecentlyPlayedIds(recent.map((s) => s.id).toList());
+
+    // Emit loading state immediately so UI shows the new song
+    emit(state.copyWith(
+      currentSong: song,
+      isPlaying: false,
+      isBuffering: true,
+      position: Duration.zero,
+      clearActualDuration: true,
+      recentlyPlayed: recent,
+    ));
+
+    // Update Windows SMTC overlay immediately so media keys work straight away
+    _mediaSession.updateSong(song);
+    _mediaSession.setPlaybackStatus(true);
+
+    // Fire-and-forget the actual stream load; AudioPlayer subscriptions will
+    // update state via internal events once buffering/playing begins.
+    _loadStream(song);
   }
 
-  void _startTimer() {
-    _progressTimer?.cancel();
-    if (state.currentSong == null) return;
-
-    final totalMs = state.currentSong!.duration.inMilliseconds;
-    const tickMs = 500;
-    final delta = tickMs / totalMs;
-
-    _progressTimer = Timer.periodic(
-      const Duration(milliseconds: tickMs),
-      (_) {
-        if (!isClosed) add(_ProgressTickEvent(delta));
-      },
-    );
+  Future<void> _loadStream(Song song) async {
+    final streamUrl = '$_streamBaseUrl/api/stream/${song.id}';
+    AppLogger.d(_tag, 'Loading stream: $streamUrl');
+    try {
+      await _audioPlayer.setAudioSource(
+        AudioSource.uri(
+          Uri.parse(streamUrl),
+          tag: MediaItem(
+            id: song.id,
+            title: song.title,
+            artist: song.artist,
+            album: song.album.isNotEmpty ? song.album : song.artist,
+            artUri: song.thumbnailUrl != null
+                ? Uri.parse(song.thumbnailUrl!)
+                : null,
+          ),
+        ),
+      );
+      await _audioPlayer.play();
+    } catch (e, st) {
+      AppLogger.e(_tag, 'Stream load failed for ${song.id}', e, st);
+      // Skip to next on load failure so the queue keeps moving
+      if (!isClosed) add(const SkipNextEvent());
+    }
   }
 
   @override
-  Future<void> close() {
-    _progressTimer?.cancel();
+  Future<void> close() async {
+    AppLogger.i(_tag, 'Closing PlayerBloc');
+    await _positionSub?.cancel();
+    await _durationSub?.cancel();
+    await _playerStateSub?.cancel();
+    await _audioPlayer.dispose();
+    await _mediaSession.dispose();
     return super.close();
   }
 }
+

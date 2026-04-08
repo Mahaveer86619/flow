@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../blocs/player/player_bloc.dart';
 import '../../widgets/mini_player.dart';
+import '../../widgets/offline_banner.dart';
 import '../home/home_screen.dart';
 import '../library/library_screen.dart';
 import '../player/player_screen.dart';
@@ -61,6 +62,7 @@ class _MainScreenState extends State<MainScreen> {
       ),
       body: Column(
         children: [
+          const OfflineBanner(),
           Expanded(
             child: IndexedStack(index: _index, children: _screens),
           ),

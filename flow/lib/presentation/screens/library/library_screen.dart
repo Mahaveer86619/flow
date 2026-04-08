@@ -5,6 +5,7 @@ import '../../../core/responsive/breakpoints.dart';
 import '../../../domain/entities/song.dart';
 import '../../blocs/player/player_bloc.dart';
 import '../../cubits/library/library_cubit.dart';
+import '../../widgets/error_view.dart';
 import '../playlist/playlist_screen.dart';
 
 class LibraryScreen extends StatelessWidget {
@@ -84,6 +85,18 @@ class LibraryScreen extends StatelessWidget {
             ),
           ),
         ),
+        if (state.isLoading)
+          const SliverFillRemaining(
+            child: Center(child: CircularProgressIndicator()),
+          ),
+        if (state.error)
+          SliverFillRemaining(
+            child: ErrorView(
+              errorType: state.errorType,
+              onRetry: () => context.read<LibraryCubit>().reload(),
+            ),
+          ),
+        if (!state.isLoading && !state.error) ...[
         SliverToBoxAdapter(
           child: _SpecialPlaylistTile(
             icon: Icons.favorite_rounded,
@@ -99,7 +112,23 @@ class LibraryScreen extends StatelessWidget {
           ),
         ),
         const SliverToBoxAdapter(child: SizedBox(height: 24)),
+        ], // end !isLoading && !error
       ],
+    );
+  }
+}
+
+class _PlaylistArtFallback extends StatelessWidget {
+  final Playlist playlist;
+  const _PlaylistArtFallback({required this.playlist});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 58,
+      height: 58,
+      color: playlist.color,
+      child: const Icon(Icons.queue_music_rounded, color: Colors.white, size: 28),
     );
   }
 }
@@ -145,18 +174,17 @@ class _PlaylistTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      leading: Container(
-        width: 58,
-        height: 58,
-        decoration: BoxDecoration(
-          color: playlist.color,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: const Icon(
-          Icons.queue_music_rounded,
-          color: Colors.white,
-          size: 28,
-        ),
+      leading: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: playlist.thumbnailUrl != null
+            ? Image.network(
+                playlist.thumbnailUrl!,
+                width: 58,
+                height: 58,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => _PlaylistArtFallback(playlist: playlist),
+              )
+            : _PlaylistArtFallback(playlist: playlist),
       ),
       title: Text(
         playlist.name,

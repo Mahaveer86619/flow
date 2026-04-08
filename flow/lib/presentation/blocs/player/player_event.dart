@@ -1,11 +1,6 @@
 part of 'player_bloc.dart';
 
 // ── Player Events ─────────────────────────────────────────────────────────────
-//
-// Every user action or system signal that mutates player state is expressed as
-// an immutable event. The BLoC handles each via a dedicated handler, keeping
-// the state-transition logic testable and explicit.
-// ─────────────────────────────────────────────────────────────────────────────
 
 abstract class PlayerEvent {
   const PlayerEvent();
@@ -29,7 +24,7 @@ class TogglePlayPauseEvent extends PlayerEvent {
   const TogglePlayPauseEvent();
 }
 
-/// Seek to [fraction] (0.0 – 1.0) of the current song's duration.
+/// Seek to [fraction] (0.0–1.0) of the current song's duration.
 class SeekToEvent extends PlayerEvent {
   final double fraction;
   const SeekToEvent(this.fraction);
@@ -61,16 +56,32 @@ class ToggleLikeEvent extends PlayerEvent {
   const ToggleLikeEvent(this.song);
 }
 
-/// Set playback volume to [volume] (0.0 – 1.0).
+/// Set playback volume to [volume] (0.0–1.0).
 class SetVolumeEvent extends PlayerEvent {
   final double volume;
   const SetVolumeEvent(this.volume);
 }
 
-/// Internal: emitted by the progress timer each tick.
-/// Not part of the public API — prefixed with _ to signal that.
-class _ProgressTickEvent extends PlayerEvent {
-  /// Fractional progress increment for this tick.
-  final double delta;
-  const _ProgressTickEvent(this.delta);
+// ── Internal events ─────────────────────────────────────────────────────────────
+
+class _RestoreStateEvent extends PlayerEvent {
+  const _RestoreStateEvent();
+}
+
+// ── Internal events dispatched by AudioPlayer stream subscriptions ─────────────
+
+class _PositionUpdateEvent extends PlayerEvent {
+  final Duration position;
+  final Duration? duration;
+  const _PositionUpdateEvent(this.position, this.duration);
+}
+
+class _BufferingChangedEvent extends PlayerEvent {
+  final bool isBuffering;
+  final bool isPlaying;
+  const _BufferingChangedEvent({required this.isBuffering, required this.isPlaying});
+}
+
+class _TrackCompletedEvent extends PlayerEvent {
+  const _TrackCompletedEvent();
 }

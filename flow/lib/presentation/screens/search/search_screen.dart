@@ -12,10 +12,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/responsive/breakpoints.dart';
-import '../../../core/responsive/breakpoints.dart';
 import '../../../domain/entities/song.dart';
 import '../../blocs/player/player_bloc.dart';
 import '../../cubits/search/search_cubit.dart';
+import '../../widgets/error_view.dart';
 import '../player/player_screen.dart';
 
 class SearchScreen extends StatefulWidget {
@@ -147,6 +147,18 @@ class _SearchScreenState extends State<SearchScreen> {
               );
             }, childCount: state.recentSearches.length),
           ),
+        ] else if (state.isLoading) ...[
+          const SliverFillRemaining(
+            child: Center(child: CircularProgressIndicator()),
+          ),
+        ] else if (state.error && state.hasQuery) ...[
+          SliverFillRemaining(
+            child: InlineErrorView(
+              errorType: state.errorType,
+              onRetry: () =>
+                  context.read<SearchCubit>().updateQuery(state.query),
+            ),
+          ),
         ] else if (state.hasQuery && state.results.isNotEmpty) ...[
           SliverList(
             delegate: SliverChildBuilderDelegate(
@@ -234,23 +246,29 @@ class _ResultTile extends StatelessWidget {
     required this.index,
   });
 
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      leading: Container(
+  Widget _songArtFallback(Song s) => Container(
         width: 50,
         height: 50,
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [song.colorPrimary, song.colorSecondary],
-          ),
-          borderRadius: BorderRadius.circular(10),
+          gradient: LinearGradient(colors: [s.colorPrimary, s.colorSecondary]),
         ),
-        child: const Icon(
-          Icons.music_note_rounded,
-          color: Colors.white,
-          size: 22,
-        ),
+        child: const Icon(Icons.music_note_rounded, color: Colors.white, size: 22),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: song.thumbnailUrl != null
+            ? Image.network(
+                song.thumbnailUrl!,
+                width: 50,
+                height: 50,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => _songArtFallback(song),
+              )
+            : _songArtFallback(song),
       ),
       title: Text(
         song.title,

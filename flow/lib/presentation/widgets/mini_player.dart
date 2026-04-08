@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/player/player_bloc.dart';
 import '../screens/player/player_screen.dart';
+import '../../domain/entities/song.dart';
 
 class MiniPlayer extends StatelessWidget {
   const MiniPlayer({super.key});
@@ -35,24 +36,19 @@ class MiniPlayer extends StatelessWidget {
         child: Row(
           children: [
             // ── Album art ────────────────────────────────────────────────────
-            Container(
-              width: 76,
-              height: 76,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [song.colorPrimary, song.colorSecondary],
-                ),
-                borderRadius: const BorderRadius.horizontal(
-                  left: Radius.circular(18),
-                ),
+            ClipRRect(
+              borderRadius: const BorderRadius.horizontal(
+                left: Radius.circular(18),
               ),
-              child: const Icon(
-                Icons.music_note_rounded,
-                color: Colors.white,
-                size: 26,
-              ),
+              child: song.thumbnailUrl != null
+                  ? Image.network(
+                      song.thumbnailUrl!,
+                      width: 76,
+                      height: 76,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _ArtFallback(song: song),
+                    )
+                  : _ArtFallback(song: song),
             ),
             const SizedBox(width: 12),
 
@@ -82,7 +78,6 @@ class MiniPlayer extends StatelessWidget {
                     maxLines: 1,
                   ),
                   const SizedBox(height: 6),
-                  // Progress bar — embedded in song info for clear association
                   ClipRRect(
                     borderRadius: BorderRadius.circular(4),
                     child: LinearProgressIndicator(
@@ -108,18 +103,43 @@ class MiniPlayer extends StatelessWidget {
                 size: 30,
               ),
               onPressed: () => context.read<PlayerBloc>().add(
-                const TogglePlayPauseEvent(),
-              ),
+                    const TogglePlayPauseEvent(),
+                  ),
             ),
             IconButton(
               icon: const Icon(Icons.skip_next_rounded, size: 26),
               onPressed: () => context.read<PlayerBloc>().add(
-                const SkipNextEvent(),
-              ),
+                    const SkipNextEvent(),
+                  ),
             ),
             const SizedBox(width: 4),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ArtFallback extends StatelessWidget {
+  final Song song;
+  const _ArtFallback({required this.song});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 76,
+      height: 76,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [song.colorPrimary, song.colorSecondary],
+        ),
+      ),
+      child: const Icon(
+        Icons.music_note_rounded,
+        color: Colors.white,
+        size: 26,
       ),
     );
   }

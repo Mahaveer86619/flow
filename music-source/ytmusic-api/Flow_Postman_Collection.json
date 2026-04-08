@@ -1,0 +1,346 @@
+{
+  "info": {
+    "name": "Flow (YTMusic API)",
+    "description": "API documentation for the Flow ytmusic-api backend.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Check Status",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/status"
+          }
+        },
+        {
+          "name": "Setup Auth",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "text/plain"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "Paste cURL command or raw request headers from YouTube Music here"
+            },
+            "url": "{{base_url}}/api/auth"
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/api/auth"
+          }
+        }
+      ]
+    },
+    {
+      "name": "v1 API (App)",
+      "item": [
+        {
+          "name": "Get Home",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/home?limit=5"
+          }
+        },
+        {
+          "name": "Get Home - Quick Access",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/home/quick-access"
+          }
+        },
+        {
+          "name": "Get Home - Listening Again",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/home/listening-again"
+          }
+        },
+        {
+          "name": "Get Home - Forgotten Favorites",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/home/forgotten-favorites"
+          }
+        },
+        {
+          "name": "Get Home - Music For You",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/home/music-for-you"
+          }
+        },
+        {
+          "name": "Get Home - Trending Artists",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/home/trending-artists"
+          }
+        },
+        {
+          "name": "Clear Home Cache",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/api/v1/home/cache"
+          }
+        },
+        {
+          "name": "Search Songs",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/search/songs?q=lofi&limit=20"
+          }
+        },
+        {
+          "name": "Get Library Playlists",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/library"
+          }
+        },
+        {
+          "name": "Get Playlist Tracks",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/playlists/:playlist_id/tracks",
+            "variable": [
+              {
+                "key": "playlist_id",
+                "value": "PL..."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Streaming & Proxy",
+      "item": [
+        {
+          "name": "Stream Audio",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/stream/:video_id",
+            "variable": [
+              {
+                "key": "video_id",
+                "value": "dQw4w9WgXcQ"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Proxy Image",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/proxy-image?url=https://lh3.googleusercontent.com/..."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Playlists CRUD",
+      "item": [
+        {
+          "name": "Get Playlist",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/playlists/:playlist_id?limit=100",
+            "variable": [
+              {
+                "key": "playlist_id",
+                "value": "PL..."
+              }
+            ]
+          }
+        },
+        {
+          "name": "Create Playlist",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"My New Playlist\",\n  \"description\": \"A test playlist\",\n  \"privacy_status\": \"PRIVATE\",\n  \"video_ids\": [\"dQw4w9WgXcQ\"]\n}"
+            },
+            "url": "{{base_url}}/api/playlists"
+          }
+        },
+        {
+          "name": "Edit Playlist",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Playlist Name\",\n  \"description\": \"Updated description\"\n}"
+            },
+            "url": "{{base_url}}/api/playlists/:playlist_id",
+            "variable": [
+              {
+                "key": "playlist_id",
+                "value": "PL..."
+              }
+            ]
+          }
+        },
+        {
+          "name": "Add Items to Playlist",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"videoIds\": [\"dQw4w9WgXcQ\"],\n  \"duplicates\": false\n}"
+            },
+            "url": "{{base_url}}/api/playlists/:playlist_id/items",
+            "variable": [
+              {
+                "key": "playlist_id",
+                "value": "PL..."
+              }
+            ]
+          }
+        },
+        {
+          "name": "Remove Items from Playlist",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"videos\": [\n    {\n      \"videoId\": \"dQw4w9WgXcQ\",\n      \"setVideoId\": \"set_video_id_from_playlist_details\"\n    }\n  ]\n}"
+            },
+            "url": "{{base_url}}/api/playlists/:playlist_id/items",
+            "variable": [
+              {
+                "key": "playlist_id",
+                "value": "PL..."
+              }
+            ]
+          }
+        },
+        {
+          "name": "Delete Playlist",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/api/playlists/:playlist_id",
+            "variable": [
+              {
+                "key": "playlist_id",
+                "value": "PL..."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Legacy / Web Frontend Compatibility",
+      "item": [
+        {
+          "name": "Get Feed",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/feed?limit=4"
+          }
+        },
+        {
+          "name": "Get Library Playlists (Legacy)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/library/playlists?limit=100"
+          }
+        },
+        {
+          "name": "Search Songs (Legacy)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/search/songs?q=lofi&limit=20"
+          }
+        },
+        {
+          "name": "Search Songs (Alias)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/songs/search?q=lofi&limit=20"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Debug / Raw",
+      "item": [
+        {
+          "name": "Debug Feed",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/debug/feed?limit=2"
+          }
+        },
+        {
+          "name": "Get Radio (Up Next)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/radio/:video_id?limit=25",
+            "variable": [
+              {
+                "key": "video_id",
+                "value": "dQw4w9WgXcQ"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Get Album",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/albums/:browse_id",
+            "variable": [
+              {
+                "key": "browse_id",
+                "value": "MPREb_..."
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
