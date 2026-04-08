@@ -7,20 +7,20 @@ services:
       - ytm-data:/data
     restart: unless-stopped
 
-  ngrok:
-    image: ngrok/ngrok:latest
-    restart: unless-stopped
-    command:
-      - "http"
-      - "app:8000"
-    ports:
-      - "4040:4040"
-    environment:
-      # To use ngrok, provide your authtoken in a .env file like this:
-      # NGROK_AUTHTOKEN=your_token_here
-      - NGROK_AUTHTOKEN=2s4KbZkWC5pMAvAtj0K9a8dhG9n_368KHtoURkHDDyCypWZW8
-    depends_on:
-      - app
+  # ngrok:
+  #   image: ngrok/ngrok:latest
+  #   restart: unless-stopped
+  #   command:
+  #     - "http"
+  #     - "app:8000"
+  #   ports:
+  #     - "4040:4040"
+  #   environment:
+  #     # To use ngrok, provide your authtoken in a .env file like this:
+  #     # NGROK_AUTHTOKEN=your_token_here
+  #     - NGROK_AUTHTOKEN=2s4KbZkWC5pMAvAtj0K9a8dhG9n_368KHtoURkHDDyCypWZW8
+  #   depends_on:
+  #     - app
 
 volumes:
   ytm-data:

@@ -44,10 +44,5 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-
-# Claude
-.Claude/*
-
-
-# Secrets
+# custom
 .env
