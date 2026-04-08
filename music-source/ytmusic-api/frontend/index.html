@@ -479,6 +479,7 @@
                 transform: scale(1.05);
             }
 
+            
             .grid.horizontal {
                 grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
                 gap: 16px;
@@ -1177,14 +1178,14 @@
                 </div>
 
                 <div class="main-controls">
-                    <button onclick="playPrev()" title="Previous Track">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" /></svg>
+                    <button onclick="audio.currentTime -= 10">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5" /></svg>
                     </button>
                     <button id="sidebar-play-btn" class="mini-play" onclick="togglePlay()">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
                     </button>
-                    <button onclick="playNext()" title="Next Track">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" /></svg>
+                    <button onclick="audio.currentTime += 10">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 17l5-5-5-5M6 17l5-5-5-5" /></svg>
                     </button>
                 </div>
             </div>
@@ -1340,13 +1341,13 @@
                     if (data.tracks && data.tracks.length > 0) {
                         const playAllBtn = document.getElementById("album-play-btn");
                         playAllBtn.onclick = () => {
-                            const playable = data.tracks.filter((t) => t.videoId);
+                            const playable = data.tracks.filter(t => t.videoId);
                             if (playable.length > 0) {
-                                currentQueue = playable.map((t) => ({
+                                currentQueue = playable.map(t => ({
                                     videoId: t.videoId,
                                     title: t.title || "Unknown Track",
                                     artist: artistName(t) || artist,
-                                    thumb: thumb,
+                                    thumb: thumb
                                 }));
                                 currentQueueIndex = 0;
                                 const first = playable[0];
@@ -1365,100 +1366,14 @@
 
                             row.onclick = () => {
                                 if (track.videoId) {
-                                    currentQueue = data.tracks
-                                        .filter((t) => t.videoId)
-                                        .map((t) => ({
-                                            videoId: t.videoId,
-                                            title: t.title || "Unknown Track",
-                                            artist: artistName(t) || artist,
-                                            thumb: thumb,
-                                        }));
-                                    currentQueueIndex = data.tracks.findIndex((t) => t.videoId === track.videoId);
+                                    currentQueue = data.tracks.filter(t => t.videoId).map(t => ({
+                                        videoId: t.videoId,
+                                        title: t.title || "Unknown Track",
+                                        artist: artistName(t) || artist,
+                                        thumb: thumb
+                                    }));
+                                    currentQueueIndex = data.tracks.findIndex(t => t.videoId === track.videoId);
                                     play(track.videoId, trackTitle, trackArtist, thumb, true);
-                                }
-                            };
-
-                            row.innerHTML = `
-                                <div class="track-num">${index + 1}</div>
-                                <div class="track-info">
-                                    <div class="track-title" title="${esc(trackTitle)}">${esc(trackTitle)}</div>
-                                    <div class="track-artist" title="${esc(trackArtist)}">${esc(trackArtist)}</div>
-                                </div>
-                                <div class="track-dur">${track.duration || ""}</div>
-                            `;
-                            trackList.appendChild(row);
-                        });
-                    }
-                } catch (e) {
-                    showToast(e.message);
-                    switchView("home");
-                } finally {
-                    setLoading(false);
-                }
-            }
-
-            async function loadPlaylist(playlistId) {
-                setLoading(true);
-                try {
-                    const r = await fetch(`/api/playlists/${playlistId}`);
-                    const data = await r.json();
-                    if (!r.ok) throw new Error(data.detail || `Playlist error ${r.status}`);
-
-                    switchView("album"); // Reuse album view for now
-
-                    const thumb = bestThumb(data.thumbnails);
-                    document.getElementById("album-thumb").src = thumb ? "/api/proxy-image?url=" + encodeURIComponent(thumb) : "";
-                    document.getElementById("album-title").textContent = data.title || "Unknown Playlist";
-                    document.getElementById("album-title").title = data.title || "";
-
-                    const author = artistName(data.author) || "You";
-                    const trackCount = data.trackCount ? `${data.trackCount} tracks` : "";
-                    document.getElementById("album-artist").textContent = [author, trackCount].filter(Boolean).join(" • ");
-
-                    document.getElementById("album-desc").textContent = data.description || "";
-
-                    const trackList = document.getElementById("album-tracks");
-                    trackList.innerHTML = "";
-
-                    if (data.tracks && data.tracks.length > 0) {
-                        const playAllBtn = document.getElementById("album-play-btn");
-                        playAllBtn.onclick = () => {
-                            const playable = data.tracks.filter((t) => t.videoId);
-                            if (playable.length > 0) {
-                                currentQueue = playable.map((t) => ({
-                                    videoId: t.videoId,
-                                    title: t.title || "Unknown Track",
-                                    artist: artistName(t),
-                                    thumb: bestThumb(t.thumbnails) || thumb,
-                                }));
-                                currentQueueIndex = 0;
-                                const first = playable[0];
-                                play(first.videoId, first.title, artistName(first), bestThumb(first.thumbnails) || thumb, true);
-                            }
-                        };
-
-                        data.tracks.forEach((track, index) => {
-                            const row = document.createElement("div");
-                            row.className = "track-row";
-                            if (track.videoId === currentVideoId) row.classList.add("playing");
-                            row.id = "track-" + track.videoId;
-
-                            const trackTitle = track.title || "Unknown Track";
-                            const trackArtist = artistName(track) || author;
-                            const trackThumb = bestThumb(track.thumbnails) || thumb;
-
-                            row.onclick = () => {
-                                if (track.videoId) {
-                                    currentQueue = data.tracks
-                                        .filter((t) => t.videoId)
-                                        .map((t) => ({
-                                            videoId: t.videoId,
-                                            title: t.title || "Unknown Track",
-                                            artist: artistName(t),
-                                            thumb: bestThumb(t.thumbnails) || thumb,
-                                        }));
-                                    currentQueueIndex = currentQueue.findIndex((t) => t.videoId === track.videoId);
-                                    play(track.videoId, trackTitle, trackArtist, trackThumb, true);
                                 }
                             };
 
@@ -1511,19 +1426,18 @@
                     }
                     const grid = document.createElement("div");
                     let stLowerCase = (shelf.title || "").toLowerCase();
-                    let useHorizontal =
-                        stLowerCase.includes("quick picks") || stLowerCase.includes("songs") || stLowerCase.includes("listen again") || stLowerCase.includes("mixed");
+                    let useHorizontal = stLowerCase.includes("quick picks") || stLowerCase.includes("songs") || stLowerCase.includes("listen again") || stLowerCase.includes("mixed");
                     let useSmall = stLowerCase.includes("artists") || stLowerCase.includes("profiles");
 
                     if (useHorizontal) {
                         grid.className = "grid horizontal";
-                        cards.forEach((c) => {
+                        cards.forEach(c => {
                             c.classList.add("horizontal");
                             grid.appendChild(c);
                         });
                     } else if (useSmall) {
                         grid.className = "grid small";
-                        cards.forEach((c) => grid.appendChild(c));
+                        cards.forEach(c => grid.appendChild(c));
                     } else {
                         grid.className = "grid";
                         cards.forEach((c) => grid.appendChild(c));
@@ -1560,11 +1474,7 @@
                 card.onclick = () => {
                     if (item.videoId) play(item.videoId, title, artist, thumb);
                     else if (type === "album" && item.browseId) loadAlbum(item.browseId);
-                    else if (type === "playlist") {
-                        const pid = item.playlistId || (item.browseId ? item.browseId.replace(/^VL/, "") : null);
-                        if (pid) loadPlaylist(pid);
-                        else showToast("Invalid playlist ID.", "error");
-                    } else showToast("Viewing " + type + "s is not fully implemented yet.", "info");
+                    else showToast("Viewing " + type + "s is not fully implemented yet.", "info");
                 };
 
                 card.innerHTML = `
@@ -1654,28 +1564,6 @@
             const sidebarPlayIcon = `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`;
             const sidebarPauseIcon = `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`;
 
-            async function playRadio(videoId) {
-                try {
-                    const r = await fetch(`/api/radio/${videoId}`);
-                    const data = await r.json();
-                    if (!r.ok) throw new Error(data.detail);
-                    if (data.tracks && data.tracks.length > 0) {
-                        currentQueue = data.tracks
-                            .filter((t) => t.videoId)
-                            .map((t) => ({
-                                videoId: t.videoId,
-                                title: t.title,
-                                artist: artistName(t),
-                                thumb: bestThumb(t.thumbnails),
-                            }));
-                        currentQueueIndex = currentQueue.findIndex((t) => t.videoId === videoId);
-                        if (currentQueueIndex === -1) currentQueueIndex = 0;
-                    }
-                } catch (e) {
-                    console.error("Failed to start radio", e);
-                }
-            }
-
             function play(videoId, title, artist, thumb, fromQueue = false) {
                 if (currentVideoId) {
                     const old = document.getElementById("card-" + currentVideoId);
@@ -1687,7 +1575,6 @@
                 if (!fromQueue) {
                     currentQueue = [];
                     currentQueueIndex = -1;
-                    playRadio(videoId);
                 }
                 const card = document.getElementById("card-" + videoId);
                 if (card) card.classList.add("playing");
@@ -1757,30 +1644,9 @@
                 document.getElementById("sidebar-play-btn").innerHTML = isPaused ? sidebarPlayIcon : sidebarPauseIcon;
             }
 
-            function playNext() {
-                if (currentQueue.length > 0 && currentQueueIndex >= 0 && currentQueueIndex < currentQueue.length - 1) {
-                    currentQueueIndex++;
-                    const next = currentQueue[currentQueueIndex];
-                    play(next.videoId, next.title, next.artist, next.thumb, true);
-                }
-            }
-
-            function playPrev() {
-                if (currentQueue.length > 0 && currentQueueIndex > 0) {
-                    currentQueueIndex--;
-                    const prev = currentQueue[currentQueueIndex];
-                    play(prev.videoId, prev.title, prev.artist, prev.thumb, true);
-                } else {
-                    audio.currentTime = 0;
-                }
-            }
-
             audio.addEventListener("play", updatePlayButtons);
             audio.addEventListener("pause", updatePlayButtons);
-            audio.addEventListener("ended", () => {
-                updatePlayButtons();
-                playNext();
-            });
+            audio.addEventListener("ended", updatePlayButtons);
 
             audio.addEventListener("error", (e) => {
                 if (audio.src && !audio.src.endsWith(window.location.host + "/")) {

@@ -1,10 +1,6 @@
 import os
 from typing import Any, Dict, List, Optional, Union
 
-from dotenv import load_dotenv
-
-load_dotenv()
-
 import httpx
 import yt_dlp
 import ytmusicapi
@@ -275,26 +271,6 @@ async def proxy_image(url: str):
             )
     except Exception as e:
         raise HTTPException(500, f"Image proxy failed: {e}")
-
-
-# ── Library ───────────────────────────────────────────────────────────────────
-
-
-@app.get("/api/library/playlists")
-def get_library_playlists(limit: int = 100):
-    try:
-        return get_ytm().get_library_playlists(limit=limit)
-    except Exception as e:
-        raise HTTPException(500, str(e))
-
-
-@app.get("/api/radio/{video_id}")
-def get_radio(video_id: str, limit: int = 25):
-    try:
-        # get_watch_playlist returns the 'Up Next' queue
-        return get_ytm().get_watch_playlist(videoId=video_id, limit=limit)
-    except Exception as e:
-        raise HTTPException(500, str(e))
 
 
 # ── Albums ────────────────────────────────────────────────────────────────────
