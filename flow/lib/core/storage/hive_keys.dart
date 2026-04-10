@@ -25,4 +25,11 @@ class HiveKeys {
   static const String themeMode = 'theme_mode';
   static const String eqPreset = 'eq_preset';
   static const String downloadQuality = 'download_quality';
+
+  // ── auth box ─────────────────────────────────────────────────────────────────
+  static const String authBox = 'flow_auth';
+  static const String jwtToken = 'jwt_token';
+  static const String cachedUsername = 'cached_username';
+  static const String cachedEmail = 'cached_email';
+  static const String cachedHasYtAuth = 'cached_has_yt_auth';
 }

@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:just_audio_background/just_audio_background.dart';
+import 'core/auth/auth_cubit.dart';
 import 'core/config/server_config.dart';
 import 'core/logger/app_logger.dart';
 import 'core/network/connectivity_service.dart';
@@ -99,6 +100,7 @@ void main() async {
   runApp(
     MultiBlocProvider(
       providers: [
+        BlocProvider(create: (_) => AuthCubit()),
         BlocProvider(create: (_) => NetworkCubit(ConnectivityService.instance)),
         BlocProvider(
           create: (_) => PlayerBloc(songRepository: repository),

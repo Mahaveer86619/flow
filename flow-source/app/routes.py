@@ -1,13 +1,20 @@
+import json
 import os
+import tempfile
 import urllib.parse
+from datetime import timedelta
 from typing import List, Optional
 
 import httpx
 import ytmusicapi
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import StreamingResponse
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from jose import JWTError, jwt
+from sqlalchemy.orm import Session
 
 from .config import settings
+from .database import get_db
 from .models import (
     AddPlaylistItemsRequest,
     ArtistResponse,
@@ -18,8 +25,14 @@ from .models import (
     PlaylistResponse,
     RemovePlaylistItemsRequest,
     SongResponse,
+    Token,
+    User,
+    UserCreate,
+    UserLogin,
+    UserResponse,
+    YTCookiesPayload,
 )
-from .services import extract_audio_url, yt_service
+from .services import auth_service, extract_audio_url, yt_service
 from .utils import (
     curl_to_headers,
     normalize_artist,
@@ -30,62 +43,139 @@ from .utils import (
 
 router = APIRouter()
 
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="v1/auth/login")
 
-def _require_auth():
-    """Raise 401 if the server has no auth.json configured."""
-    if not os.path.exists(settings.AUTH_FILE_PATH):
+
+async def get_current_user(
+    token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)
+):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(
+            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+        )
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+    user = db.query(User).filter(User.username == username).first()
+    if user is None:
+        raise credentials_exception
+    return user
+
+
+def _require_yt_auth(user: User):
+    """Raise 401 if the user has no YT credentials configured."""
+    if not user.yt_auth_json:
+        # Check if a global fallback exists (optional, based on services.py logic)
+        if not os.path.exists(settings.AUTH_FILE_PATH):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="YT Music not connected. Please connect your account first.",
+            )
+
+
+# --- User Management Endpoints ---
+
+
+@router.post("/auth/signup", response_model=UserResponse)
+async def signup(user_in: UserCreate, db: Session = Depends(get_db)):
+    db_user = db.query(User).filter(User.username == user_in.username).first()
+    if db_user:
+        raise HTTPException(status_code=400, detail="Username already registered")
+
+    hashed_password = auth_service.get_password_hash(user_in.password)
+    new_user = User(
+        username=user_in.username,
+        email=user_in.email,
+        hashed_password=hashed_password,
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    response = UserResponse.from_orm(new_user)
+    response.has_yt_auth = bool(new_user.yt_auth_json)
+    return response
+
+
+@router.post("/auth/login", response_model=Token)
+async def login(
+    db: Session = Depends(get_db), form_data: OAuth2PasswordRequestForm = Depends()
+):
+    user = db.query(User).filter(User.username == form_data.username).first()
+    if not user or not auth_service.verify_password(
+        form_data.password, user.hashed_password
+    ):
         raise HTTPException(
-            status_code=401,
-            detail="Not authenticated — connect your YouTube Music account first.",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
         )
 
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = auth_service.create_access_token(
+        data={"sub": user.username}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
 
-# --- Home Endpoints ---
+
+@router.get("/auth/me", response_model=UserResponse)
+async def read_users_me(current_user: User = Depends(get_current_user)):
+    response = UserResponse.from_orm(current_user)
+    response.has_yt_auth = bool(current_user.yt_auth_json)
+    return response
 
 
-@router.get("/v1/home", response_model=HomeResponse)
-async def get_home(limit: int = 5):
+# --- Home & Feed Endpoints ---
+
+
+@router.get("/home", response_model=HomeResponse)
+async def get_home(limit: int = 5, current_user: User = Depends(get_current_user)):
     try:
-        return yt_service.get_home_cached(limit)
+        return yt_service.get_home_cached(current_user, limit)
     except Exception as e:
         raise HTTPException(500, str(e))
 
 
-@router.get("/v1/home/quick-access", response_model=List[SongResponse])
-async def quick_access():
-    return (await get_home()).quickAccess
+@router.get("/home/quick-access", response_model=List[SongResponse])
+async def quick_access(current_user: User = Depends(get_current_user)):
+    return (await get_home(current_user=current_user)).quickAccess
 
 
-@router.get("/v1/home/listening-again", response_model=List[SongResponse])
-async def listening_again():
-    return (await get_home()).listeningAgain
+@router.get("/home/listening-again", response_model=List[SongResponse])
+async def listening_again(current_user: User = Depends(get_current_user)):
+    return (await get_home(current_user=current_user)).listeningAgain
 
 
-@router.get("/v1/home/forgotten-favorites", response_model=List[SongResponse])
-async def forgotten_favorites():
-    return (await get_home()).forgottenFavorites
+@router.get("/home/forgotten-favorites", response_model=List[SongResponse])
+async def forgotten_favorites(current_user: User = Depends(get_current_user)):
+    return (await get_home(current_user=current_user)).forgottenFavorites
 
 
-@router.get("/v1/home/music-for-you", response_model=List[SongResponse])
-async def music_for_you():
-    return (await get_home()).musicForYou
+@router.get("/home/music-for-you", response_model=List[SongResponse])
+async def music_for_you(current_user: User = Depends(get_current_user)):
+    return (await get_home(current_user=current_user)).musicForYou
 
 
-@router.get("/v1/home/trending-artists", response_model=List[ArtistResponse])
-async def trending_artists():
-    return (await get_home()).trendingArtists
+@router.get("/home/trending-artists", response_model=List[ArtistResponse])
+async def trending_artists(current_user: User = Depends(get_current_user)):
+    return (await get_home(current_user=current_user)).trendingArtists
 
 
-@router.delete("/v1/home/cache")
-async def clear_home_cache():
-    yt_service.clear_cache()
-    return {"status": "ok", "message": "Home cache cleared"}
+@router.delete("/home/cache")
+async def clear_home_cache(current_user: User = Depends(get_current_user)):
+    yt_service.clear_cache(current_user.id)
+    return {"status": "ok", "message": "Your home cache cleared"}
 
 
-@router.get("/v1/feed", response_model=HomeResponse)
+@router.get("/feed", response_model=HomeResponse)
 async def get_feed():
-    """Unauthenticated home feed — returns trending / chart data only.
-    Safe to call without authentication; never raises 401."""
     try:
         return yt_service.get_feed_cached()
     except Exception as e:
@@ -95,35 +185,64 @@ async def get_feed():
 # --- Search Endpoints ---
 
 
-@router.get("/v1/search/songs", response_model=List[SongResponse])
-async def search_songs(q: str, limit: int = 20):
+@router.get("/search/songs", response_model=List[SongResponse])
+async def search_songs(
+    q: str, limit: int = 20, current_user: User = Depends(get_current_user)
+):
     if not q.strip():
         raise HTTPException(400, "Query is empty")
     try:
-        results = yt_service.get_client().search(q, filter="songs", limit=limit)
+        results = yt_service.get_client(current_user).search(
+            q, filter="songs", limit=limit
+        )
         return [s for item in results if (s := normalize_song(item))]
     except Exception as e:
         raise HTTPException(500, str(e))
 
 
-# --- Library & Playlists Endpoints ---
-
-
-@router.get("/v1/library", response_model=LibraryResponse)
-async def get_library():
-    _require_auth()
+@router.get("/search/suggestions")
+async def get_search_suggestions(
+    q: str, current_user: User = Depends(get_current_user)
+):
     try:
-        raw = yt_service.get_client().get_library_playlists(limit=100)
+        return yt_service.get_client(current_user).get_search_suggestions(q)
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+# --- Library & History Endpoints ---
+
+
+@router.get("/library", response_model=LibraryResponse)
+async def get_library(current_user: User = Depends(get_current_user)):
+    _require_yt_auth(current_user)
+    try:
+        raw = yt_service.get_client(current_user).get_library_playlists(limit=100)
         return LibraryResponse(playlists=[normalize_playlist(p) for p in raw])
     except Exception as e:
         raise HTTPException(500, str(e))
 
 
-@router.get("/v1/playlists/{playlist_id}/tracks", response_model=List[SongResponse])
-async def get_playlist_tracks(playlist_id: str, limit: int = 100):
+@router.get("/history", response_model=List[SongResponse])
+async def get_history(current_user: User = Depends(get_current_user)):
+    _require_yt_auth(current_user)
+    try:
+        raw = yt_service.get_client(current_user).get_history()
+        return [s for item in raw if (s := normalize_song(item))]
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+# --- Browsing & Content Endpoints ---
+
+
+@router.get("/playlists/{playlist_id}/tracks", response_model=List[SongResponse])
+async def get_playlist_tracks(
+    playlist_id: str, limit: int = 100, current_user: User = Depends(get_current_user)
+):
     try:
         actual_limit = None if limit <= 0 else limit
-        data = yt_service.get_client().get_playlist(
+        data = yt_service.get_client(current_user).get_playlist(
             playlistId=playlist_id, limit=actual_limit
         )
         tracks = data.get("tracks") or []
@@ -133,34 +252,58 @@ async def get_playlist_tracks(playlist_id: str, limit: int = 100):
 
 
 @router.get("/radio/{video_id}")
-async def get_radio(video_id: str, limit: int = 25):
+async def get_radio(
+    video_id: str, limit: int = 25, current_user: User = Depends(get_current_user)
+):
     try:
-        return yt_service.get_client().get_watch_playlist(videoId=video_id, limit=limit)
+        data = yt_service.get_client(current_user).get_watch_playlist(
+            videoId=video_id, limit=limit
+        )
+        tracks = data.get("tracks") or []
+        return [s for item in tracks if (s := normalize_song(item))]
     except Exception as e:
         raise HTTPException(500, str(e))
 
 
 @router.get("/albums/{browse_id}")
-async def get_album(browse_id: str):
+async def get_album(browse_id: str, current_user: User = Depends(get_current_user)):
     try:
-        return yt_service.get_client().get_album(browseId=browse_id)
+        return yt_service.get_client(current_user).get_album(browseId=browse_id)
     except Exception as e:
         raise HTTPException(500, str(e))
 
 
-@router.get("/feed")
-async def get_feed(limit: int = 4):
-    """Raw ytmusicapi home shelves."""
+@router.get("/artists/{channel_id}")
+async def get_artist(channel_id: str, current_user: User = Depends(get_current_user)):
     try:
-        return yt_service.get_client().get_home(limit=limit)
+        return yt_service.get_client(current_user).get_artist(channelId=channel_id)
     except Exception as e:
         raise HTTPException(500, str(e))
 
 
-@router.post("/v1/playlists")
-async def create_playlist(req: CreatePlaylistRequest):
+@router.get("/songs/{video_id}/lyrics")
+async def get_lyrics(video_id: str, current_user: User = Depends(get_current_user)):
     try:
-        res = yt_service.get_client().create_playlist(
+        client = yt_service.get_client(current_user)
+        watch = client.get_watch_playlist(videoId=video_id)
+        lyrics_id = watch.get("lyrics")
+        if not lyrics_id:
+            return {"lyrics": None}
+        return client.get_lyrics(lyrics_id)
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+# --- Playlist Management Endpoints ---
+
+
+@router.post("/playlists")
+async def create_playlist(
+    req: CreatePlaylistRequest, current_user: User = Depends(get_current_user)
+):
+    _require_yt_auth(current_user)
+    try:
+        res = yt_service.get_client(current_user).create_playlist(
             title=req.title,
             description=req.description,
             privacy_status=req.privacy_status,
@@ -172,10 +315,15 @@ async def create_playlist(req: CreatePlaylistRequest):
         raise HTTPException(500, str(e))
 
 
-@router.patch("/v1/playlists/{playlist_id}")
-async def edit_playlist(playlist_id: str, req: EditPlaylistRequest):
+@router.patch("/playlists/{playlist_id}")
+async def edit_playlist(
+    playlist_id: str,
+    req: EditPlaylistRequest,
+    current_user: User = Depends(get_current_user),
+):
+    _require_yt_auth(current_user)
     try:
-        res = yt_service.get_client().edit_playlist(
+        res = yt_service.get_client(current_user).edit_playlist(
             playlistId=playlist_id,
             title=req.title,
             description=req.description,
@@ -189,19 +337,29 @@ async def edit_playlist(playlist_id: str, req: EditPlaylistRequest):
         raise HTTPException(500, str(e))
 
 
-@router.delete("/v1/playlists/{playlist_id}")
-async def delete_playlist(playlist_id: str):
+@router.delete("/playlists/{playlist_id}")
+async def delete_playlist(
+    playlist_id: str, current_user: User = Depends(get_current_user)
+):
+    _require_yt_auth(current_user)
     try:
-        res = yt_service.get_client().delete_playlist(playlistId=playlist_id)
+        res = yt_service.get_client(current_user).delete_playlist(
+            playlistId=playlist_id
+        )
         return {"status": res}
     except Exception as e:
         raise HTTPException(500, str(e))
 
 
-@router.post("/v1/playlists/{playlist_id}/items")
-async def add_playlist_items(playlist_id: str, req: AddPlaylistItemsRequest):
+@router.post("/playlists/{playlist_id}/items")
+async def add_playlist_items(
+    playlist_id: str,
+    req: AddPlaylistItemsRequest,
+    current_user: User = Depends(get_current_user),
+):
+    _require_yt_auth(current_user)
     try:
-        res = yt_service.get_client().add_playlist_items(
+        res = yt_service.get_client(current_user).add_playlist_items(
             playlistId=playlist_id,
             videoIds=req.videoIds,
             source_playlist=req.source_playlist,
@@ -212,10 +370,15 @@ async def add_playlist_items(playlist_id: str, req: AddPlaylistItemsRequest):
         raise HTTPException(500, str(e))
 
 
-@router.delete("/v1/playlists/{playlist_id}/items")
-async def remove_playlist_items(playlist_id: str, req: RemovePlaylistItemsRequest):
+@router.delete("/playlists/{playlist_id}/items")
+async def remove_playlist_items(
+    playlist_id: str,
+    req: RemovePlaylistItemsRequest,
+    current_user: User = Depends(get_current_user),
+):
+    _require_yt_auth(current_user)
     try:
-        res = yt_service.get_client().remove_playlist_items(
+        res = yt_service.get_client(current_user).remove_playlist_items(
             playlistId=playlist_id, videos=req.videos
         )
         return {"status": res}
@@ -223,16 +386,20 @@ async def remove_playlist_items(playlist_id: str, req: RemovePlaylistItemsReques
         raise HTTPException(500, str(e))
 
 
-# --- Auth Endpoints ---
+# --- YT Music Connection Management (Per User) ---
 
 
-@router.get("/status")
-async def status():
-    return {"authenticated": os.path.exists(settings.AUTH_FILE_PATH)}
+@router.get("/yt-status")
+async def yt_status(current_user: User = Depends(get_current_user)):
+    return {"connected": bool(current_user.yt_auth_json)}
 
 
-@router.post("/auth")
-async def setup_auth(request: Request):
+@router.post("/yt-auth")
+async def setup_yt_auth(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     body = (await request.body()).decode("utf-8").strip()
     if not body:
         raise HTTPException(400, "Body is empty")
@@ -246,27 +413,79 @@ async def setup_auth(request: Request):
         )
 
     try:
-        ytmusicapi.setup(settings.AUTH_FILE_PATH, headers_raw=headers_raw)
-        write_cookie_file(settings.AUTH_FILE_PATH, settings.COOKIES_FILE_PATH)
-        yt_service.clear_cache()
-        return {"status": "ok", "message": "Authenticated successfully"}
+        # We use a temporary file to let ytmusicapi parse and validate the headers
+        with tempfile.NamedTemporaryFile(
+            mode="w+", suffix=".json", delete=False
+        ) as tmp:
+            tmp_path = tmp.name
+
+        try:
+            ytmusicapi.setup(tmp_path, headers_raw=headers_raw)
+            with open(tmp_path, "r") as f:
+                auth_data = json.load(f)
+
+            # Update user in DB
+            current_user.yt_auth_json = json.dumps(auth_data)
+            db.add(current_user)
+            db.commit()
+
+            yt_service.clear_cache(current_user.id)
+            return {"status": "ok", "message": "YouTube Music connected successfully"}
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+
     except Exception as e:
         raise HTTPException(400, f"Auth setup failed: {e}")
 
 
-@router.delete("/auth")
-async def logout():
-    if os.path.exists(settings.AUTH_FILE_PATH):
-        os.remove(settings.AUTH_FILE_PATH)
-    yt_service.clear_cache()
-    return {"status": "ok", "message": "Logged out"}
+@router.post("/yt-auth/cookies")
+async def setup_yt_auth_cookies(
+    payload: YTCookiesPayload,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    cookie_str = "; ".join(f"{k}={v}" for k, v in payload.cookies.items())
+    headers_raw = f"Cookie: {cookie_str}\nX-Goog-AuthUser: 0\n"
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w+", suffix=".json", delete=False
+        ) as tmp:
+            tmp_path = tmp.name
+        try:
+            ytmusicapi.setup(tmp_path, headers_raw=headers_raw)
+            with open(tmp_path, "r") as f:
+                auth_data = json.load(f)
+            current_user.yt_auth_json = json.dumps(auth_data)
+            db.add(current_user)
+            db.commit()
+            yt_service.clear_cache(current_user.id)
+            return {"status": "ok", "message": "YouTube Music connected successfully"}
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+    except Exception as e:
+        raise HTTPException(400, f"Auth setup failed: {e}")
+
+
+@router.delete("/yt-auth")
+async def yt_logout(
+    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    current_user.yt_auth_json = None
+    db.add(current_user)
+    db.commit()
+    yt_service.clear_cache(current_user.id)
+    return {"status": "ok", "message": "YouTube Music disconnected"}
 
 
 # --- Streaming & Proxy ---
 
 
 @router.get("/stream/{video_id}")
-async def stream_audio(video_id: str, request: Request):
+async def stream_audio(
+    video_id: str, request: Request, current_user: User = Depends(get_current_user)
+):
     try:
         audio_url = extract_audio_url(video_id)
     except Exception as e:

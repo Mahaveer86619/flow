@@ -5,6 +5,7 @@ class HomeState {
   final bool isLoading;
   final bool error;
   final AppErrorType errorType;
+  final bool noSource;
   final String greeting;
   final List<Song> quickAccess;
   final List<Song> listeningAgain;
@@ -20,6 +21,7 @@ class HomeState {
     this.isLoading = false,
     this.error = false,
     this.errorType = AppErrorType.unknown,
+    this.noSource = false,
     this.greeting = '',
     this.quickAccess = const [],
     this.listeningAgain = const [],

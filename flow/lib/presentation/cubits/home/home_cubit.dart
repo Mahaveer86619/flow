@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/error/app_exception.dart';
 import '../../../core/logger/app_logger.dart';
+import '../../../core/storage/local_storage.dart';
 import '../../../domain/usecases/get_home_data_usecase.dart';
 import 'home_state.dart';
 
@@ -32,6 +33,13 @@ class HomeCubit extends Cubit<HomeState> {
   }
 
   Future<void> _load() async {
+    // If the user has no YT auth, show the no-source view immediately.
+    if (!LocalStorage.instance.cachedHasYtAuth) {
+      AppLogger.i(_tag, 'No YT auth — emitting noSource');
+      if (!isClosed) emit(const HomeState(noSource: true));
+      return;
+    }
+
     try {
       AppLogger.d(_tag, 'Fetching home data...');
       final data = await _getHomeData();

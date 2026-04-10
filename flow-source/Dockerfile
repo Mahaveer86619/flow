@@ -1,11 +1,14 @@
-FROM python:slim
+FROM python:3.12-slim
+
+ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-# Install system dependencies for yt-dlp
+# Install system dependencies for yt-dlp and psycopg2
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     curl \
+    libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install

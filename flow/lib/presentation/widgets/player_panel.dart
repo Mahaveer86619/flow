@@ -118,8 +118,10 @@ class PlayerPanel extends StatelessWidget {
           // ── Squiggly progress bar ────────────────────────────────────────────
           SquigglyProgressBar(
             progress: state.progress,
-            onSeek: (fraction) => context.read<PlayerBloc>().add(
-              SeekToEvent(fraction),
+            bufferProgress: state.bufferProgress,
+            isInitialLoading: state.isInitialLoading,
+            onSeek: (frac) => context.read<PlayerBloc>().add(SeekToEvent(frac)),
+          ),
             ),
           ),
           const SizedBox(height: 2),

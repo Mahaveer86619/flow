@@ -18,6 +18,7 @@ import '../../blocs/player/player_bloc.dart';
 import '../../cubits/home/home_cubit.dart';
 import '../../widgets/artist_card.dart';
 import '../../widgets/error_view.dart';
+import '../../widgets/no_source_view.dart';
 import '../../widgets/section_header.dart';
 import '../../widgets/song_card.dart';
 import '../artist/artist_screen.dart';
@@ -32,6 +33,8 @@ class HomeScreen extends StatelessWidget {
     final state = context.watch<HomeCubit>().state;
 
     if (state.isLoading) return const _HomeScreenSkeleton();
+
+    if (state.noSource) return const NoSourceView();
 
     if (state.error) {
       return ErrorView(

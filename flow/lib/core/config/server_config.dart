@@ -1,3 +1,4 @@
+import '../logger/app_logger.dart';
 import '../storage/local_storage.dart';
 
 /// Holds the active base URL for the flow-source backend.
@@ -17,7 +18,16 @@ class ServerConfig {
 
   void init(String envUrl) {
     _fallback = envUrl;
-    _baseUrl = LocalStorage.instance.serverUrl ?? envUrl;
+    final stored = LocalStorage.instance.serverUrl;
+    if (stored != null) {
+      AppLogger.i(
+        'ServerConfig',
+        'Using custom server URL from storage: $stored',
+      );
+      _baseUrl = stored;
+    } else {
+      _baseUrl = envUrl;
+    }
   }
 
   void setCustomUrl(String url) {

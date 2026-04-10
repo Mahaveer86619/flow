@@ -18,18 +18,21 @@ class LocalStorage {
   late final Box _player;
   late final Box _search;
   late final Box _settings;
+  late final Box _auth;
 
   Future<void> init() async {
     await Hive.initFlutter();
     _player = await Hive.openBox(HiveKeys.playerBox);
     _search = await Hive.openBox(HiveKeys.searchBox);
     _settings = await Hive.openBox(HiveKeys.settingsBox);
+    _auth = await Hive.openBox(HiveKeys.authBox);
     AppLogger.i('LocalStorage', 'Hive initialised. '
         'Liked=${likedSongIds.length}  '
         'Volume=$volume  '
         'Shuffle=$isShuffle  '
         'Repeat=$isRepeat  '
-        'Searches=${recentSearches.length}');
+        'Searches=${recentSearches.length}  '
+        'Auth=${jwtToken != null ? "token present" : "no token"}');
   }
 
   // ── Player ───────────────────────────────────────────────────────────────────
@@ -91,4 +94,36 @@ class LocalStorage {
       (_settings.get(HiveKeys.downloadQuality) as String?) ?? 'High';
   void saveDownloadQuality(String q) =>
       _settings.put(HiveKeys.downloadQuality, q);
+
+  // ── Auth ─────────────────────────────────────────────────────────────────────
+
+  String? get jwtToken => _auth.get(HiveKeys.jwtToken) as String?;
+  String? get cachedUsername => _auth.get(HiveKeys.cachedUsername) as String?;
+  String? get cachedEmail => _auth.get(HiveKeys.cachedEmail) as String?;
+  bool get cachedHasYtAuth =>
+      (_auth.get(HiveKeys.cachedHasYtAuth) as bool?) ?? false;
+
+  void saveAuth({
+    required String token,
+    required String username,
+    required String email,
+    required bool hasYtAuth,
+  }) {
+    _auth.put(HiveKeys.jwtToken, token);
+    _auth.put(HiveKeys.cachedUsername, username);
+    _auth.put(HiveKeys.cachedEmail, email);
+    _auth.put(HiveKeys.cachedHasYtAuth, hasYtAuth);
+    AppLogger.d('LocalStorage', 'Auth saved for $username');
+  }
+
+  void saveHasYtAuth(bool value) =>
+      _auth.put(HiveKeys.cachedHasYtAuth, value);
+
+  void clearAuth() {
+    _auth.delete(HiveKeys.jwtToken);
+    _auth.delete(HiveKeys.cachedUsername);
+    _auth.delete(HiveKeys.cachedEmail);
+    _auth.delete(HiveKeys.cachedHasYtAuth);
+    AppLogger.d('LocalStorage', 'Auth cleared');
+  }
 }

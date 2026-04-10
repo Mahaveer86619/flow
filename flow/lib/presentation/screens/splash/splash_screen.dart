@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../core/auth/auth_cubit.dart';
 import '../../../core/responsive/responsive_layout.dart';
+import '../auth/login_screen.dart';
 import '../main/desktop_shell.dart';
 import '../main/main_screen.dart';
 
@@ -46,9 +49,19 @@ class _SplashScreenState extends State<SplashScreen>
     _controller.forward().then((_) async {
       await Future.delayed(const Duration(milliseconds: 700));
       if (!mounted) return;
+      // Wait for AuthCubit to finish initialising (it starts with isLoading: true).
+      final authCubit = context.read<AuthCubit>();
+      AuthState authState = authCubit.state;
+      if (authState.isLoading) {
+        authState = await authCubit.stream.firstWhere((s) => !s.isLoading);
+      }
+      if (!mounted) return;
+      final Widget destination = authState.isAuthenticated
+          ? const _RootShell()
+          : const LoginScreen();
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(
-          pageBuilder: (context, animation, secondary) => const _RootShell(),
+          pageBuilder: (context, animation, secondary) => destination,
           transitionsBuilder: (context, anim, secondary, child) =>
               FadeTransition(opacity: anim, child: child),
           transitionDuration: const Duration(milliseconds: 500),
@@ -124,9 +137,24 @@ class _RootShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ResponsiveLayout(
-      mobile: (_) => const MainScreen(),
-      desktop: (_) => const DesktopShell(),
+    return BlocListener<AuthCubit, AuthState>(
+      listenWhen: (prev, curr) =>
+          prev.isAuthenticated && !curr.isAuthenticated && !curr.isLoading,
+      listener: (context, _) {
+        Navigator.of(context).pushAndRemoveUntil(
+          PageRouteBuilder(
+            pageBuilder: (_, __, ___) => const LoginScreen(),
+            transitionsBuilder: (_, anim, __, child) =>
+                FadeTransition(opacity: anim, child: child),
+            transitionDuration: const Duration(milliseconds: 400),
+          ),
+          (_) => false,
+        );
+      },
+      child: ResponsiveLayout(
+        mobile: (_) => const MainScreen(),
+        desktop: (_) => const DesktopShell(),
+      ),
     );
   }
 }

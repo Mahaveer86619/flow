@@ -44,6 +44,7 @@ dependencies:
   just_audio_background: ^0.0.1-beta.13
   audio_service: ^0.18.14
   smtc_windows: ^0.1.1
+  flutter_inappwebview: ^6.0.0
 
 dev_dependencies:
   flutter_test:

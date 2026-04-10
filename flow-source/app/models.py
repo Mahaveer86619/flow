@@ -1,6 +1,60 @@
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Text
+from sqlalchemy.orm import relationship
+
+from .database import Base
+
+# --- Database Models (SQLAlchemy) ---
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True)
+    email = Column(String, unique=True, index=True)
+    hashed_password = Column(String)
+    is_active = Column(Boolean, default=True)
+
+    # Store YT Music auth as a JSON string
+    yt_auth_json = Column(Text, nullable=True)
+
+
+# --- Pydantic Models ---
+
+
+class UserBase(BaseModel):
+    username: str
+    email: EmailStr
+
+
+class UserCreate(UserBase):
+    password: str
+
+
+class UserLogin(BaseModel):
+    username: str
+    password: str
+
+
+class UserResponse(UserBase):
+    id: int
+    is_active: bool
+    has_yt_auth: bool = False
+
+    class Config:
+        from_attributes = True
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+
+class TokenData(BaseModel):
+    username: Optional[str] = None
 
 
 class SongResponse(BaseModel):
@@ -63,3 +117,7 @@ class AddPlaylistItemsRequest(BaseModel):
 
 class RemovePlaylistItemsRequest(BaseModel):
     videos: List[Dict[str, Any]]
+
+
+class YTCookiesPayload(BaseModel):
+    cookies: Dict[str, str]

@@ -5,6 +5,7 @@ import '../../core/config/server_config.dart';
 import '../../core/error/app_exception.dart';
 import '../../core/logger/app_logger.dart';
 import '../../core/network/connectivity_service.dart';
+import '../../core/storage/local_storage.dart';
 import '../models/home_data_model.dart';
 import '../models/playlist_model.dart';
 import '../models/song_model.dart';
@@ -12,14 +13,14 @@ import 'song_data_source.dart';
 
 // ── API Data Source ───────────────────────────────────────────────────────────
 //
-// One GET call per screen — aligned with the backend's /api/v1/ endpoints:
+// One GET call per screen — aligned with the backend's /v1/ endpoints:
 //
 //   Screen        Method              Endpoint
 //   ────────────  ──────────────────  ──────────────────────────────────────
-//   Home          fetchHomeData()     GET /api/v1/home
-//   Search        searchSongs(q)      GET /api/v1/search/songs?q=
-//   Library       fetchPlaylists()    GET /api/v1/library   (playlists key)
-//   Playlist      fetchPlaylistTracks GET /api/v1/playlists/{id}/tracks
+//   Home          fetchHomeData()     GET /v1/home
+//   Search        searchSongs(q)      GET /v1/search/songs?q=
+//   Library       fetchPlaylists()    GET /v1/library   (playlists key)
+//   Playlist      fetchPlaylistTracks GET /v1/playlists/{id}/tracks
 //
 // [baseUrl] — scheme + host + port, no trailing slash.
 //   Example: "http://192.168.1.10:8000"
@@ -43,7 +44,7 @@ class ApiSongDataSource implements SongDataSource {
   @override
   Future<HomeDataModel> fetchHomeData() async {
     AppLogger.i(_tag, 'fetchHomeData()');
-    final json = await _getJson('/api/v1/home') as Map<String, dynamic>;
+    final json = await _getJson('/v1/home') as Map<String, dynamic>;
     AppLogger.d(
       _tag,
       'fetchHomeData: '
@@ -66,7 +67,7 @@ class ApiSongDataSource implements SongDataSource {
     if (query.trim().isEmpty) return const [];
     AppLogger.i(_tag, 'searchSongs("$query")');
     final list =
-        await _getJson('/api/v1/search/songs', params: {'q': query})
+        await _getJson('/v1/search/songs', params: {'q': query})
             as List<dynamic>;
     AppLogger.d(_tag, 'searchSongs("$query"): ${list.length} results');
     try {
@@ -82,7 +83,7 @@ class ApiSongDataSource implements SongDataSource {
   @override
   Future<List<PlaylistModel>> fetchPlaylists() async {
     AppLogger.i(_tag, 'fetchPlaylists()');
-    final json = await _getJson('/api/v1/library') as Map<String, dynamic>;
+    final json = await _getJson('/v1/library') as Map<String, dynamic>;
     final list = (json['playlists'] as List<dynamic>?) ?? [];
     AppLogger.d(_tag, 'fetchPlaylists: ${list.length} playlists');
     try {
@@ -103,7 +104,7 @@ class ApiSongDataSource implements SongDataSource {
     AppLogger.i(_tag, 'fetchPlaylistTracks($playlistId, limit=$limit)');
     final list =
         await _getJson(
-              '/api/v1/playlists/$playlistId/tracks',
+              '/v1/playlists/$playlistId/tracks',
               params: {'limit': limit.toString()},
             )
             as List<dynamic>;
@@ -125,7 +126,7 @@ class ApiSongDataSource implements SongDataSource {
   Future<List<SongModel>> fetchAlbumTracks(String browseId) async {
     AppLogger.i(_tag, 'fetchAlbumTracks($browseId)');
     final json =
-        await _getJson('/api/albums/$browseId') as Map<String, dynamic>;
+        await _getJson('/v1/albums/$browseId') as Map<String, dynamic>;
     final list = (json['tracks'] as List<dynamic>?) ?? [];
     try {
       return list
@@ -145,7 +146,7 @@ class ApiSongDataSource implements SongDataSource {
     AppLogger.i(_tag, 'fetchRadioTracks($videoId, limit=$limit)');
     final json =
         await _getJson(
-              '/api/radio/$videoId',
+              '/v1/radio/$videoId',
               params: {'limit': limit.toString()},
             )
             as Map<String, dynamic>;
@@ -177,7 +178,12 @@ class ApiSongDataSource implements SongDataSource {
     AppLogger.d(_tag, 'GET $uri');
 
     try {
-      final response = await _client.get(uri).timeout(_timeout);
+      final headers = <String, String>{};
+      final token = LocalStorage.instance.jwtToken;
+      if (token != null) {
+        headers['Authorization'] = 'Bearer $token';
+      }
+      final response = await _client.get(uri, headers: headers).timeout(_timeout);
 
       AppLogger.d(_tag, '${response.statusCode} ← $uri');
 

@@ -1,18 +1,51 @@
+import json
 import os
 import time
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
 import yt_dlp
 import ytmusicapi
+from jose import JWTError, jwt
+# from passlib.context import CryptContext
+from sqlalchemy.orm import Session
 
 from .config import settings
-from .models import ArtistResponse, HomeResponse, SongResponse
+from .models import ArtistResponse, HomeResponse, SongResponse, User
 from .utils import is_artist_item, normalize_artist, normalize_song
+
+# Password hashing — bcrypt disabled for now (passlib/bcrypt version mismatch)
+# pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+class AuthService:
+    @staticmethod
+    def verify_password(plain_password, hashed_password):
+        # return pwd_context.verify(plain_password, hashed_password)
+        return plain_password == hashed_password
+
+    @staticmethod
+    def get_password_hash(password):
+        # return pwd_context.hash(password)
+        return password
+
+    @staticmethod
+    def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+        to_encode = data.copy()
+        if expires_delta:
+            expire = datetime.utcnow() + expires_delta
+        else:
+            expire = datetime.utcnow() + timedelta(minutes=15)
+        to_encode.update({"exp": expire})
+        encoded_jwt = jwt.encode(
+            to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM
+        )
+        return encoded_jwt
 
 
 class YTMusicService:
     def __init__(self):
-        self.auth_file = settings.AUTH_FILE_PATH
+        # We no longer rely on a global settings.AUTH_FILE_PATH for all requests
         self.home_cache = {}
         self.home_cache_ttl = 300
         self._shelf_map = [
@@ -34,9 +67,19 @@ class YTMusicService:
             ),
         ]
 
-    def get_client(self):
-        if os.path.exists(self.auth_file):
-            return ytmusicapi.YTMusic(self.auth_file)
+    def get_client(self, user: Optional[User] = None):
+        if user and user.yt_auth_json:
+            try:
+                auth_data = json.loads(user.yt_auth_json)
+                return ytmusicapi.YTMusic(auth=auth_data)
+            except Exception:
+                # Fallback to unauthenticated if parse fails
+                pass
+
+        # Check if a global auth file still exists (for backward compatibility or shared dev)
+        if os.path.exists(settings.AUTH_FILE_PATH):
+            return ytmusicapi.YTMusic(settings.AUTH_FILE_PATH)
+
         return ytmusicapi.YTMusic()
 
     def _classify_shelf(self, title: str) -> Optional[str]:
@@ -58,8 +101,10 @@ class YTMusicService:
         except Exception:
             return []
 
-    def build_home_data(self, limit: int = 5) -> HomeResponse:
-        ytm = self.get_client()
+    def build_home_data(
+        self, user: Optional[User] = None, limit: int = 5
+    ) -> HomeResponse:
+        ytm = self.get_client(user)
         shelves = ytm.get_home(limit=limit)
 
         sections: Dict[str, List] = {
@@ -123,29 +168,34 @@ class YTMusicService:
 
         return HomeResponse(**sections, trending=trending)
 
-    def get_home_cached(self, limit: int = 5) -> HomeResponse:
+    def get_home_cached(
+        self, user: Optional[User] = None, limit: int = 5
+    ) -> HomeResponse:
         now = time.monotonic()
-        if self.home_cache.get("ts", 0) + self.home_cache_ttl > now:
-            return self.home_cache["data"]
+        # Per-user cache key
+        user_id = user.id if user else "anon"
+        cache_key = f"home_{user_id}"
 
-        data = self.build_home_data(limit)
-        self.home_cache["ts"] = now
-        self.home_cache["data"] = data
+        if (
+            self.home_cache.get(cache_key)
+            and self.home_cache[cache_key].get("ts", 0) + self.home_cache_ttl > now
+        ):
+            return self.home_cache[cache_key]["data"]
+
+        data = self.build_home_data(user, limit)
+        self.home_cache[cache_key] = {"ts": now, "data": data}
         return data
 
     def build_feed_data(self) -> HomeResponse:
-        """Unauthenticated feed — returns only global trending/chart songs.
-        Works without auth.json; never raises PermissionError."""
-        ytm = ytmusicapi.YTMusic()  # always anonymous
+        ytm = ytmusicapi.YTMusic()
         trending = self._get_trending_songs(ytm)
-        # Fall back to a shallow home fetch for musicForYou if trending is empty
         music_for_you: List[SongResponse] = []
         if not trending:
             try:
                 shelves = ytm.get_home(limit=3)
                 seen: set = set()
                 for shelf in shelves:
-                    for item in (shelf.get("contents") or []):
+                    for item in shelf.get("contents") or []:
                         song = normalize_song(item)
                         if song and song.id not in seen:
                             seen.add(song.id)
@@ -175,8 +225,13 @@ class YTMusicService:
         self.home_cache["feed"] = {"ts": now, "data": data}
         return data
 
-    def clear_cache(self):
-        self.home_cache.clear()
+    def clear_cache(self, user_id: Optional[int] = None):
+        if user_id:
+            cache_key = f"home_{user_id}"
+            if cache_key in self.home_cache:
+                del self.home_cache[cache_key]
+        else:
+            self.home_cache.clear()
 
 
 def extract_audio_url(video_id: str) -> str:
@@ -194,3 +249,4 @@ def extract_audio_url(video_id: str) -> str:
 
 
 yt_service = YTMusicService()
+auth_service = AuthService()

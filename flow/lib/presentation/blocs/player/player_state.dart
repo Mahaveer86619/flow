@@ -11,9 +11,13 @@ class PlayerState {
   final Song? currentSong;
   final bool isPlaying;
   final bool isBuffering;
+  final bool isInitialLoading;
 
   /// Actual playback position from AudioPlayer.
   final Duration position;
+
+  /// Buffered duration from AudioPlayer.
+  final Duration bufferedPosition;
 
   /// Actual track duration reported by AudioPlayer (null until stream loads).
   final Duration? actualDuration;
@@ -30,7 +34,9 @@ class PlayerState {
     this.currentSong,
     this.isPlaying = false,
     this.isBuffering = false,
+    this.isInitialLoading = false,
     this.position = Duration.zero,
+    this.bufferedPosition = Duration.zero,
     this.actualDuration,
     this.isShuffle = false,
     this.isRepeat = false,
@@ -47,6 +53,16 @@ class PlayerState {
     final dur = actualDuration ?? currentSong?.duration;
     if (dur == null || dur.inMilliseconds <= 0) return 0.0;
     return (position.inMilliseconds / dur.inMilliseconds).clamp(0.0, 1.0);
+  }
+
+  /// 0.0–1.0 fractional buffer progress.
+  double get bufferProgress {
+    final dur = actualDuration ?? currentSong?.duration;
+    if (dur == null || dur.inMilliseconds <= 0) return 0.0;
+    return (bufferedPosition.inMilliseconds / dur.inMilliseconds).clamp(
+      0.0,
+      1.0,
+    );
   }
 
   bool isLiked(Song song) => likedSongIds.contains(song.id);
@@ -67,7 +83,9 @@ class PlayerState {
     Song? currentSong,
     bool? isPlaying,
     bool? isBuffering,
+    bool? isInitialLoading,
     Duration? position,
+    Duration? bufferedPosition,
     Duration? actualDuration,
     bool clearActualDuration = false,
     bool? isShuffle,
@@ -82,8 +100,12 @@ class PlayerState {
       currentSong: currentSong ?? this.currentSong,
       isPlaying: isPlaying ?? this.isPlaying,
       isBuffering: isBuffering ?? this.isBuffering,
+      isInitialLoading: isInitialLoading ?? this.isInitialLoading,
       position: position ?? this.position,
-      actualDuration: clearActualDuration ? null : (actualDuration ?? this.actualDuration),
+      bufferedPosition: bufferedPosition ?? this.bufferedPosition,
+      actualDuration: clearActualDuration
+          ? null
+          : (actualDuration ?? this.actualDuration),
       isShuffle: isShuffle ?? this.isShuffle,
       isRepeat: isRepeat ?? this.isRepeat,
       volume: volume ?? this.volume,

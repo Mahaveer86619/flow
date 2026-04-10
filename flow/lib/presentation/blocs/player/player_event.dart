@@ -91,6 +91,16 @@ class _BufferingChangedEvent extends PlayerEvent {
   });
 }
 
+class _BufferedPositionChangedEvent extends PlayerEvent {
+  final Duration bufferedPosition;
+  const _BufferedPositionChangedEvent(this.bufferedPosition);
+}
+
+class _InitialLoadingChangedEvent extends PlayerEvent {
+  final bool isInitialLoading;
+  const _InitialLoadingChangedEvent(this.isInitialLoading);
+}
+
 class _TrackCompletedEvent extends PlayerEvent {
   const _TrackCompletedEvent();
 }
