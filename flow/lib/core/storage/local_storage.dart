@@ -17,11 +17,13 @@ class LocalStorage {
 
   late final Box _player;
   late final Box _search;
+  late final Box _settings;
 
   Future<void> init() async {
     await Hive.initFlutter();
     _player = await Hive.openBox(HiveKeys.playerBox);
     _search = await Hive.openBox(HiveKeys.searchBox);
+    _settings = await Hive.openBox(HiveKeys.settingsBox);
     AppLogger.i('LocalStorage', 'Hive initialised. '
         'Liked=${likedSongIds.length}  '
         'Volume=$volume  '
@@ -70,4 +72,23 @@ class LocalStorage {
     _search.put(HiveKeys.recentSearches, searches);
     AppLogger.d('LocalStorage', 'Persisted ${searches.length} recent searches');
   }
+
+  // ── Settings ─────────────────────────────────────────────────────────────────
+
+  String? get serverUrl => _settings.get(HiveKeys.serverUrl) as String?;
+  void saveServerUrl(String url) => _settings.put(HiveKeys.serverUrl, url);
+  void clearServerUrl() => _settings.delete(HiveKeys.serverUrl);
+
+  String get themeModePref =>
+      (_settings.get(HiveKeys.themeMode) as String?) ?? 'dark';
+  void saveThemeMode(String mode) => _settings.put(HiveKeys.themeMode, mode);
+
+  String get eqPreset =>
+      (_settings.get(HiveKeys.eqPreset) as String?) ?? 'Normal';
+  void saveEqPreset(String preset) => _settings.put(HiveKeys.eqPreset, preset);
+
+  String get downloadQuality =>
+      (_settings.get(HiveKeys.downloadQuality) as String?) ?? 'High';
+  void saveDownloadQuality(String q) =>
+      _settings.put(HiveKeys.downloadQuality, q);
 }

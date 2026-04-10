@@ -220,9 +220,92 @@ class HomeScreen extends StatelessWidget {
           ),
         ],
 
+        // ── Empty state: unauthenticated with no personalised content ─────────
+        if (!state.isAuthenticated &&
+            state.listeningAgain.isEmpty &&
+            state.forgottenFavorites.isEmpty &&
+            state.musicForYou.isEmpty &&
+            state.trending.isEmpty &&
+            state.trendingArtists.isEmpty)
+          SliverToBoxAdapter(child: _EmptyFeedPrompt()),
+
         const SliverToBoxAdapter(child: SizedBox(height: 24)),
       ],
     );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Empty feed prompt — shown below Quick Access when unauthenticated with no
+// other sections populated from the server.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _EmptyFeedPrompt extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(32, 40, 32, 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.auto_awesome_rounded,
+            size: 52,
+            color: colorScheme.primary.withAlpha(180),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Discover your music',
+            style: GoogleFonts.spaceGrotesk(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Sign in to unlock personalised recommendations, listening history, and your playlists.',
+            style: TextStyle(
+              fontSize: 13,
+              color: colorScheme.onSurface.withAlpha(150),
+              height: 1.55,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+          FilledButton.icon(
+            onPressed: () => _openAuthScreen(context),
+            icon: const Icon(Icons.login_rounded, size: 18),
+            label: const Text('Sign in with YouTube Music'),
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openAuthScreen(BuildContext context) {
+    final authCubit = context.read<AuthCubit>();
+    Navigator.of(context)
+        .push<bool>(MaterialPageRoute(
+          builder: (_) => BlocProvider.value(
+            value: authCubit,
+            child: AuthScreen(
+              onSubmitHeaders: (h) => authCubit.submitHeaders(h),
+            ),
+          ),
+        ))
+        .then((success) {
+          if (success == true && context.mounted) {
+            context.read<HomeCubit>().reload();
+          }
+        });
   }
 }
 

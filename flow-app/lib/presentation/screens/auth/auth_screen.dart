@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../core/error/app_exception.dart';
 import '../../../core/logger/app_logger.dart';
 import '../../cubits/auth/auth_cubit.dart';
 
@@ -63,9 +64,19 @@ class _AuthScreenState extends State<AuthScreen> {
     } catch (e) {
       AppLogger.e(_tag, 'Auth submit failed', e, StackTrace.current);
       if (!mounted) return;
+      final String errorMsg;
+      if (e is NetworkException) {
+        errorMsg = 'No internet connection. Check your network.';
+      } else if (e is ServerUnreachableException) {
+        errorMsg = 'Cannot reach the server. Make sure it is running.';
+      } else if (e is ServerException) {
+        errorMsg = 'Server rejected the request (${e.statusCode}). Check your headers.';
+      } else {
+        errorMsg = 'Authentication failed. Check your headers and try again.';
+      }
       setState(() {
         _isSubmitting = false;
-        _errorMessage = 'Authentication failed. Check your headers and try again.';
+        _errorMessage = errorMsg;
       });
     }
   }

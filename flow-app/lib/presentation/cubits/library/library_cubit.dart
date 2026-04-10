@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/error/app_exception.dart';
 import '../../../core/logger/app_logger.dart';
+import '../../../core/storage/local_storage.dart';
 import '../../../domain/usecases/get_playlists_usecase.dart';
 import 'library_state.dart';
 
@@ -25,6 +26,18 @@ class LibraryCubit extends Cubit<LibraryState> {
   }
 
   Future<void> _load() async {
+    // Skip server call if we already know the user is not authenticated.
+    if (!LocalStorage.instance.isAuthenticated) {
+      AppLogger.i(_tag, 'Skipping load — unauthenticated');
+      emit(const LibraryState(
+        isLoading: false,
+        error: true,
+        errorType: AppErrorType.unauthenticated,
+        playlists: [],
+      ));
+      return;
+    }
+
     try {
       AppLogger.d(_tag, 'Fetching playlists...');
       final playlists = await _getPlaylists();

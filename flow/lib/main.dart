@@ -5,10 +5,12 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:just_audio_background/just_audio_background.dart';
+import 'core/config/server_config.dart';
 import 'core/logger/app_logger.dart';
 import 'core/network/connectivity_service.dart';
 import 'core/network/network_cubit.dart';
 import 'core/storage/local_storage.dart';
+import 'presentation/cubits/settings/settings_cubit.dart';
 import 'data/repositories/song_repository_impl.dart';
 import 'data/sources/api_song_data_source.dart';
 import 'data/sources/mock_song_data_source.dart';
@@ -49,6 +51,10 @@ void main() async {
   // ── 3. Local storage ──────────────────────────────────────────────────────────
   await LocalStorage.instance.init();
 
+  // ── 3b. Server config (reads stored custom URL from Hive) ────────────────────
+  final baseUrlFromEnv = dotenv.env['API_BASE_URL'] ?? 'http://localhost:8000';
+  ServerConfig.instance.init(baseUrlFromEnv);
+
   // ── 4. Connectivity ───────────────────────────────────────────────────────────
   await ConnectivityService.instance.init();
 
@@ -72,13 +78,12 @@ void main() async {
   // Switch between sources with USE_MOCK in .env — no code change required.
 
   final useMock = dotenv.env['USE_MOCK'] == 'true';
-  final baseUrl = dotenv.env['API_BASE_URL'] ?? 'http://localhost:8000';
 
-  AppLogger.i('main', 'Source: ${useMock ? "mock" : baseUrl}');
+  AppLogger.i('main', 'Source: ${useMock ? "mock" : ServerConfig.instance.baseUrl}');
 
   final dataSource = useMock
       ? MockSongDataSource()
-      : ApiSongDataSource(baseUrl: baseUrl);
+      : ApiSongDataSource();
 
   final repository = SongRepositoryImpl(dataSource);
 
@@ -96,9 +101,9 @@ void main() async {
       providers: [
         BlocProvider(create: (_) => NetworkCubit(ConnectivityService.instance)),
         BlocProvider(
-          create: (_) =>
-              PlayerBloc(streamBaseUrl: baseUrl, songRepository: repository),
+          create: (_) => PlayerBloc(songRepository: repository),
         ),
+        BlocProvider(create: (_) => SettingsCubit()),
         BlocProvider(create: (_) => HomeCubit(getHomeData: getHomeData)),
         BlocProvider(
           create: (_) => SearchCubit(
@@ -118,10 +123,13 @@ class FlowApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final themeMode = context.select<SettingsCubit, ThemeMode>(
+      (c) => c.state.themeMode,
+    );
     return MaterialApp(
       title: 'flow',
       debugShowCheckedModeBanner: false,
-      themeMode: ThemeMode.dark,
+      themeMode: themeMode,
       theme: _buildTheme(Brightness.light),
       darkTheme: _buildTheme(Brightness.dark),
       home: const SplashScreen(),

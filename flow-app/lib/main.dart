@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -27,17 +28,37 @@ import 'presentation/screens/splash/splash_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // ── 0. Global error handler ───────────────────────────────────────────────────
+  // Some OEM phones (e.g. Infinix) pre-warm the Flutter engine before any
+  // Activity is attached.  audio_service throws a PlatformException in that
+  // case because it can't find the FlutterEngine.  The exception escapes the
+  // try-catch below via Flutter's Zone machinery, so we catch it here to keep
+  // the app alive — it will degrade gracefully to foreground-only audio.
+  PlatformDispatcher.instance.onError = (error, stack) {
+    debugPrint('[main] Unhandled platform error (non-fatal): $error');
+    return true; // mark as handled — do not crash
+  };
+
   // ── 1. Background audio (Android / iOS / macOS only) ─────────────────────────
   // just_audio_background has no Windows/Linux plugin — skip on those platforms.
+  // On devices that pre-warm the engine without an Activity (some OEM Android
+  // phones), init() will throw — the handler above keeps the app running.
   if (defaultTargetPlatform == TargetPlatform.android ||
       defaultTargetPlatform == TargetPlatform.iOS ||
       defaultTargetPlatform == TargetPlatform.macOS) {
-    await JustAudioBackground.init(
-      androidNotificationChannelId: 'com.flow.app.audio',
-      androidNotificationChannelName: 'Flow Audio',
-      androidNotificationOngoing: true,
-      androidStopForegroundOnPause: true,
-    );
+    try {
+      await JustAudioBackground.init(
+        androidNotificationChannelId: 'com.flow.app.audio',
+        androidNotificationChannelName: 'Flow Audio',
+        androidNotificationOngoing: true,
+        androidStopForegroundOnPause: true,
+      );
+    } catch (e) {
+      // Background audio init failed (no Activity yet or device limitation).
+      // The app continues; lock-screen controls and the media notification will
+      // not be available, but in-app playback works normally.
+      debugPrint('[main] JustAudioBackground.init failed — foreground-only audio: $e');
+    }
   }
 
   // ── 3. Load .env ─────────────────────────────────────────────────────────────
@@ -53,15 +74,18 @@ void main() async {
   // ── 4. Connectivity ───────────────────────────────────────────────────────────
   await ConnectivityService.instance.init();
 
-  // ── 5. System UI ──────────────────────────────────────────────────────────────
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
-      systemNavigationBarColor: Colors.transparent,
-    ),
-  );
-  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  // ── 5. System UI (Android / iOS only) ────────────────────────────────────────
+  if (defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS) {
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+        systemNavigationBarColor: Colors.transparent,
+      ),
+    );
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  }
 
   // ── 6. Dependency graph ───────────────────────────────────────────────────────
   //

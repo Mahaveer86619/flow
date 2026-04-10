@@ -189,7 +189,14 @@ class ApiSongDataSource implements SongDataSource {
     AppLogger.i(_tag, 'logout()');
     if (!_connectivity.isOnline) throw const NetworkException();
     final uri = Uri.parse('$baseUrl/api/auth');
-    await _client.delete(uri).timeout(_timeout);
+    try {
+      await _client.delete(uri).timeout(_timeout);
+    } on AppException {
+      rethrow;
+    } catch (e, st) {
+      AppLogger.e(_tag, 'logout request failed', e, st);
+      throw toAppException(e);
+    }
   }
 
   /// Sends raw headers/cURL to the server to set up authentication.
@@ -197,15 +204,22 @@ class ApiSongDataSource implements SongDataSource {
     AppLogger.i(_tag, 'submitAuthHeaders()');
     if (!_connectivity.isOnline) throw const NetworkException();
     final uri = Uri.parse('$baseUrl/api/auth');
-    final response = await _client
-        .post(uri, body: headersOrCurl)
-        .timeout(_timeout);
-    if (response.statusCode == 401) throw const AuthException();
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw ServerException(
-        message: 'Auth setup failed: ${response.body}',
-        statusCode: response.statusCode,
-      );
+    try {
+      final response = await _client
+          .post(uri, body: headersOrCurl)
+          .timeout(_timeout);
+      if (response.statusCode == 401) throw const AuthException();
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw ServerException(
+          message: 'Auth setup failed: ${response.body}',
+          statusCode: response.statusCode,
+        );
+      }
+    } on AppException {
+      rethrow;
+    } catch (e, st) {
+      AppLogger.e(_tag, 'submitAuthHeaders failed', e, st);
+      throw toAppException(e);
     }
   }
 

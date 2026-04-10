@@ -20,6 +20,7 @@ import '../../widgets/player_panel.dart';
 import '../home/home_screen.dart';
 import '../library/library_screen.dart';
 import '../search/search_screen.dart';
+import '../settings/settings_screen.dart';
 
 class DesktopShell extends StatefulWidget {
   const DesktopShell({super.key});
@@ -219,7 +220,11 @@ class _DesktopNavRail extends StatelessWidget {
                 IconButton(
                   icon: const Icon(Icons.settings_outlined),
                   tooltip: 'Settings',
-                  onPressed: () => _showSettingsDialog(context),
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const SettingsScreen(),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -268,72 +273,6 @@ class _DesktopNavRail extends StatelessWidget {
     );
   }
 
-  void _showSettingsDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text(
-          'Settings',
-          style: GoogleFonts.spaceGrotesk(fontWeight: FontWeight.w700),
-        ),
-        content: SizedBox(
-          width: 360,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: const [
-              _SettingRow(
-                icon: Icons.graphic_eq_rounded,
-                title: 'Audio Quality',
-                value: 'High (320 kbps)',
-              ),
-              _SettingRow(
-                icon: Icons.equalizer_rounded,
-                title: 'Equalizer',
-                value: 'Off',
-              ),
-              _SettingRow(
-                icon: Icons.palette_outlined,
-                title: 'Appearance',
-                value: 'Dark • System',
-              ),
-              _SettingRow(
-                icon: Icons.info_outline_rounded,
-                title: 'About flow',
-                value: 'v1.0.0',
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SettingRow extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String value;
-  const _SettingRow({
-    required this.icon,
-    required this.title,
-    required this.value,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      leading: Icon(icon, size: 20),
-      title: Text(title, style: const TextStyle(fontSize: 14)),
-      subtitle: Text(value, style: const TextStyle(fontSize: 12)),
-      dense: true,
-    );
-  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

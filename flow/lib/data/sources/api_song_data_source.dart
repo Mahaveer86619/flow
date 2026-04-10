@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import '../../core/config/server_config.dart';
 import '../../core/error/app_exception.dart';
 import '../../core/logger/app_logger.dart';
 import '../../core/network/connectivity_service.dart';
@@ -25,7 +26,6 @@ import 'song_data_source.dart';
 // ─────────────────────────────────────────────────────────────────────────────
 
 class ApiSongDataSource implements SongDataSource {
-  final String baseUrl;
   final http.Client _client;
   final ConnectivityService _connectivity;
 
@@ -33,7 +33,6 @@ class ApiSongDataSource implements SongDataSource {
   static const _timeout = Duration(seconds: 12);
 
   ApiSongDataSource({
-    required this.baseUrl,
     http.Client? client,
     ConnectivityService? connectivity,
   }) : _client = client ?? http.Client(),
@@ -173,7 +172,8 @@ class ApiSongDataSource implements SongDataSource {
       throw const NetworkException();
     }
 
-    final uri = Uri.parse('$baseUrl$path').replace(queryParameters: params);
+    final uri = Uri.parse('${ServerConfig.instance.baseUrl}$path')
+        .replace(queryParameters: params);
     AppLogger.d(_tag, 'GET $uri');
 
     try {

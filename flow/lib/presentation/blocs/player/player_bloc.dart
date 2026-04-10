@@ -6,6 +6,7 @@ import 'package:just_audio/just_audio.dart' hide PlayerState;
 import 'package:just_audio/just_audio.dart'
     as ja
     show PlayerState, ProcessingState;
+import '../../../core/config/server_config.dart';
 import '../../../core/logger/app_logger.dart';
 import '../../../core/platform/windows_media_session.dart';
 import '../../../core/storage/local_storage.dart';
@@ -32,7 +33,6 @@ part 'player_state.dart';
 
 class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
   final AudioPlayer _audioPlayer;
-  final String _streamBaseUrl;
   final LocalStorage _storage;
   final WindowsMediaSession _mediaSession;
   final SongRepository _songRepository;
@@ -47,13 +47,11 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
   static const _tag = 'PlayerBloc';
 
   PlayerBloc({
-    required String streamBaseUrl,
     required SongRepository songRepository,
     LocalStorage? storage,
     AudioPlayer? audioPlayer,
     WindowsMediaSession? mediaSession,
-  }) : _streamBaseUrl = streamBaseUrl,
-       _songRepository = songRepository,
+  }) : _songRepository = songRepository,
        _storage = storage ?? LocalStorage.instance,
        _audioPlayer = audioPlayer ?? AudioPlayer(),
        _mediaSession = mediaSession ?? WindowsMediaSession.instance,
@@ -390,7 +388,7 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
   }
 
   Future<void> _loadStream(Song song, {required int loadId}) async {
-    final streamUrl = '$_streamBaseUrl/api/stream/${song.id}';
+    final streamUrl = '${ServerConfig.instance.baseUrl}/api/stream/${song.id}';
     AppLogger.d(_tag, 'Loading stream (loadId=$loadId): $streamUrl');
     try {
       await _audioPlayer.setAudioSource(

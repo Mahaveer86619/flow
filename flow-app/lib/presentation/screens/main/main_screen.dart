@@ -8,6 +8,7 @@ import '../home/home_screen.dart';
 import '../library/library_screen.dart';
 import '../player/player_screen.dart';
 import '../search/search_screen.dart';
+import '../settings/settings_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -119,14 +120,8 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _showSettings(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (_) => _SettingsSheet(),
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const SettingsScreen()),
     );
   }
 }
@@ -282,96 +277,3 @@ class _RecentlyPlayedSheet extends StatelessWidget {
   }
 }
 
-class _SettingsSheet extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return DraggableScrollableSheet(
-      initialChildSize: 0.6,
-      maxChildSize: 0.92,
-      minChildSize: 0.4,
-      expand: false,
-      builder: (context, scrollCtrl) {
-        return Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 16, 24, 4),
-              child: Column(
-                children: [
-                  _sheetHandle(context),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Settings',
-                    style: GoogleFonts.spaceGrotesk(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: ListView(
-                controller: scrollCtrl,
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                children: const [
-                  _SettingItem(
-                    icon: Icons.graphic_eq_rounded,
-                    title: 'Audio Quality',
-                    value: 'High (320 kbps)',
-                  ),
-                  _SettingItem(
-                    icon: Icons.equalizer_rounded,
-                    title: 'Equalizer',
-                    value: 'Off',
-                  ),
-                  _SettingItem(
-                    icon: Icons.download_outlined,
-                    title: 'Downloads',
-                    value: 'Manage offline',
-                  ),
-                  _SettingItem(
-                    icon: Icons.palette_outlined,
-                    title: 'Appearance',
-                    value: 'Dark • System',
-                  ),
-                  _SettingItem(
-                    icon: Icons.account_circle_outlined,
-                    title: 'Account',
-                    value: 'Sign in',
-                  ),
-                  _SettingItem(
-                    icon: Icons.info_outline_rounded,
-                    title: 'About flow',
-                    value: 'v1.0.0',
-                  ),
-                ],
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _SettingItem extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String value;
-  const _SettingItem({
-    required this.icon,
-    required this.title,
-    required this.value,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      leading: Icon(icon),
-      title: Text(title),
-      subtitle: Text(value),
-      trailing: const Icon(Icons.chevron_right_rounded),
-      onTap: () {},
-    );
-  }
-}
