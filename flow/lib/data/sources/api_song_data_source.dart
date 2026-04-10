@@ -97,10 +97,17 @@ class ApiSongDataSource implements SongDataSource {
   }
 
   @override
-  Future<List<SongModel>> fetchPlaylistTracks(String playlistId) async {
-    AppLogger.i(_tag, 'fetchPlaylistTracks($playlistId)');
+  Future<List<SongModel>> fetchPlaylistTracks(
+    String playlistId, {
+    int limit = 100,
+  }) async {
+    AppLogger.i(_tag, 'fetchPlaylistTracks($playlistId, limit=$limit)');
     final list =
-        await _getJson('/api/v1/playlists/$playlistId/tracks') as List<dynamic>;
+        await _getJson(
+              '/api/v1/playlists/$playlistId/tracks',
+              params: {'limit': limit.toString()},
+            )
+            as List<dynamic>;
     AppLogger.d(
       _tag,
       'fetchPlaylistTracks($playlistId): ${list.length} tracks',
@@ -112,6 +119,45 @@ class ApiSongDataSource implements SongDataSource {
     } catch (e, st) {
       AppLogger.e(_tag, 'fetchPlaylistTracks parse failure', e, st);
       throw ParseException('Failed to parse playlist tracks: $e');
+    }
+  }
+
+  @override
+  Future<List<SongModel>> fetchAlbumTracks(String browseId) async {
+    AppLogger.i(_tag, 'fetchAlbumTracks($browseId)');
+    final json =
+        await _getJson('/api/albums/$browseId') as Map<String, dynamic>;
+    final list = (json['tracks'] as List<dynamic>?) ?? [];
+    try {
+      return list
+          .map((e) => SongModel.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } catch (e, st) {
+      AppLogger.e(_tag, 'fetchAlbumTracks parse failure', e, st);
+      throw ParseException('Failed to parse album tracks: $e');
+    }
+  }
+
+  @override
+  Future<List<SongModel>> fetchRadioTracks(
+    String videoId, {
+    int limit = 25,
+  }) async {
+    AppLogger.i(_tag, 'fetchRadioTracks($videoId, limit=$limit)');
+    final json =
+        await _getJson(
+              '/api/radio/$videoId',
+              params: {'limit': limit.toString()},
+            )
+            as Map<String, dynamic>;
+    final list = (json['tracks'] as List<dynamic>?) ?? [];
+    try {
+      return list
+          .map((e) => SongModel.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } catch (e, st) {
+      AppLogger.e(_tag, 'fetchRadioTracks parse failure', e, st);
+      throw ParseException('Failed to parse radio tracks: $e');
     }
   }
 

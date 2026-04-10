@@ -19,7 +19,16 @@ abstract class SongDataSource {
   Future<List<PlaylistModel>> fetchPlaylists();
 
   /// Tracks for a specific playlist (for the queue / playlist detail screen).
-  Future<List<SongModel>> fetchPlaylistTracks(String playlistId);
+  Future<List<SongModel>> fetchPlaylistTracks(
+    String playlistId, {
+    int limit = 100,
+  });
+
+  /// Tracks for an album.
+  Future<List<SongModel>> fetchAlbumTracks(String browseId);
+
+  /// Tracks from a radio station (up-next).
+  Future<List<SongModel>> fetchRadioTracks(String videoId, {int limit = 25});
 
   /// Static browse categories — always synchronous, never needs the network.
   List<Map<String, dynamic>> fetchCategories();

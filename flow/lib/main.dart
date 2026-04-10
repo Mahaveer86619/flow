@@ -82,10 +82,10 @@ void main() async {
 
   final repository = SongRepositoryImpl(dataSource);
 
-  final getHomeData       = GetHomeDataUseCase(repository);
-  final getPlaylists      = GetPlaylistsUseCase(repository);
-  final getCategories     = GetCategoriesUseCase(repository);
-  final searchSongs       = SearchSongsUseCase(repository);
+  final getHomeData = GetHomeDataUseCase(repository);
+  final getPlaylists = GetPlaylistsUseCase(repository);
+  final getCategories = GetCategoriesUseCase(repository);
+  final searchSongs = SearchSongsUseCase(repository);
   // ignore: unused_local_variable — available for screens that need it
   final getPlaylistTracks = GetPlaylistTracksUseCase(repository);
 
@@ -94,11 +94,11 @@ void main() async {
   runApp(
     MultiBlocProvider(
       providers: [
+        BlocProvider(create: (_) => NetworkCubit(ConnectivityService.instance)),
         BlocProvider(
           create: (_) =>
-              NetworkCubit(ConnectivityService.instance),
+              PlayerBloc(streamBaseUrl: baseUrl, songRepository: repository),
         ),
-        BlocProvider(create: (_) => PlayerBloc(streamBaseUrl: baseUrl)),
         BlocProvider(create: (_) => HomeCubit(getHomeData: getHomeData)),
         BlocProvider(
           create: (_) => SearchCubit(
