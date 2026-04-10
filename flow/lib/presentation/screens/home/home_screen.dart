@@ -17,8 +17,8 @@ import '../../../domain/entities/song.dart';
 import '../../blocs/player/player_bloc.dart';
 import '../../cubits/home/home_cubit.dart';
 import '../../widgets/artist_card.dart';
+import '../../widgets/error_view.dart';
 import '../../widgets/section_header.dart';
-import '../../widgets/shimmer_box.dart';
 import '../../widgets/song_card.dart';
 import '../artist/artist_screen.dart';
 import '../list/list_screen.dart';
@@ -32,6 +32,13 @@ class HomeScreen extends StatelessWidget {
     final state = context.watch<HomeCubit>().state;
 
     if (state.isLoading) return const _HomeScreenSkeleton();
+
+    if (state.error) {
+      return ErrorView(
+        errorType: state.errorType,
+        onRetry: () => context.read<HomeCubit>().reload(),
+      );
+    }
 
     final isSmall = Breakpoints.isMobile(MediaQuery.sizeOf(context).width);
 
@@ -66,108 +73,146 @@ class HomeScreen extends StatelessWidget {
         ),
 
         // ── Listening Again ───────────────────────────────────────────────────
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 28, 16, 16),
-            child: SectionHeader(
-              title: 'Listening Again',
-              onSeeAll: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => ListScreen(
-                    title: 'Listening Again',
-                    songs: state.listeningAgain,
-                    allSongs: state.allSongs,
+        if (state.listeningAgain.isNotEmpty) ...[
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 28, 16, 16),
+              child: SectionHeader(
+                title: 'Listening Again',
+                onSeeAll: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => ListScreen(
+                      title: 'Listening Again',
+                      songs: state.listeningAgain,
+                      allSongs: state.allSongs,
+                    ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
-        SliverToBoxAdapter(
-          child: SizedBox(
-            height: 190,
-            child: _HorizontalSongRow(
-              songs: state.listeningAgain,
-              allSongs: state.allSongs,
+          SliverToBoxAdapter(
+            child: SizedBox(
+              height: 190,
+              child: _HorizontalSongRow(
+                songs: state.listeningAgain,
+                allSongs: state.allSongs,
+              ),
             ),
           ),
-        ),
+        ],
 
         // ── Forgotten Favorites ───────────────────────────────────────────────
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 28, 16, 16),
-            child: SectionHeader(
-              title: 'Forgotten Favorites',
-              onSeeAll: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => ListScreen(
-                    title: 'Forgotten Favorites',
-                    songs: state.forgottenFavorites,
-                    allSongs: state.allSongs,
+        if (state.forgottenFavorites.isNotEmpty) ...[
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 28, 16, 16),
+              child: SectionHeader(
+                title: 'Forgotten Favorites',
+                onSeeAll: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => ListScreen(
+                      title: 'Forgotten Favorites',
+                      songs: state.forgottenFavorites,
+                      allSongs: state.allSongs,
+                    ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
-        SliverToBoxAdapter(
-          child: SizedBox(
-            height: 190,
-            child: _HorizontalSongRow(
-              songs: state.forgottenFavorites,
-              allSongs: state.allSongs,
+          SliverToBoxAdapter(
+            child: SizedBox(
+              height: 190,
+              child: _HorizontalSongRow(
+                songs: state.forgottenFavorites,
+                allSongs: state.allSongs,
+              ),
             ),
           ),
-        ),
+        ],
 
         // ── Music For You — 2-row horizontal grid ─────────────────────────────
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 28, 16, 16),
-            child: SectionHeader(
-              title: 'Music For You',
-              onSeeAll: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => ListScreen(
-                    title: 'Music For You',
-                    songs: state.musicForYou,
-                    allSongs: state.allSongs,
+        if (state.musicForYou.isNotEmpty) ...[
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 28, 16, 16),
+              child: SectionHeader(
+                title: 'Music For You',
+                onSeeAll: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => ListScreen(
+                      title: 'Music For You',
+                      songs: state.musicForYou,
+                      allSongs: state.allSongs,
+                    ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
-        SliverToBoxAdapter(
-          child: SizedBox(
-            height: 340,
-            child: _MusicForYouGrid(
-              songs: state.musicForYou,
-              allSongs: state.allSongs,
+          SliverToBoxAdapter(
+            child: SizedBox(
+              height: 340,
+              child: _MusicForYouGrid(
+                songs: state.musicForYou,
+                allSongs: state.allSongs,
+              ),
             ),
           ),
-        ),
+        ],
+
+        // ── Trending (worldwide charts) ───────────────────────────────────────
+        if (state.trending.isNotEmpty) ...[
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 28, 16, 16),
+              child: SectionHeader(
+                title: 'Trending',
+                onSeeAll: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => ListScreen(
+                      title: 'Trending',
+                      songs: state.trending,
+                      allSongs: state.allSongs,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: SizedBox(
+              height: 190,
+              child: _HorizontalSongRow(
+                songs: state.trending,
+                allSongs: state.allSongs,
+              ),
+            ),
+          ),
+        ],
 
         // ── Trending Artists ──────────────────────────────────────────────────
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 28, 16, 16),
-            child: SectionHeader(
-              title: 'Trending Artists',
-              onSeeAll: () {/* TODO: navigate to artists list */},
+        if (state.trendingArtists.isNotEmpty) ...[
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 28, 16, 16),
+              child: SectionHeader(
+                title: 'Trending Artists',
+                onSeeAll: () {/* TODO: navigate to artists list */},
+              ),
             ),
           ),
-        ),
-        SliverToBoxAdapter(
-          child: SizedBox(
-            height: 148,
-            child: _TrendingArtistRow(
-              artists: state.trendingArtists,
-              allSongs: state.allSongs,
+          SliverToBoxAdapter(
+            child: SizedBox(
+              height: 148,
+              child: _TrendingArtistRow(
+                artists: state.trendingArtists,
+                allSongs: state.allSongs,
+              ),
             ),
           ),
-        ),
+        ],
 
         const SliverToBoxAdapter(child: SizedBox(height: 24)),
       ],
@@ -191,7 +236,7 @@ class _HomeScreenSkeleton extends StatelessWidget {
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-            child: ShimmerBox(width: 180, height: 26, borderRadius: 8),
+            child: _SkeletonBox(width: 180, height: 26, radius: 8),
           ),
         ),
 
@@ -261,6 +306,29 @@ class _HomeScreenSkeleton extends StatelessWidget {
   }
 }
 
+class _SkeletonBox extends StatelessWidget {
+  final double width;
+  final double height;
+  final double radius;
+  const _SkeletonBox({
+    required this.width,
+    required this.height,
+    required this.radius,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(radius),
+      ),
+    );
+  }
+}
+
 class _SkeletonSectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -270,8 +338,8 @@ class _SkeletonSectionHeader extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            ShimmerBox(width: 140, height: 18, borderRadius: 7),
-            ShimmerBox(width: 55, height: 14, borderRadius: 6),
+            _SkeletonBox(width: 140, height: 18, radius: 7),
+            _SkeletonBox(width: 55, height: 14, radius: 6),
           ],
         ),
       ),
@@ -467,21 +535,16 @@ class _MusicForYouGrid extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: Container(
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [song.colorPrimary, song.colorSecondary],
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    Icons.music_note_rounded,
-                    size: 32,
-                    color: Colors.white.withAlpha(45),
-                  ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: song.thumbnailUrl != null
+                      ? Image.network(
+                          song.thumbnailUrl!,
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          errorBuilder: (_, __, ___) => _MusicForYouFallback(song: song),
+                        )
+                      : _MusicForYouFallback(song: song),
                 ),
               ),
               const SizedBox(height: 6),
@@ -509,6 +572,27 @@ class _MusicForYouGrid extends StatelessWidget {
       },
     );
   }
+}
+
+class _MusicForYouFallback extends StatelessWidget {
+  final Song song;
+  const _MusicForYouFallback({required this.song});
+
+  @override
+  Widget build(BuildContext context) => Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [song.colorPrimary, song.colorSecondary],
+          ),
+        ),
+        child: Icon(
+          Icons.music_note_rounded,
+          size: 32,
+          color: Colors.white.withAlpha(45),
+        ),
+      );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

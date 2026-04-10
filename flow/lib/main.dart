@@ -1,12 +1,23 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:just_audio_background/just_audio_background.dart';
+import 'core/config/server_config.dart';
+import 'core/logger/app_logger.dart';
+import 'core/network/connectivity_service.dart';
+import 'core/network/network_cubit.dart';
+import 'core/storage/local_storage.dart';
+import 'presentation/cubits/settings/settings_cubit.dart';
 import 'data/repositories/song_repository_impl.dart';
+import 'data/sources/api_song_data_source.dart';
 import 'data/sources/mock_song_data_source.dart';
 import 'domain/usecases/get_categories_usecase.dart';
+import 'domain/usecases/get_home_data_usecase.dart';
 import 'domain/usecases/get_playlists_usecase.dart';
-import 'domain/usecases/get_songs_usecase.dart';
+import 'domain/usecases/get_playlist_tracks_usecase.dart';
 import 'domain/usecases/search_songs_usecase.dart';
 import 'presentation/blocs/player/player_bloc.dart';
 import 'presentation/cubits/home/home_cubit.dart';
@@ -14,8 +25,40 @@ import 'presentation/cubits/library/library_cubit.dart';
 import 'presentation/cubits/search/search_cubit.dart';
 import 'presentation/screens/splash/splash_screen.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // ── 1. Background audio (Android / iOS / macOS only) ─────────────────────────
+  // just_audio_background has no Windows/Linux plugin — skip on those platforms.
+  if (defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS ||
+      defaultTargetPlatform == TargetPlatform.macOS) {
+    await JustAudioBackground.init(
+      androidNotificationChannelId: 'com.flow.app.audio',
+      androidNotificationChannelName: 'Flow Audio',
+      androidNotificationOngoing: true,
+      androidStopForegroundOnPause: true,
+    );
+  }
+
+  // ── 3. Load .env ─────────────────────────────────────────────────────────────
+  await dotenv.load(fileName: '.env');
+
+  // ── 4. Logger (needs DEBUG flag from .env) ────────────────────────────────────
+  AppLogger.init();
+  AppLogger.i('main', 'Flow starting up');
+
+  // ── 3. Local storage ──────────────────────────────────────────────────────────
+  await LocalStorage.instance.init();
+
+  // ── 3b. Server config (reads stored custom URL from Hive) ────────────────────
+  final baseUrlFromEnv = dotenv.env['API_BASE_URL'] ?? 'http://localhost:8000';
+  ServerConfig.instance.init(baseUrlFromEnv);
+
+  // ── 4. Connectivity ───────────────────────────────────────────────────────────
+  await ConnectivityService.instance.init();
+
+  // ── 5. System UI ──────────────────────────────────────────────────────────────
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -25,21 +68,43 @@ void main() {
   );
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
-  // Build the dependency graph:
-  //   MockSongDataSource → SongRepositoryImpl → use cases → BLoC/Cubits
-  final dataSource = MockSongDataSource();
+  // ── 6. Dependency graph ───────────────────────────────────────────────────────
+  //
+  //   Data source (mock or API)
+  //     → SongRepositoryImpl
+  //       → Use cases (one per screen data need)
+  //         → BLoC / Cubits
+  //
+  // Switch between sources with USE_MOCK in .env — no code change required.
+
+  final useMock = dotenv.env['USE_MOCK'] == 'true';
+
+  AppLogger.i('main', 'Source: ${useMock ? "mock" : ServerConfig.instance.baseUrl}');
+
+  final dataSource = useMock
+      ? MockSongDataSource()
+      : ApiSongDataSource();
+
   final repository = SongRepositoryImpl(dataSource);
 
-  final getSongs = GetSongsUseCase(repository);
+  final getHomeData = GetHomeDataUseCase(repository);
   final getPlaylists = GetPlaylistsUseCase(repository);
   final getCategories = GetCategoriesUseCase(repository);
   final searchSongs = SearchSongsUseCase(repository);
+  // ignore: unused_local_variable — available for screens that need it
+  final getPlaylistTracks = GetPlaylistTracksUseCase(repository);
+
+  AppLogger.i('main', 'DI graph built — launching app');
 
   runApp(
     MultiBlocProvider(
       providers: [
-        BlocProvider(create: (_) => PlayerBloc()),
-        BlocProvider(create: (_) => HomeCubit(getSongs: getSongs)),
+        BlocProvider(create: (_) => NetworkCubit(ConnectivityService.instance)),
+        BlocProvider(
+          create: (_) => PlayerBloc(songRepository: repository),
+        ),
+        BlocProvider(create: (_) => SettingsCubit()),
+        BlocProvider(create: (_) => HomeCubit(getHomeData: getHomeData)),
         BlocProvider(
           create: (_) => SearchCubit(
             searchSongs: searchSongs,
@@ -58,10 +123,13 @@ class FlowApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final themeMode = context.select<SettingsCubit, ThemeMode>(
+      (c) => c.state.themeMode,
+    );
     return MaterialApp(
       title: 'flow',
       debugShowCheckedModeBanner: false,
-      themeMode: ThemeMode.dark,
+      themeMode: themeMode,
       theme: _buildTheme(Brightness.light),
       darkTheme: _buildTheme(Brightness.dark),
       home: const SplashScreen(),

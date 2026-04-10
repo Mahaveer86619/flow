@@ -1,47 +1,75 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../../../domain/usecases/get_songs_usecase.dart';
+import '../../../core/error/app_exception.dart';
+import '../../../core/logger/app_logger.dart';
+import '../../../domain/usecases/get_home_data_usecase.dart';
 import 'home_state.dart';
 
 export 'home_state.dart';
 
+// ── HomeCubit ─────────────────────────────────────────────────────────────────
+//
+// Loads home screen data via [GetHomeDataUseCase] — one network call.
+// Section splitting is the backend's responsibility; this cubit just loads
+// and emits. The greeting is the only thing computed here (client-side clock).
+// ─────────────────────────────────────────────────────────────────────────────
+
 class HomeCubit extends Cubit<HomeState> {
-  HomeCubit({required GetSongsUseCase getSongs})
-      : super(const HomeState(isLoading: true)) {
-    _load(getSongs);
+  static const _tag = 'HomeCubit';
+
+  final GetHomeDataUseCase _getHomeData;
+
+  HomeCubit({required GetHomeDataUseCase getHomeData})
+      : _getHomeData = getHomeData,
+        super(const HomeState(isLoading: true)) {
+    AppLogger.i(_tag, 'Created');
+    _load();
   }
 
-  Future<void> _load(GetSongsUseCase getSongs) async {
-    await Future.delayed(const Duration(milliseconds: 900));
-    if (isClosed) return;
+  Future<void> reload() {
+    AppLogger.i(_tag, 'reload()');
+    emit(const HomeState(isLoading: true));
+    return _load();
+  }
 
-    final songs = getSongs();
-    final hour = DateTime.now().hour;
+  Future<void> _load() async {
+    try {
+      AppLogger.d(_tag, 'Fetching home data...');
+      final data = await _getHomeData();
+      if (isClosed) return;
 
-    final artists = <Map<String, dynamic>>[];
-    final seen = <String>{};
-    for (final song in songs) {
-      if (seen.add(song.artist)) {
-        artists.add({
-          'name': song.artist,
-          'colorPrimary': song.colorPrimary,
-          'colorSecondary': song.colorSecondary,
-        });
-      }
-    }
-
-    emit(HomeState(
-      isLoading: false,
-      greeting: hour < 12
+      final hour = DateTime.now().hour;
+      final greeting = hour < 12
           ? 'Good morning'
           : hour < 17
               ? 'Good afternoon'
-              : 'Good evening',
-      allSongs: songs,
-      quickAccess: songs.take(6).toList(),
-      listeningAgain: songs.take(6).toList(),
-      forgottenFavorites: songs.reversed.take(6).toList(),
-      musicForYou: songs,
-      trendingArtists: artists,
-    ));
+              : 'Good evening';
+
+      AppLogger.i(_tag,
+          'Loaded — allSongs=${data.allSongs.length}  greeting=$greeting');
+
+      emit(HomeState(
+        isLoading: false,
+        greeting: greeting,
+        quickAccess: data.quickAccess,
+        listeningAgain: data.listeningAgain,
+        forgottenFavorites: data.forgottenFavorites,
+        musicForYou: data.musicForYou,
+        trendingArtists: data.trendingArtists,
+        trending: data.trending,
+        allSongs: data.allSongs,
+      ));
+    } on AppException catch (e) {
+      if (isClosed) return;
+      AppLogger.w(_tag, 'Load failed: ${e.message}');
+      emit(HomeState(isLoading: false, error: true, errorType: e.errorType));
+    } catch (e, st) {
+      if (isClosed) return;
+      AppLogger.e(_tag, 'Unexpected error', e, st);
+      emit(const HomeState(
+        isLoading: false,
+        error: true,
+        errorType: AppErrorType.unknown,
+      ));
+    }
   }
 }
