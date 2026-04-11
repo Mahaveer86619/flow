@@ -43,19 +43,24 @@ class ListScreen extends StatelessWidget {
                 final song = songs[i];
                 return ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: Container(
-                    width: 50,
-                    height: 50,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [song.colorPrimary, song.colorSecondary],
+                  leading: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [song.colorPrimary, song.colorSecondary],
+                        ),
                       ),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(
-                      Icons.music_note_rounded,
-                      color: Colors.white,
-                      size: 20,
+                      child: song.thumbnailUrl != null
+                          ? Image.network(
+                              song.thumbnailUrl!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  _fallback(),
+                            )
+                          : _fallback(),
                     ),
                   ),
                   title: Text(
@@ -76,15 +81,19 @@ class ListScreen extends StatelessWidget {
                     );
                     if (!isDesktop) {
                       Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const PlayerScreen(),
-                        ),
+                        MaterialPageRoute(builder: (_) => const PlayerScreen()),
                       );
                     }
                   },
                 );
               },
             ),
+    );
+  }
+
+  Widget _fallback() {
+    return const Center(
+      child: Icon(Icons.music_note_rounded, color: Colors.white, size: 20),
     );
   }
 }

@@ -69,19 +69,24 @@ class _QueueSongTile extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: Container(
-        width: 50,
-        height: 50,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [song.colorPrimary, song.colorSecondary],
+      leading: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          width: 50,
+          height: 50,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [song.colorPrimary, song.colorSecondary],
+            ),
           ),
-          borderRadius: BorderRadius.circular(8),
+          child: song.thumbnailUrl != null
+              ? Image.network(
+                  song.thumbnailUrl!,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => _fallback(),
+                )
+              : _fallback(),
         ),
-        child: isPlaying
-            ? const Icon(Icons.graphic_eq_rounded, color: Colors.white)
-            : const Icon(Icons.music_note_rounded, color: Colors.white,
-                size: 20),
       ),
       title: Text(
         song.title,
@@ -100,6 +105,14 @@ class _QueueSongTile extends StatelessWidget {
           context.read<PlayerBloc>().add(PlaySingleEvent(song));
         }
       },
+    );
+  }
+
+  Widget _fallback() {
+    return Center(
+      child: isPlaying
+          ? const Icon(Icons.graphic_eq_rounded, color: Colors.white)
+          : const Icon(Icons.music_note_rounded, color: Colors.white, size: 20),
     );
   }
 }

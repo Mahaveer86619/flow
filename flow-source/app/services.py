@@ -7,12 +7,13 @@ from typing import Dict, List, Optional
 import yt_dlp
 import ytmusicapi
 from jose import JWTError, jwt
+
 # from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
 from .config import settings
 from .models import ArtistResponse, HomeResponse, SongResponse, User
-from .utils import is_artist_item, normalize_artist, normalize_song
+from .utils import is_artist_item, normalize_artist, normalize_song, write_cookie_file
 
 # Password hashing — bcrypt disabled for now (passlib/bcrypt version mismatch)
 # pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -234,18 +235,117 @@ class YTMusicService:
             self.home_cache.clear()
 
 
-def extract_audio_url(video_id: str) -> str:
-    ydl_opts = {
-        "format": "bestaudio/best",
+# Global cache for extracted audio URLs to avoid slow yt-dlp calls on every request.
+# Format: {video_id: (url, expiry_timestamp)}
+_url_cache = {}
+
+
+def extract_audio_url(video_id: str, user: Optional[User] = None) -> str:
+    now = time.monotonic()
+    # Cache valid for 1 hour
+    if video_id in _url_cache:
+        url, expiry = _url_cache[video_id]
+        if now < expiry:
+            return url
+
+    user_agent = (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
+    )
+
+    base_opts = {
+        # Prefer direct HTTP progressive downloads to avoid manifest URLs
+        "format": "bestaudio[protocol^=http]/bestaudio/best",
         "quiet": True,
         "no_warnings": True,
+        "user_agent": user_agent,
+        "nocheckcertificate": True,
+        "ignoreerrors": False,
+        "logtostderr": False,
     }
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(
-            f"https://music.youtube.com/watch?v={video_id}",
-            download=False,
-        )
-        return info["url"]
+
+    # Highly reliable player client combinations for YT Music
+    client_strategies = [
+        ["android", "web"],
+        ["ios"],
+        ["tvhtml5", "web"],
+        ["web_creator", "web"],
+    ]
+
+    # Strategy: Try with user cookies, then global cookies, then no cookies
+    cookie_paths = []
+    if user and user.yt_auth_json:
+        data_dir = os.path.dirname(settings.COOKIES_FILE_PATH)
+        temp_cookie_path = os.path.join(data_dir, f"cookies_{user.id}.txt")
+        if write_cookie_file(user.yt_auth_json, temp_cookie_path):
+            cookie_paths.append(temp_cookie_path)
+
+    if os.path.exists(settings.COOKIES_FILE_PATH):
+        cookie_paths.append(settings.COOKIES_FILE_PATH)
+
+    cookie_paths.append(None)
+
+    last_exception = None
+
+    for cp in cookie_paths:
+        for clients in client_strategies:
+            ydl_opts = base_opts.copy()
+            if cp:
+                ydl_opts["cookiefile"] = cp
+
+            ydl_opts["extractor_args"] = {
+                "youtube": {
+                    "player_client": clients,
+                    # We skip manifests because our proxy logic only handles direct streams
+                    "skip": ["webpage", "hls", "dash"],
+                }
+            }
+
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(
+                        f"https://music.youtube.com/watch?v={video_id}",
+                        download=False,
+                    )
+                    # Some clients might return a list of formats; we want the chosen one
+                    if "url" in info:
+                        final_url = info["url"]
+                        _url_cache[video_id] = (final_url, now + 3600)
+                        return final_url
+            except Exception as e:
+                last_exception = e
+                # Log specific error for debugging if needed
+                if "format is not available" in str(e).lower():
+                    continue
+                if "cookies" in str(e).lower() or "Netscape" in str(e):
+                    # Current cookie file is bad, skip other strategies for this cp
+                    break
+                continue
+
+    # Final emergency fallback: Broadest possible search on main YouTube URL
+    for cp in cookie_paths:
+        ydl_opts = base_opts.copy()
+        ydl_opts["format"] = "bestaudio/best"  # Less restrictive
+        if cp:
+            ydl_opts["cookiefile"] = cp
+
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                # Using the standard watch URL often has different availability
+                info = ydl.extract_info(
+                    f"https://www.youtube.com/watch?v={video_id}",
+                    download=False,
+                )
+                if "url" in info:
+                    final_url = info["url"]
+                    _url_cache[video_id] = (final_url, now + 3600)
+                    return final_url
+        except Exception as e:
+            last_exception = e
+            continue
+    if last_exception:
+        raise last_exception
+    raise Exception("Extraction failed with no results")
 
 
 yt_service = YTMusicService()

@@ -9,7 +9,7 @@ import '../../domain/entities/song.dart';
 import '../blocs/player/player_bloc.dart';
 import '../screens/player/player_screen.dart';
 
-class SongCard extends StatelessWidget {
+class SongCard extends StatefulWidget {
   final Song song;
   final List<Song> queue;
   final int index;
@@ -24,32 +24,59 @@ class SongCard extends StatelessWidget {
   });
 
   @override
+  State<SongCard> createState() => _SongCardState();
+}
+
+class _SongCardState extends State<SongCard> {
+  bool _isHovered = false;
+
+  @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isDesktop = Breakpoints.isDesktop(MediaQuery.sizeOf(context).width);
 
-    return GestureDetector(
-      onTap: () => _handleTap(context),
-      child: SizedBox(
-        width: cardWidth,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _Artwork(song: song, size: cardWidth),
-            const SizedBox(height: 8),
-            Text(
-              song.title,
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-              overflow: TextOverflow.ellipsis,
-            ),
-            Text(
-              song.artist,
-              style: TextStyle(
-                fontSize: 12,
-                color: colorScheme.onSurface.withAlpha(140),
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: () => _handleTap(context),
+        child: SizedBox(
+          width: widget.cardWidth,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AnimatedScale(
+                scale: _isHovered ? 1.04 : 1.0,
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOutCubic,
+                child: _Artwork(
+                  song: widget.song,
+                  size: widget.cardWidth,
+                  isHovered: _isHovered,
+                ),
               ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
+              const SizedBox(height: 10),
+              Text(
+                widget.song.title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  letterSpacing: -0.2,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                widget.song.artist,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: colorScheme.onSurface.withAlpha(140),
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -57,11 +84,15 @@ class SongCard extends StatelessWidget {
 
   void _handleTap(BuildContext context) {
     context.read<PlayerBloc>().add(
-          PlayQueueEvent(songs: List<Song>.from(queue), startIndex: index),
-        );
+      PlayQueueEvent(
+        songs: List<Song>.from(widget.queue),
+        startIndex: widget.index,
+      ),
+    );
     if (!Breakpoints.isDesktop(MediaQuery.sizeOf(context).width)) {
-      Navigator.of(context)
-          .push(MaterialPageRoute(builder: (_) => const PlayerScreen()));
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const PlayerScreen()));
     }
   }
 }
@@ -69,23 +100,60 @@ class SongCard extends StatelessWidget {
 class _Artwork extends StatelessWidget {
   final Song song;
   final double size;
-  const _Artwork({required this.song, required this.size});
+  final bool isHovered;
+
+  const _Artwork({
+    required this.song,
+    required this.size,
+    required this.isHovered,
+  });
 
   @override
   Widget build(BuildContext context) {
-    if (song.thumbnailUrl != null) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(14),
-        child: Image.network(
-          song.thumbnailUrl!,
-          width: size,
-          height: size,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _fallback(),
+    return Stack(
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withAlpha(isHovered ? 60 : 40),
+                blurRadius: isHovered ? 20 : 12,
+                offset: Offset(0, isHovered ? 8 : 4),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: song.thumbnailUrl != null
+                ? Image.network(
+                    song.thumbnailUrl!,
+                    width: size,
+                    height: size,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => _fallback(),
+                  )
+                : _fallback(),
+          ),
         ),
-      );
-    }
-    return _fallback();
+        if (isHovered)
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.black.withAlpha(30),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Center(
+                child: Icon(
+                  Icons.play_arrow_rounded,
+                  color: Colors.white,
+                  size: 42,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
   }
 
   Widget _fallback() {
@@ -98,7 +166,6 @@ class _Artwork extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: [song.colorPrimary, song.colorSecondary],
         ),
-        borderRadius: BorderRadius.circular(14),
       ),
       child: Icon(
         Icons.music_note_rounded,
@@ -187,8 +254,10 @@ class SkeletonArtistCard extends StatelessWidget {
         Container(
           width: 70,
           height: 11,
-          decoration:
-              BoxDecoration(color: color, borderRadius: BorderRadius.circular(5)),
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(5),
+          ),
         ),
       ],
     );

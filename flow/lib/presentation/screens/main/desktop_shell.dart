@@ -85,11 +85,6 @@ class _DesktopShellState extends State<DesktopShell>
             index: _index,
             onIndexChanged: (i) => setState(() => _index = i),
           ),
-          VerticalDivider(
-            width: 1,
-            thickness: 1,
-            color: colorScheme.outlineVariant.withAlpha(60),
-          ),
 
           // ── Center pane: main content ──────────────────────────────────────
           Expanded(
@@ -159,10 +154,7 @@ class _DesktopShellState extends State<DesktopShell>
             )
           : const BoxDecoration(color: Color(0xFF0A0A14)),
       child: SafeArea(
-        child: PlayerPanel(
-          showBackButton: false,
-          artMaxSize: _panelWidth - 48,
-        ),
+        child: PlayerPanel(showBackButton: false, artMaxSize: _panelWidth - 48),
       ),
     );
   }
@@ -187,13 +179,14 @@ class _DesktopNavRail extends StatelessWidget {
       selectedIndex: index,
       onDestinationSelected: onIndexChanged,
       extended: false,
-      minWidth: 72,
+      minWidth: 80,
+      groupAlignment: -0.8,
       leading: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 16),
+        padding: const EdgeInsets.symmetric(vertical: 24),
         child: Text(
           'f',
           style: GoogleFonts.spaceGrotesk(
-            fontSize: 28,
+            fontSize: 32,
             fontWeight: FontWeight.w800,
             letterSpacing: -2,
             color: colorScheme.primary,
@@ -204,28 +197,33 @@ class _DesktopNavRail extends StatelessWidget {
         child: Align(
           alignment: Alignment.bottomCenter,
           child: Padding(
-            padding: const EdgeInsets.only(bottom: 20),
+            padding: const EdgeInsets.only(bottom: 24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                IconButton(
-                  icon: const Icon(Icons.notifications_outlined),
-                  tooltip: 'Notifications',
+                _SidebarIconButton(
+                  icon: Icons.notifications_outlined,
                   onPressed: () => _showDialog(
                     context,
                     title: 'Notifications',
                     body: 'No new notifications.',
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.settings_outlined),
-                  tooltip: 'Settings',
+                const SizedBox(height: 12),
+                _SidebarIconButton(
+                  icon: Icons.settings_outlined,
                   onPressed: () => _showSettingsDialog(context),
                 ),
               ],
             ),
           ),
         ),
+      ),
+      indicatorColor: Colors.transparent,
+      selectedIconTheme: IconThemeData(color: colorScheme.primary, size: 28),
+      unselectedIconTheme: IconThemeData(
+        color: colorScheme.onSurface.withAlpha(120),
+        size: 26,
       ),
       destinations: const [
         NavigationRailDestination(
@@ -235,6 +233,7 @@ class _DesktopNavRail extends StatelessWidget {
         ),
         NavigationRailDestination(
           icon: Icon(Icons.search_rounded),
+          selectedIcon: Icon(Icons.search_rounded),
           label: Text('Search'),
         ),
         NavigationRailDestination(
@@ -326,6 +325,25 @@ class _DesktopTopBar extends StatelessWidget {
       builder: (_) => BlocProvider.value(
         value: context.read<PlayerBloc>(),
         child: _RecentlyPlayedDialog(),
+      ),
+    );
+  }
+}
+
+class _SidebarIconButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  const _SidebarIconButton({required this.icon, required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: Icon(icon),
+      onPressed: onPressed,
+      style: IconButton.styleFrom(
+        foregroundColor: Theme.of(context).colorScheme.onSurface.withAlpha(120),
+        hoverColor: Theme.of(context).colorScheme.primary.withAlpha(20),
       ),
     );
   }

@@ -35,16 +35,21 @@ dependencies:
   flutter_bloc: ^9.1.1
   google_fonts: ^6.2.1
   flutter_dotenv: ^5.2.1
+  palette_generator: ^0.3.3+3
   http: ^1.2.0
   hive: ^2.2.3
   hive_flutter: ^1.1.0
   connectivity_plus: ^6.0.0
   logger: ^2.4.0
   just_audio: ^0.9.40
+  just_audio_windows: ^0.2.1
   just_audio_background: ^0.0.1-beta.13
   audio_service: ^0.18.14
   smtc_windows: ^0.1.1
   flutter_inappwebview: ^6.0.0
+  permission_handler: ^12.0.1
+  path_provider: ^2.1.5
+  file_picker: ^11.0.2
 
 dev_dependencies:
   flutter_test:

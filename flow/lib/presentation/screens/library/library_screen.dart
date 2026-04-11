@@ -13,8 +13,6 @@ class LibraryScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final state = context.watch<LibraryCubit>().state;
-    final likedCount = context.watch<PlayerBloc>().state.likedSongsCount;
     final colorScheme = Theme.of(context).colorScheme;
     final isSmall = Breakpoints.isMobile(MediaQuery.sizeOf(context).width);
 
@@ -43,76 +41,92 @@ class LibraryScreen extends StatelessWidget {
           ),
         ),
         SliverToBoxAdapter(
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: Row(
-              children: List.generate(LibraryState.filterOptions.length, (i) {
-                final selected = state.filterIndex == i;
-                return Padding(
-                  padding: EdgeInsets.only(
-                    right: i < LibraryState.filterOptions.length - 1 ? 8 : 0,
-                  ),
-                  child: GestureDetector(
-                    onTap: () =>
-                        context.read<LibraryCubit>().setFilter(i),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: selected
-                            ? colorScheme.primaryContainer
-                            : colorScheme.surfaceContainerHigh,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        LibraryState.filterOptions[i],
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13,
+          child: BlocBuilder<LibraryCubit, LibraryState>(
+            buildWhen: (prev, curr) => prev.filterIndex != curr.filterIndex,
+            builder: (context, state) => SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Row(
+                children: List.generate(LibraryState.filterOptions.length, (i) {
+                  final selected = state.filterIndex == i;
+                  return Padding(
+                    padding: EdgeInsets.only(
+                      right: i < LibraryState.filterOptions.length - 1 ? 8 : 0,
+                    ),
+                    child: GestureDetector(
+                      onTap: () => context.read<LibraryCubit>().setFilter(i),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
                           color: selected
-                              ? colorScheme.onPrimaryContainer
-                              : colorScheme.onSurface,
+                              ? colorScheme.primaryContainer
+                              : colorScheme.surfaceContainerHigh,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          LibraryState.filterOptions[i],
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                            color: selected
+                                ? colorScheme.onPrimaryContainer
+                                : colorScheme.onSurface,
+                          ),
                         ),
                       ),
                     ),
+                  );
+                }),
+              ),
+            ),
+          ),
+        ),
+        BlocBuilder<LibraryCubit, LibraryState>(
+          builder: (context, state) {
+            if (state.isLoading) {
+              return const SliverFillRemaining(
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
+            if (state.error) {
+              return SliverFillRemaining(
+                child: ErrorView(
+                  errorType: state.errorType,
+                  onRetry: () => context.read<LibraryCubit>().reload(),
+                ),
+              );
+            }
+
+            return SliverMainAxisGroup(
+              slivers: [
+                SliverToBoxAdapter(
+                  child: BlocSelector<PlayerBloc, PlayerState, int>(
+                    selector: (s) => s.likedSongsCount,
+                    builder: (context, likedCount) => _SpecialPlaylistTile(
+                      icon: Icons.favorite_rounded,
+                      iconColor: const Color(0xFFEC4899),
+                      name: 'Liked Songs',
+                      subtitle: '$likedCount songs',
+                    ),
                   ),
-                );
-              }),
-            ),
-          ),
-        ),
-        if (state.isLoading)
-          const SliverFillRemaining(
-            child: Center(child: CircularProgressIndicator()),
-          ),
-        if (state.error)
-          SliverFillRemaining(
-            child: ErrorView(
-              errorType: state.errorType,
-              onRetry: () => context.read<LibraryCubit>().reload(),
-            ),
-          ),
-        if (!state.isLoading && !state.error) ...[
-        SliverToBoxAdapter(
-          child: _SpecialPlaylistTile(
-            icon: Icons.favorite_rounded,
-            iconColor: const Color(0xFFEC4899),
-            name: 'Liked Songs',
-            subtitle: '$likedCount songs',
-          ),
-        ),
-        SliverList(
-          delegate: SliverChildBuilderDelegate(
-            (context, i) => _PlaylistTile(playlist: state.playlists[i]),
-            childCount: state.playlists.length,
-          ),
+                ),
+                SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, i) => RepaintBoundary(
+                      child: _PlaylistTile(playlist: state.playlists[i]),
+                    ),
+                    childCount: state.playlists.length,
+                  ),
+                ),
+              ],
+            );
+          },
         ),
         const SliverToBoxAdapter(child: SizedBox(height: 24)),
-        ], // end !isLoading && !error
       ],
     );
   }
@@ -128,7 +142,11 @@ class _PlaylistArtFallback extends StatelessWidget {
       width: 58,
       height: 58,
       color: playlist.color,
-      child: const Icon(Icons.queue_music_rounded, color: Colors.white, size: 28),
+      child: const Icon(
+        Icons.queue_music_rounded,
+        color: Colors.white,
+        size: 28,
+      ),
     );
   }
 }
@@ -182,7 +200,8 @@ class _PlaylistTile extends StatelessWidget {
                 width: 58,
                 height: 58,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _PlaylistArtFallback(playlist: playlist),
+                errorBuilder: (_, __, ___) =>
+                    _PlaylistArtFallback(playlist: playlist),
               )
             : _PlaylistArtFallback(playlist: playlist),
       ),
@@ -200,9 +219,7 @@ class _PlaylistTile extends StatelessWidget {
       ),
       onTap: () {
         Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => PlaylistScreen(playlist: playlist),
-          ),
+          MaterialPageRoute(builder: (_) => PlaylistScreen(playlist: playlist)),
         );
       },
     );

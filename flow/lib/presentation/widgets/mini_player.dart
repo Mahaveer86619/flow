@@ -9,113 +9,133 @@ class MiniPlayer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final state = context.watch<PlayerBloc>().state;
-    final song = state.currentSong;
-    if (song == null) return const SizedBox.shrink();
+    return BlocBuilder<PlayerBloc, PlayerState>(
+      buildWhen: (prev, curr) => prev.currentSong?.id != curr.currentSong?.id,
+      builder: (context, state) {
+        final song = state.currentSong;
+        if (song == null) return const SizedBox.shrink();
 
-    final colorScheme = Theme.of(context).colorScheme;
+        final colorScheme = Theme.of(context).colorScheme;
 
-    return GestureDetector(
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const PlayerScreen()),
-      ),
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(10, 0, 10, 8),
-        height: 76,
-        decoration: BoxDecoration(
-          color: colorScheme.surfaceContainerHigh,
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withAlpha(70),
-              blurRadius: 20,
-              offset: const Offset(0, 6),
+        return GestureDetector(
+          onTap: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const PlayerScreen())),
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(10, 0, 10, 8),
+            height: 76,
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withAlpha(70),
+                  blurRadius: 20,
+                  offset: const Offset(0, 6),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: Row(
-          children: [
-            // ── Album art ────────────────────────────────────────────────────
-            ClipRRect(
-              borderRadius: const BorderRadius.horizontal(
-                left: Radius.circular(18),
-              ),
-              child: song.thumbnailUrl != null
-                  ? Image.network(
-                      song.thumbnailUrl!,
-                      width: 76,
-                      height: 76,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _ArtFallback(song: song),
-                    )
-                  : _ArtFallback(song: song),
-            ),
-            const SizedBox(width: 12),
+            child: Row(
+              children: [
+                // ── Album art ────────────────────────────────────────────────────
+                ClipRRect(
+                  borderRadius: const BorderRadius.horizontal(
+                    left: Radius.circular(18),
+                  ),
+                  child: RepaintBoundary(
+                    child: song.thumbnailUrl != null
+                        ? Image.network(
+                            song.thumbnailUrl!,
+                            width: 76,
+                            height: 76,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) =>
+                                _ArtFallback(song: song),
+                          )
+                        : _ArtFallback(song: song),
+                  ),
+                ),
+                const SizedBox(width: 12),
 
-            // ── Song info + inline progress bar ───────────────────────────────
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    song.title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    song.artist,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: colorScheme.onSurface.withAlpha(140),
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                  ),
-                  const SizedBox(height: 6),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: state.progress,
-                      minHeight: 3,
-                      backgroundColor: colorScheme.onSurface.withAlpha(25),
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        song.colorPrimary,
+                // ── Song info + inline progress bar ───────────────────────────────
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        song.title,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
                       ),
-                    ),
+                      const SizedBox(height: 2),
+                      Text(
+                        song.artist,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: colorScheme.onSurface.withAlpha(140),
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                      const SizedBox(height: 6),
+                      BlocBuilder<PlayerBloc, PlayerState>(
+                        buildWhen: (prev, curr) =>
+                            prev.progress != curr.progress,
+                        builder: (context, state) {
+                          return ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: RepaintBoundary(
+                              child: LinearProgressIndicator(
+                                value: state.progress,
+                                minHeight: 3,
+                                backgroundColor: colorScheme.onSurface
+                                    .withAlpha(25),
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  song.colorPrimary,
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 4),
+                ),
+                const SizedBox(width: 4),
 
-            // ── Controls ──────────────────────────────────────────────────────
-            IconButton(
-              icon: Icon(
-                state.isPlaying
-                    ? Icons.pause_rounded
-                    : Icons.play_arrow_rounded,
-                size: 30,
-              ),
-              onPressed: () => context.read<PlayerBloc>().add(
-                    const TogglePlayPauseEvent(),
-                  ),
+                // ── Controls ──────────────────────────────────────────────────────
+                BlocBuilder<PlayerBloc, PlayerState>(
+                  buildWhen: (prev, curr) => prev.isPlaying != curr.isPlaying,
+                  builder: (context, state) {
+                    return IconButton(
+                      icon: Icon(
+                        state.isPlaying
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
+                        size: 30,
+                      ),
+                      onPressed: () => context.read<PlayerBloc>().add(
+                        const TogglePlayPauseEvent(),
+                      ),
+                    );
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(Icons.skip_next_rounded, size: 26),
+                  onPressed: () =>
+                      context.read<PlayerBloc>().add(const SkipNextEvent()),
+                ),
+                const SizedBox(width: 4),
+              ],
             ),
-            IconButton(
-              icon: const Icon(Icons.skip_next_rounded, size: 26),
-              onPressed: () => context.read<PlayerBloc>().add(
-                    const SkipNextEvent(),
-                  ),
-            ),
-            const SizedBox(width: 4),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }

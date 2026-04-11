@@ -30,6 +30,9 @@ abstract class SongDataSource {
   /// Tracks from a radio station (up-next).
   Future<List<SongModel>> fetchRadioTracks(String videoId, {int limit = 25});
 
+  /// Get multiple songs by their IDs.
+  Future<List<SongModel>> fetchSongsByIds(List<String> ids);
+
   /// Static browse categories — always synchronous, never needs the network.
   List<Map<String, dynamic>> fetchCategories();
 }

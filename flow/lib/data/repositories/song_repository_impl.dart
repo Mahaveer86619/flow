@@ -125,6 +125,22 @@ class SongRepositoryImpl implements SongRepository {
   }
 
   @override
+  Future<List<Song>> getSongsByIds(List<String> ids) async {
+    AppLogger.i(_tag, 'getSongsByIds(${ids.length} ids)');
+    try {
+      final models = await _source.fetchSongsByIds(ids);
+      final songs = models.map((m) => m.toEntity()).toList();
+      AppLogger.d(_tag, 'getSongsByIds: ${songs.length} songs');
+      return songs;
+    } on AppException {
+      rethrow;
+    } catch (e, st) {
+      AppLogger.e(_tag, 'getSongsByIds failed', e, st);
+      throw toAppException(e);
+    }
+  }
+
+  @override
   List<Map<String, dynamic>> getCategories() {
     final cats = _source.fetchCategories();
     AppLogger.d(_tag, 'getCategories: ${cats.length}');

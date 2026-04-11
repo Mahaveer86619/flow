@@ -24,6 +24,7 @@ class SongModel {
   final String? thumbnailUrl;
   final Color colorPrimary;
   final Color colorSecondary;
+  final bool isDownloaded;
 
   const SongModel({
     required this.id,
@@ -34,6 +35,7 @@ class SongModel {
     this.thumbnailUrl,
     required this.colorPrimary,
     required this.colorSecondary,
+    this.isDownloaded = false,
   });
 
   // ── JSON ─────────────────────────────────────────────────────────────────────
@@ -56,32 +58,35 @@ class SongModel {
       colorSecondary: json['colorSecondary'] != null
           ? Color(json['colorSecondary'] as int)
           : colors.$2,
+      isDownloaded: json['isDownloaded'] as bool? ?? false,
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'title': title,
-        'artist': artist,
-        'album': album,
-        'durationMs': duration.inMilliseconds,
-        'thumbnailUrl': thumbnailUrl,
-        'colorPrimary': colorPrimary.value,
-        'colorSecondary': colorSecondary.value,
-      };
+    'id': id,
+    'title': title,
+    'artist': artist,
+    'album': album,
+    'durationMs': duration.inMilliseconds,
+    'thumbnailUrl': thumbnailUrl,
+    'colorPrimary': colorPrimary.value,
+    'colorSecondary': colorSecondary.value,
+    'isDownloaded': isDownloaded,
+  };
 
   // ── Domain mapping ────────────────────────────────────────────────────────────
 
   Song toEntity() => Song(
-        id: id,
-        title: title,
-        artist: artist,
-        album: album,
-        duration: duration,
-        thumbnailUrl: thumbnailUrl,
-        colorPrimary: colorPrimary,
-        colorSecondary: colorSecondary,
-      );
+    id: id,
+    title: title,
+    artist: artist,
+    album: album,
+    duration: duration,
+    thumbnailUrl: thumbnailUrl,
+    colorPrimary: colorPrimary,
+    colorSecondary: colorSecondary,
+    isDownloaded: isDownloaded,
+  );
 
   // ── Color derivation ──────────────────────────────────────────────────────────
 

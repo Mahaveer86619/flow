@@ -41,9 +41,19 @@ class SkipNextEvent extends PlayerEvent {
   const SkipNextEvent();
 }
 
-/// Skip to the previous track (or restart if progress > 5 %).
+/// Seek to the previous track (or restart if progress > 5 %).
 class SkipPreviousEvent extends PlayerEvent {
   const SkipPreviousEvent();
+}
+
+/// Skip forward by 10 seconds.
+class FastForwardEvent extends PlayerEvent {
+  const FastForwardEvent();
+}
+
+/// Skip backward by 10 seconds.
+class RewindEvent extends PlayerEvent {
+  const RewindEvent();
 }
 
 /// Toggle shuffle mode on/off.
@@ -60,6 +70,12 @@ class ToggleRepeatEvent extends PlayerEvent {
 class ToggleLikeEvent extends PlayerEvent {
   final Song song;
   const ToggleLikeEvent(this.song);
+}
+
+/// Add or remove [song] from the offline-downloads set.
+class ToggleDownloadEvent extends PlayerEvent {
+  final Song song;
+  const ToggleDownloadEvent(this.song);
 }
 
 /// Set playback volume to [volume] (0.0–1.0).
@@ -103,4 +119,10 @@ class _InitialLoadingChangedEvent extends PlayerEvent {
 
 class _TrackCompletedEvent extends PlayerEvent {
   const _TrackCompletedEvent();
+}
+
+class _PaletteUpdatedEvent extends PlayerEvent {
+  final Color primary;
+  final Color secondary;
+  const _PaletteUpdatedEvent(this.primary, this.secondary);
 }

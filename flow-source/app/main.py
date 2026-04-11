@@ -37,11 +37,12 @@ def create_app() -> FastAPI:
 
     @app.on_event("startup")
     async def startup_event():
-        # Ensure database tables are created (simple approach for now, migrations are also available)
+        # Ensure database tables are created
         Base.metadata.create_all(bind=engine)
 
-        # Ensure cookie file is written if auth exists
-        write_cookie_file(settings.AUTH_FILE_PATH, settings.COOKIES_FILE_PATH)
+        # Ensure global cookie file is written if the master auth.json exists
+        if write_cookie_file(settings.AUTH_FILE_PATH, settings.COOKIES_FILE_PATH):
+            print(f"Global cookies initialized at {settings.COOKIES_FILE_PATH}")
 
         # Ngrok exposure if flavor is dev
         pass  # ngrok is started in run.py before uvicorn

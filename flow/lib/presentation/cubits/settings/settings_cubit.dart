@@ -12,6 +12,7 @@ class SettingsCubit extends Cubit<SettingsState> {
       themeMode: _parseTheme(s.themeModePref),
       eqPreset: s.eqPreset,
       downloadQuality: s.downloadQuality,
+      downloadPath: s.downloadPath,
     );
   }
 
@@ -39,5 +40,11 @@ class SettingsCubit extends Cubit<SettingsState> {
   void setDownloadQuality(String quality) {
     LocalStorage.instance.saveDownloadQuality(quality);
     emit(state.copyWith(downloadQuality: quality));
+  }
+
+  void setDownloadPath(String? path) {
+    if (path == null) return;
+    LocalStorage.instance.saveDownloadPath(path);
+    emit(state.copyWith(downloadPath: path));
   }
 }

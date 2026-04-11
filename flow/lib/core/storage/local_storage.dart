@@ -26,13 +26,16 @@ class LocalStorage {
     _search = await Hive.openBox(HiveKeys.searchBox);
     _settings = await Hive.openBox(HiveKeys.settingsBox);
     _auth = await Hive.openBox(HiveKeys.authBox);
-    AppLogger.i('LocalStorage', 'Hive initialised. '
-        'Liked=${likedSongIds.length}  '
-        'Volume=$volume  '
-        'Shuffle=$isShuffle  '
-        'Repeat=$isRepeat  '
-        'Searches=${recentSearches.length}  '
-        'Auth=${jwtToken != null ? "token present" : "no token"}');
+    AppLogger.i(
+      'LocalStorage',
+      'Hive initialised. '
+          'Liked=${likedSongIds.length}  '
+          'Volume=$volume  '
+          'Shuffle=$isShuffle  '
+          'Repeat=$isRepeat  '
+          'Searches=${recentSearches.length}  '
+          'Auth=${jwtToken != null ? "token present" : "no token"}',
+    );
   }
 
   // ── Player ───────────────────────────────────────────────────────────────────
@@ -95,6 +98,10 @@ class LocalStorage {
   void saveDownloadQuality(String q) =>
       _settings.put(HiveKeys.downloadQuality, q);
 
+  String? get downloadPath => _settings.get(HiveKeys.downloadPath) as String?;
+  void saveDownloadPath(String path) =>
+      _settings.put(HiveKeys.downloadPath, path);
+
   // ── Auth ─────────────────────────────────────────────────────────────────────
 
   String? get jwtToken => _auth.get(HiveKeys.jwtToken) as String?;
@@ -116,8 +123,7 @@ class LocalStorage {
     AppLogger.d('LocalStorage', 'Auth saved for $username');
   }
 
-  void saveHasYtAuth(bool value) =>
-      _auth.put(HiveKeys.cachedHasYtAuth, value);
+  void saveHasYtAuth(bool value) => _auth.put(HiveKeys.cachedHasYtAuth, value);
 
   void clearAuth() {
     _auth.delete(HiveKeys.jwtToken);

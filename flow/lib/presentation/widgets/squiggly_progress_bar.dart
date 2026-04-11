@@ -76,26 +76,31 @@ class _SquigglyProgressBarState extends State<SquigglyProgressBar>
           onTapDown: (d) => _handleSeek(d.localPosition, constraints),
           onHorizontalDragUpdate: (d) =>
               _handleSeek(d.localPosition, constraints),
-          child: AnimatedBuilder(
-            animation: Listenable.merge([_phaseController, _loadingController]),
-            builder: (context, _) {
-              return SizedBox(
-                height: 18,
-                width: double.infinity,
-                child: CustomPaint(
-                  painter: _SquigglyPainter(
-                    progress: widget.progress,
-                    bufferProgress: widget.bufferProgress,
-                    isInitialLoading: widget.isInitialLoading,
-                    loadingValue: _loadingController.value,
-                    phase: _phaseController.value * 2 * math.pi,
-                    playedColor: colorScheme.primary,
-                    bufferedColor: Colors.grey.withAlpha(100),
-                    unplayedColor: colorScheme.surfaceContainerHighest,
+          child: RepaintBoundary(
+            child: AnimatedBuilder(
+              animation: Listenable.merge([
+                _phaseController,
+                _loadingController,
+              ]),
+              builder: (context, _) {
+                return SizedBox(
+                  height: 18,
+                  width: double.infinity,
+                  child: CustomPaint(
+                    painter: _SquigglyPainter(
+                      progress: widget.progress,
+                      bufferProgress: widget.bufferProgress,
+                      isInitialLoading: widget.isInitialLoading,
+                      loadingValue: _loadingController.value,
+                      phase: _phaseController.value * 2 * math.pi,
+                      playedColor: colorScheme.primary,
+                      bufferedColor: Colors.grey.withAlpha(100),
+                      unplayedColor: colorScheme.surfaceContainerHighest,
+                    ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
         );
       },

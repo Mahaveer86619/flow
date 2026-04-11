@@ -47,12 +47,8 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final state = context.watch<SearchCubit>().state;
     final colorScheme = Theme.of(context).colorScheme;
     final isSmall = Breakpoints.isMobile(MediaQuery.sizeOf(context).width);
-
-    final showRecent =
-        _isFocused && !state.hasQuery && state.recentSearches.isNotEmpty;
 
     return CustomScrollView(
       slivers: [
@@ -60,171 +56,198 @@ class _SearchScreenState extends State<SearchScreen> {
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-            child: SearchBar(
-              controller: _textController,
-              focusNode: _focusNode,
-              hintText: 'Songs, artists, albums...',
-              leading: Icon(
-                Icons.search_rounded,
-                color: colorScheme.onSurfaceVariant,
-              ),
-              trailing: [
-                if (state.hasQuery)
-                  IconButton(
-                    icon: const Icon(Icons.close_rounded),
-                    onPressed: () {
-                      _textController.clear();
-                      context.read<SearchCubit>().clearQuery();
-                    },
-                  ),
-              ],
-              onChanged: (v) => context.read<SearchCubit>().updateQuery(v),
-              onSubmitted: (v) {
-                if (v.isNotEmpty) {
-                  context.read<SearchCubit>().addRecentSearch(v);
-                }
-              },
-              elevation: const WidgetStatePropertyAll(0),
-              backgroundColor: WidgetStatePropertyAll(
-                colorScheme.surfaceContainerHigh,
+            child: BlocBuilder<SearchCubit, SearchState>(
+              buildWhen: (prev, curr) => prev.hasQuery != curr.hasQuery,
+              builder: (context, state) => SearchBar(
+                controller: _textController,
+                focusNode: _focusNode,
+                hintText: 'Songs, artists, albums...',
+                leading: Icon(
+                  Icons.search_rounded,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+                trailing: [
+                  if (state.hasQuery)
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: () {
+                        _textController.clear();
+                        context.read<SearchCubit>().clearQuery();
+                      },
+                    ),
+                ],
+                onChanged: (v) => context.read<SearchCubit>().updateQuery(v),
+                onSubmitted: (v) {
+                  if (v.isNotEmpty) {
+                    context.read<SearchCubit>().addRecentSearch(v);
+                  }
+                },
+                elevation: const WidgetStatePropertyAll(0),
+                backgroundColor: WidgetStatePropertyAll(
+                  colorScheme.surfaceContainerHigh,
+                ),
               ),
             ),
           ),
         ),
 
         // ── Content: recent / results / empty / categories ────────────────────
-        if (showRecent) ...[
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Recent Searches',
-                    style: GoogleFonts.spaceGrotesk(
-                      fontSize: isSmall ? 14.0 : 16.0,
-                      fontWeight: FontWeight.w700,
+        BlocBuilder<SearchCubit, SearchState>(
+          builder: (context, state) {
+            final showRecent =
+                _isFocused &&
+                !state.hasQuery &&
+                state.recentSearches.isNotEmpty;
+
+            if (showRecent) {
+              return SliverMainAxisGroup(
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Recent Searches',
+                            style: GoogleFonts.spaceGrotesk(
+                              fontSize: isSmall ? 14.0 : 16.0,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () => context
+                                .read<SearchCubit>()
+                                .clearRecentSearches(),
+                            child: Text(
+                              'Clear all',
+                              style: TextStyle(
+                                color: colorScheme.primary,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                  TextButton(
-                    onPressed: () =>
-                        context.read<SearchCubit>().clearRecentSearches(),
-                    child: Text(
-                      'Clear all',
-                      style: TextStyle(
-                        color: colorScheme.primary,
-                        fontSize: 13,
+                  SliverList(
+                    delegate: SliverChildBuilderDelegate((context, i) {
+                      final query = state.recentSearches[i];
+                      return ListTile(
+                        leading: Icon(
+                          Icons.history_rounded,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                        title: Text(query),
+                        trailing: IconButton(
+                          icon: Icon(
+                            Icons.close_rounded,
+                            size: 18,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                          onPressed: () => context
+                              .read<SearchCubit>()
+                              .removeRecentSearch(query),
+                        ),
+                        onTap: () {
+                          _textController.text = query;
+                          context.read<SearchCubit>().updateQuery(query);
+                        },
+                      );
+                    }, childCount: state.recentSearches.length),
+                  ),
+                ],
+              );
+            } else if (state.isLoading) {
+              return const SliverFillRemaining(
+                child: Center(child: CircularProgressIndicator()),
+              );
+            } else if (state.error && state.hasQuery) {
+              return SliverFillRemaining(
+                child: InlineErrorView(
+                  errorType: state.errorType,
+                  onRetry: () =>
+                      context.read<SearchCubit>().updateQuery(state.query),
+                ),
+              );
+            } else if (state.hasQuery && state.results.isNotEmpty) {
+              return SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, i) => RepaintBoundary(
+                    child: _ResultTile(
+                      song: state.results[i],
+                      allResults: state.results,
+                      index: i,
+                    ),
+                  ),
+                  childCount: state.results.length,
+                ),
+              );
+            } else if (state.hasQuery && state.results.isEmpty) {
+              return SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 64),
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.search_off_rounded,
+                        size: 52,
+                        color: colorScheme.outline,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'No results for "${state.query}"',
+                        style: GoogleFonts.outfit(
+                          color: colorScheme.outline,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            } else {
+              return SliverMainAxisGroup(
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+                      child: Text(
+                        'Browse Categories',
+                        style: GoogleFonts.spaceGrotesk(
+                          fontSize: isSmall ? 15.0 : 18.0,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                  SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    sliver: SliverGrid(
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            mainAxisSpacing: 10,
+                            crossAxisSpacing: 10,
+                            childAspectRatio: 1.85,
+                          ),
+                      delegate: SliverChildBuilderDelegate(
+                        (context, i) => RepaintBoundary(
+                          child: _CategoryTile(
+                            name: state.categories[i]['name'] as String,
+                            color: state.categories[i]['color'] as Color,
+                          ),
+                        ),
+                        childCount: state.categories.length,
                       ),
                     ),
                   ),
                 ],
-              ),
-            ),
-          ),
-          SliverList(
-            delegate: SliverChildBuilderDelegate((context, i) {
-              final query = state.recentSearches[i];
-              return ListTile(
-                leading: Icon(
-                  Icons.history_rounded,
-                  color: colorScheme.onSurfaceVariant,
-                ),
-                title: Text(query),
-                trailing: IconButton(
-                  icon: Icon(
-                    Icons.close_rounded,
-                    size: 18,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                  onPressed: () =>
-                      context.read<SearchCubit>().removeRecentSearch(query),
-                ),
-                onTap: () {
-                  _textController.text = query;
-                  context.read<SearchCubit>().updateQuery(query);
-                },
               );
-            }, childCount: state.recentSearches.length),
-          ),
-        ] else if (state.isLoading) ...[
-          const SliverFillRemaining(
-            child: Center(child: CircularProgressIndicator()),
-          ),
-        ] else if (state.error && state.hasQuery) ...[
-          SliverFillRemaining(
-            child: InlineErrorView(
-              errorType: state.errorType,
-              onRetry: () =>
-                  context.read<SearchCubit>().updateQuery(state.query),
-            ),
-          ),
-        ] else if (state.hasQuery && state.results.isNotEmpty) ...[
-          SliverList(
-            delegate: SliverChildBuilderDelegate(
-              (context, i) => _ResultTile(
-                song: state.results[i],
-                allResults: state.results,
-                index: i,
-              ),
-              childCount: state.results.length,
-            ),
-          ),
-        ] else if (state.hasQuery && state.results.isEmpty) ...[
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 64),
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.search_off_rounded,
-                    size: 52,
-                    color: colorScheme.outline,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'No results for "${state.query}"',
-                    style: GoogleFonts.outfit(
-                      color: colorScheme.outline,
-                      fontSize: 15,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ] else ...[
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-              child: Text(
-                'Browse Categories',
-                style: GoogleFonts.spaceGrotesk(
-                  fontSize: isSmall ? 15.0 : 18.0,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ),
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            sliver: SliverGrid(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                mainAxisSpacing: 10,
-                crossAxisSpacing: 10,
-                childAspectRatio: 1.85,
-              ),
-              delegate: SliverChildBuilderDelegate(
-                (context, i) => _CategoryTile(
-                  name: state.categories[i]['name'] as String,
-                  color: state.categories[i]['color'] as Color,
-                ),
-                childCount: state.categories.length,
-              ),
-            ),
-          ),
-        ],
+            }
+          },
+        ),
 
         const SliverToBoxAdapter(child: SizedBox(height: 24)),
       ],
@@ -247,13 +270,13 @@ class _ResultTile extends StatelessWidget {
   });
 
   Widget _songArtFallback(Song s) => Container(
-        width: 50,
-        height: 50,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(colors: [s.colorPrimary, s.colorSecondary]),
-        ),
-        child: const Icon(Icons.music_note_rounded, color: Colors.white, size: 22),
-      );
+    width: 50,
+    height: 50,
+    decoration: BoxDecoration(
+      gradient: LinearGradient(colors: [s.colorPrimary, s.colorSecondary]),
+    ),
+    child: const Icon(Icons.music_note_rounded, color: Colors.white, size: 22),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -281,14 +304,12 @@ class _ResultTile extends StatelessWidget {
       ),
       onTap: () {
         context.read<PlayerBloc>().add(
-          PlayQueueEvent(
-            songs: List<Song>.from(allResults),
-            startIndex: index,
-          ),
+          PlayQueueEvent(songs: List<Song>.from(allResults), startIndex: index),
         );
         if (!Breakpoints.isDesktop(MediaQuery.sizeOf(context).width)) {
-          Navigator.of(context)
-              .push(MaterialPageRoute(builder: (_) => const PlayerScreen()));
+          Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const PlayerScreen()));
         }
       },
     );

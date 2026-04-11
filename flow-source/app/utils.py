@@ -1,6 +1,8 @@
+import http.cookiejar
 import json
 import os
 import re
+import time
 from typing import List, Optional
 
 from .config import settings
@@ -80,32 +82,68 @@ def normalize_playlist(item: dict) -> PlaylistResponse:
     )
 
 
-def write_cookie_file(auth_file: str, cookie_file: str) -> None:
-    if not os.path.exists(auth_file):
-        return
+def write_cookie_file(auth_data: str | dict, cookie_file: str) -> bool:
+    """
+    Converts ytmusicapi auth JSON or Cookie string into a Netscape cookie file for yt-dlp.
+    Uses MozillaCookieJar for robust formatting.
+    """
     try:
-        with open(auth_file) as f:
-            data = json.load(f)
+        data = {}
+        if isinstance(auth_data, str):
+            if os.path.exists(auth_data):
+                with open(auth_data) as f:
+                    data = json.load(f)
+            else:
+                try:
+                    data = json.loads(auth_data)
+                except Exception:
+                    data = {"Cookie": auth_data}
+        else:
+            data = auth_data
+
         cookie_str = data.get("Cookie") or data.get("cookie") or ""
         if not cookie_str:
-            return
+            return False
 
-        lines = ["# Netscape HTTP Cookie File\n"]
+        cj = http.cookiejar.MozillaCookieJar(cookie_file)
+        # 1 year expiry
+        expires = int(time.time()) + 31536000
+
         for pair in cookie_str.split(";"):
             pair = pair.strip()
             if "=" not in pair:
                 continue
-            name, _, value = pair.partition("=")
-            name = name.strip()
-            value = value.strip()
-            lines.append(f".youtube.com\tTRUE\t/\tTRUE\t2147483647\t{name}\t{value}\n")
+            name, value = pair.split("=", 1)
+
+            # Assign to main domains
+            for domain in [".youtube.com", ".music.youtube.com", ".google.com"]:
+                c = http.cookiejar.Cookie(
+                    version=0,
+                    name=name,
+                    value=value,
+                    port=None,
+                    port_specified=False,
+                    domain=domain,
+                    domain_specified=True,
+                    domain_initial_dot=True,
+                    path="/",
+                    path_specified=True,
+                    secure=True,
+                    expires=expires,
+                    discard=False,
+                    comment=None,
+                    comment_url=None,
+                    rest={"HttpOnly": None},
+                    rfc2109=False,
+                )
+                cj.set_cookie(c)
 
         os.makedirs(os.path.dirname(cookie_file), exist_ok=True)
-        with open(cookie_file, "w") as f:
-            f.writelines(lines)
-    except Exception:
-        # Silently fail for now, should probably log
-        pass
+        cj.save(ignore_discard=True, ignore_expires=True)
+        return True
+    except Exception as e:
+        print(f"Error writing cookie file: {e}")
+        return False
 
 
 def curl_to_headers(curl: str) -> str:

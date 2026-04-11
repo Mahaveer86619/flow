@@ -275,6 +275,12 @@ class MockSongDataSource implements SongDataSource {
   }) async => List.unmodifiable(_songs.take(limit).toList());
 
   @override
+  Future<List<SongModel>> fetchSongsByIds(List<String> ids) async {
+    final set = ids.toSet();
+    return _songs.where((s) => set.contains(s.id)).toList();
+  }
+
+  @override
   List<Map<String, dynamic>> fetchCategories() =>
       List.unmodifiable(_categories);
 }

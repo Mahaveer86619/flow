@@ -281,7 +281,7 @@ async def get_artist(channel_id: str, current_user: User = Depends(get_current_u
         raise HTTPException(500, str(e))
 
 
-@router.get("/songs/{video_id}/lyrics")
+@router.get("/songs/lyrics/{video_id}")
 async def get_lyrics(video_id: str, current_user: User = Depends(get_current_user)):
     try:
         client = yt_service.get_client(current_user)
@@ -290,6 +290,42 @@ async def get_lyrics(video_id: str, current_user: User = Depends(get_current_use
         if not lyrics_id:
             return {"lyrics": None}
         return client.get_lyrics(lyrics_id)
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@router.get("/songs/batch", response_model=List[SongResponse])
+async def get_songs_batch(ids: str, current_user: User = Depends(get_current_user)):
+    """Fetch multiple songs by a comma-separated list of IDs."""
+    if not ids.strip():
+        return []
+    video_ids = [vid.strip() for vid in ids.split(",") if vid.strip()]
+    try:
+        client = yt_service.get_client(current_user)
+        results = []
+        for vid in video_ids:
+            try:
+                # get_song returns a dict with basic info
+                data = client.get_song(vid)
+                if data and "videoDetails" in data:
+                    # Map YT Music videoDetails to our SongResponse
+                    details = data["videoDetails"]
+                    results.append(
+                        SongResponse(
+                            id=details["videoId"],
+                            title=details["title"],
+                            artist=details["author"],
+                            album="",  # Not always in videoDetails
+                            duration=int(details["lengthSeconds"]),
+                            thumbnailUrl=details.get("thumbnail", {})
+                            .get("thumbnails", [{}])[-1]
+                            .get("url"),
+                        )
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to fetch batch song {vid}: {e}")
+                continue
+        return results
     except Exception as e:
         raise HTTPException(500, str(e))
 
@@ -481,48 +517,68 @@ async def yt_logout(
 
 # --- Streaming & Proxy ---
 
+import logging
+
+logger = logging.getLogger("uvicorn")
+
 
 @router.get("/stream/{video_id}")
 async def stream_audio(
     video_id: str, request: Request, current_user: User = Depends(get_current_user)
 ):
+    logger.info(f"Streaming request for {video_id} from {request.client.host}")
     try:
-        audio_url = extract_audio_url(video_id)
+        audio_url = extract_audio_url(video_id, user=current_user)
     except Exception as e:
-        raise HTTPException(500, f"Extraction failed: {e}")
+        logger.error(f"Extraction failed for {video_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Extraction failed: {e}",
+        )
 
     upstream_headers = {}
     if "range" in request.headers:
         upstream_headers["range"] = request.headers["range"]
+        logger.info(f"Range request: {request.headers['range']} for {video_id}")
 
-    client = httpx.AsyncClient(timeout=60)
-    upstream = await client.send(
-        httpx.Request("GET", audio_url, headers=upstream_headers),
-        stream=True,
-    )
+    client = httpx.AsyncClient(timeout=60, follow_redirects=True)
+    try:
+        # We use a stream context to ensure the connection is closed
+        upstream = await client.send(
+            httpx.Request("GET", audio_url, headers=upstream_headers),
+            stream=True,
+        )
 
-    passthrough = {
-        k: v
-        for k, v in upstream.headers.items()
-        if k.lower()
-        in ("content-type", "content-length", "content-range", "accept-ranges")
-    }
-    passthrough.setdefault("accept-ranges", "bytes")
+        passthrough = {
+            k: v
+            for k, v in upstream.headers.items()
+            if k.lower()
+            in ("content-type", "content-length", "content-range", "accept-ranges")
+        }
+        passthrough.setdefault("accept-ranges", "bytes")
 
-    async def _iter():
-        try:
-            async for chunk in upstream.aiter_bytes(65536):
-                yield chunk
-        finally:
-            await upstream.aclose()
-            await client.aclose()
+        async def _iter():
+            try:
+                # Use a larger chunk size for smoother buffering (128KB)
+                async for chunk in upstream.aiter_bytes(131072):
+                    yield chunk
+            except Exception as e:
+                # Client probably disconnected
+                logger.debug(f"Streaming interrupted for {video_id}: {e}")
+            finally:
+                await upstream.aclose()
+                await client.aclose()
 
-    return StreamingResponse(
-        _iter(),
-        status_code=upstream.status_code,
-        headers=passthrough,
-        media_type=upstream.headers.get("content-type", "audio/webm"),
-    )
+        return StreamingResponse(
+            _iter(),
+            status_code=upstream.status_code,
+            headers=passthrough,
+            media_type=upstream.headers.get("content-type", "audio/webm"),
+        )
+    except Exception as e:
+        logger.error(f"Upstream connection failed for {video_id}: {e}")
+        await client.aclose()
+        raise HTTPException(status_code=502, detail="Upstream error")
 
 
 @router.get("/proxy-image")

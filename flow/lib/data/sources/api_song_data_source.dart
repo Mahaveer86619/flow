@@ -33,11 +33,9 @@ class ApiSongDataSource implements SongDataSource {
   static const _tag = 'ApiSongDataSource';
   static const _timeout = Duration(seconds: 12);
 
-  ApiSongDataSource({
-    http.Client? client,
-    ConnectivityService? connectivity,
-  }) : _client = client ?? http.Client(),
-       _connectivity = connectivity ?? ConnectivityService.instance;
+  ApiSongDataSource({http.Client? client, ConnectivityService? connectivity})
+    : _client = client ?? http.Client(),
+      _connectivity = connectivity ?? ConnectivityService.instance;
 
   // ── SongDataSource impl ──────────────────────────────────────────────────────
 
@@ -125,8 +123,7 @@ class ApiSongDataSource implements SongDataSource {
   @override
   Future<List<SongModel>> fetchAlbumTracks(String browseId) async {
     AppLogger.i(_tag, 'fetchAlbumTracks($browseId)');
-    final json =
-        await _getJson('/v1/albums/$browseId') as Map<String, dynamic>;
+    final json = await _getJson('/v1/albums/$browseId') as Map<String, dynamic>;
     final list = (json['tracks'] as List<dynamic>?) ?? [];
     try {
       return list
@@ -162,6 +159,23 @@ class ApiSongDataSource implements SongDataSource {
   }
 
   @override
+  Future<List<SongModel>> fetchSongsByIds(List<String> ids) async {
+    if (ids.isEmpty) return const [];
+    AppLogger.i(_tag, 'fetchSongsByIds(${ids.length} ids)');
+    final list =
+        await _getJson('/v1/songs/batch', params: {'ids': ids.join(',')})
+            as List<dynamic>;
+    try {
+      return list
+          .map((e) => SongModel.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } catch (e, st) {
+      AppLogger.e(_tag, 'fetchSongsByIds parse failure', e, st);
+      throw ParseException('Failed to parse batch song results: $e');
+    }
+  }
+
+  @override
   List<Map<String, dynamic>> fetchCategories() => _staticCategories;
 
   // ── HTTP helpers ──────────────────────────────────────────────────────────────
@@ -173,8 +187,9 @@ class ApiSongDataSource implements SongDataSource {
       throw const NetworkException();
     }
 
-    final uri = Uri.parse('${ServerConfig.instance.baseUrl}$path')
-        .replace(queryParameters: params);
+    final uri = Uri.parse(
+      '${ServerConfig.instance.baseUrl}$path',
+    ).replace(queryParameters: params);
     AppLogger.d(_tag, 'GET $uri');
 
     try {
@@ -183,7 +198,9 @@ class ApiSongDataSource implements SongDataSource {
       if (token != null) {
         headers['Authorization'] = 'Bearer $token';
       }
-      final response = await _client.get(uri, headers: headers).timeout(_timeout);
+      final response = await _client
+          .get(uri, headers: headers)
+          .timeout(_timeout);
 
       AppLogger.d(_tag, '${response.statusCode} ← $uri');
 

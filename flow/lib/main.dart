@@ -10,6 +10,7 @@ import 'core/config/server_config.dart';
 import 'core/logger/app_logger.dart';
 import 'core/network/connectivity_service.dart';
 import 'core/network/network_cubit.dart';
+import 'core/platform/permission_service.dart';
 import 'core/storage/local_storage.dart';
 import 'presentation/cubits/settings/settings_cubit.dart';
 import 'data/repositories/song_repository_impl.dart';
@@ -39,6 +40,10 @@ void main() async {
       androidNotificationChannelName: 'Flow Audio',
       androidNotificationOngoing: true,
       androidStopForegroundOnPause: true,
+      androidShowNotificationBadge: true,
+      notificationColor: const Color(0xFF7C3AED),
+      androidNotificationClickStartsActivity: true,
+      androidNotificationIcon: 'mipmap/ic_launcher',
     );
   }
 
@@ -58,6 +63,9 @@ void main() async {
 
   // ── 4. Connectivity ───────────────────────────────────────────────────────────
   await ConnectivityService.instance.init();
+
+  // ── 4b. Permissions ───────────────────────────────────────────────────────────
+  await PermissionService.instance.init();
 
   // ── 5. System UI ──────────────────────────────────────────────────────────────
   SystemChrome.setSystemUIOverlayStyle(
@@ -80,11 +88,12 @@ void main() async {
 
   final useMock = dotenv.env['USE_MOCK'] == 'true';
 
-  AppLogger.i('main', 'Source: ${useMock ? "mock" : ServerConfig.instance.baseUrl}');
+  AppLogger.i(
+    'main',
+    'Source: ${useMock ? "mock" : ServerConfig.instance.baseUrl}',
+  );
 
-  final dataSource = useMock
-      ? MockSongDataSource()
-      : ApiSongDataSource();
+  final dataSource = useMock ? MockSongDataSource() : ApiSongDataSource();
 
   final repository = SongRepositoryImpl(dataSource);
 
@@ -102,9 +111,7 @@ void main() async {
       providers: [
         BlocProvider(create: (_) => AuthCubit()),
         BlocProvider(create: (_) => NetworkCubit(ConnectivityService.instance)),
-        BlocProvider(
-          create: (_) => PlayerBloc(songRepository: repository),
-        ),
+        BlocProvider(create: (_) => PlayerBloc(songRepository: repository)),
         BlocProvider(create: (_) => SettingsCubit()),
         BlocProvider(create: (_) => HomeCubit(getHomeData: getHomeData)),
         BlocProvider(

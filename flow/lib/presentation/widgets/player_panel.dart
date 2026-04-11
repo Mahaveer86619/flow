@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/responsive/breakpoints.dart';
+import '../../../domain/entities/song.dart';
 import '../blocs/player/player_bloc.dart';
 import '../screens/queue/queue_screen.dart';
 import 'album_art_widget.dart';
@@ -29,184 +30,246 @@ class PlayerPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final state = context.watch<PlayerBloc>().state;
-    final song = state.currentSong;
+    return BlocBuilder<PlayerBloc, PlayerState>(
+      buildWhen: (prev, curr) => prev.currentSong?.id != curr.currentSong?.id,
+      builder: (context, state) {
+        final song = state.currentSong;
+        if (song == null) return const _EmptyPlayerPanel();
 
-    if (song == null) return const _EmptyPlayerPanel();
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Column(
-        children: [
-          const SizedBox(height: 8),
-
-          // ── Top bar: back button / title / more ─────────────────────────────
-          _TopBar(showBackButton: showBackButton),
-          const SizedBox(height: 12),
-
-          // ── Album art ───────────────────────────────────────────────────────
-          Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final maxFromSpace =
-                    constraints.maxHeight < constraints.maxWidth
-                    ? constraints.maxHeight
-                    : constraints.maxWidth;
-                final size = artMaxSize != null
-                    ? maxFromSpace.clamp(0.0, artMaxSize!)
-                    : maxFromSpace;
-
-                return Center(
-                  child: AlbumArtWidget(
-                    size: size,
-                    colorPrimary: song.colorPrimary,
-                    colorSecondary: song.colorSecondary,
-                    thumbnailUrl: song.thumbnailUrl,
-                  ),
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          // ── Song info + like button ──────────────────────────────────────────
-          Row(
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Column(
             children: [
+              const SizedBox(height: 8),
+
+              // ── Top bar: back button / title / more ─────────────────────────────
+              _TopBar(showBackButton: showBackButton),
+              const SizedBox(height: 12),
+
+              // ── Album art ───────────────────────────────────────────────────────
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      song.title,
-                      style: GoogleFonts.spaceGrotesk(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                        letterSpacing: -0.5,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      song.artist,
-                      style: GoogleFonts.outfit(
-                        fontSize: 15,
-                        color: Colors.white.withAlpha(170),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              IconButton(
-                icon: Icon(
-                  state.isLiked(song)
-                      ? Icons.favorite_rounded
-                      : Icons.favorite_border_rounded,
-                  size: 26,
-                  color: state.isLiked(song)
-                      ? const Color(0xFFEC4899)
-                      : Colors.white.withAlpha(170),
-                ),
-                onPressed: () => context.read<PlayerBloc>().add(
-                  ToggleLikeEvent(song),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final maxFromSpace =
+                        constraints.maxHeight < constraints.maxWidth
+                        ? constraints.maxHeight
+                        : constraints.maxWidth;
+                    final size = artMaxSize != null
+                        ? maxFromSpace.clamp(0.0, artMaxSize!)
+                        : maxFromSpace;
 
-          // ── Squiggly progress bar ────────────────────────────────────────────
-          SquigglyProgressBar(
-            progress: state.progress,
-            bufferProgress: state.bufferProgress,
-            isInitialLoading: state.isInitialLoading,
-            onSeek: (frac) => context.read<PlayerBloc>().add(SeekToEvent(frac)),
-          ),
-            ),
-          ),
-          const SizedBox(height: 2),
-
-          // Time labels
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                state.currentTimeString,
-                style: TextStyle(
-                  color: Colors.white.withAlpha(140),
-                  fontSize: 12,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
-              ),
-              Text(
-                state.totalTimeString,
-                style: TextStyle(
-                  color: Colors.white.withAlpha(140),
-                  fontSize: 12,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // ── Playback controls ────────────────────────────────────────────────
-          _PlaybackControls(activeColor: song.colorPrimary),
-          const SizedBox(height: 12),
-
-          // ── Volume (desktop) / Queue button ──────────────────────────────────
-          Builder(
-            builder: (context) {
-              final isDesktop = Breakpoints.isDesktop(
-                MediaQuery.sizeOf(context).width,
-              );
-              if (isDesktop) {
-                return Row(
-                  children: [
-                    Expanded(
-                      child: _VolumeRow(
-                        volume: state.volume,
-                        onChanged: (v) => context.read<PlayerBloc>().add(
-                          SetVolumeEvent(v),
+                    return Center(
+                      child: RepaintBoundary(
+                        child: AlbumArtWidget(
+                          size: size,
+                          colorPrimary: song.colorPrimary,
+                          colorSecondary: song.colorSecondary,
+                          thumbnailUrl: song.thumbnailUrl,
                         ),
                       ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // ── Song info + like button ──────────────────────────────────────────
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          song.title,
+                          style: GoogleFonts.spaceGrotesk(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                            letterSpacing: -0.8,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          song.artist,
+                          style: GoogleFonts.outfit(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w400,
+                            color: Colors.white.withAlpha(160),
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 16),
-                    IconButton(
-                      icon: Icon(
-                        Icons.queue_music_rounded,
-                        color: Colors.white.withAlpha(170),
-                      ),
-                      tooltip: 'Queue',
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const QueueScreen()),
-                      ),
+                  ),
+                  BlocBuilder<PlayerBloc, PlayerState>(
+                    buildWhen: (prev, curr) =>
+                        prev.likedSongIds != curr.likedSongIds,
+                    builder: (context, state) {
+                      final isLiked = state.isLiked(song);
+                      return IconButton(
+                        icon: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 300),
+                          transitionBuilder: (child, animation) {
+                            return ScaleTransition(
+                              scale: animation,
+                              child: child,
+                            );
+                          },
+                          child: Icon(
+                            isLiked
+                                ? Icons.favorite_rounded
+                                : Icons.favorite_border_rounded,
+                            key: ValueKey(isLiked),
+                            size: 28,
+                            color: isLiked
+                                ? const Color(0xFFEC4899)
+                                : Colors.white.withAlpha(140),
+                          ),
+                        ),
+                        onPressed: () => context.read<PlayerBloc>().add(
+                          ToggleLikeEvent(song),
+                        ),
+                      );
+                    },
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      song.isDownloaded
+                          ? Icons.download_done_rounded
+                          : Icons.download_for_offline_outlined,
+                      size: 26,
+                      color: song.isDownloaded
+                          ? Colors.greenAccent
+                          : Colors.white.withAlpha(140),
                     ),
-                  ],
-                );
-              } else {
-                return Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    IconButton(
-                      icon: Icon(
-                        Icons.queue_music_rounded,
-                        color: Colors.white.withAlpha(170),
-                        size: 28,
+                    onPressed: () {
+                      context.read<PlayerBloc>().add(ToggleDownloadEvent(song));
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // ── Squiggly progress bar ────────────────────────────────────────────
+              BlocBuilder<PlayerBloc, PlayerState>(
+                buildWhen: (prev, curr) =>
+                    prev.progress != curr.progress ||
+                    prev.bufferProgress != curr.bufferProgress ||
+                    prev.isInitialLoading != curr.isInitialLoading,
+                builder: (context, state) {
+                  return SquigglyProgressBar(
+                    progress: state.progress,
+                    bufferProgress: state.bufferProgress,
+                    isInitialLoading: state.isInitialLoading,
+                    onSeek: (frac) =>
+                        context.read<PlayerBloc>().add(SeekToEvent(frac)),
+                  );
+                },
+              ),
+              const SizedBox(height: 2),
+
+              // Time labels
+              BlocBuilder<PlayerBloc, PlayerState>(
+                buildWhen: (prev, curr) =>
+                    prev.currentTimeString != curr.currentTimeString ||
+                    prev.totalTimeString != curr.totalTimeString,
+                builder: (context, state) {
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        state.currentTimeString,
+                        style: TextStyle(
+                          color: Colors.white.withAlpha(140),
+                          fontSize: 12,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
                       ),
-                      tooltip: 'Queue',
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const QueueScreen()),
+                      Text(
+                        state.totalTimeString,
+                        style: TextStyle(
+                          color: Colors.white.withAlpha(140),
+                          fontSize: 12,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
                       ),
-                    ),
-                  ],
-                );
-              }
-            },
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+
+              // ── Playback controls ────────────────────────────────────────────────
+              _PlaybackControls(activeColor: song.colorPrimary),
+              const SizedBox(height: 12),
+
+              // ── Volume (desktop) / Queue button ──────────────────────────────────
+              Builder(
+                builder: (context) {
+                  final isDesktop = Breakpoints.isDesktop(
+                    MediaQuery.sizeOf(context).width,
+                  );
+                  if (isDesktop) {
+                    return Row(
+                      children: [
+                        Expanded(
+                          child: BlocBuilder<PlayerBloc, PlayerState>(
+                            buildWhen: (prev, curr) =>
+                                prev.volume != curr.volume,
+                            builder: (context, state) {
+                              return _VolumeRow(
+                                volume: state.volume,
+                                onChanged: (v) => context
+                                    .read<PlayerBloc>()
+                                    .add(SetVolumeEvent(v)),
+                              );
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        IconButton(
+                          icon: Icon(
+                            Icons.queue_music_rounded,
+                            color: Colors.white.withAlpha(170),
+                          ),
+                          tooltip: 'Queue',
+                          onPressed: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const QueueScreen(),
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  } else {
+                    return Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        IconButton(
+                          icon: Icon(
+                            Icons.queue_music_rounded,
+                            color: Colors.white.withAlpha(170),
+                            size: 28,
+                          ),
+                          tooltip: 'Queue',
+                          onPressed: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const QueueScreen(),
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  }
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
           ),
-          const SizedBox(height: 8),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -257,6 +320,9 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final state = context.watch<PlayerBloc>().state;
+    final song = state.currentSong;
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -286,10 +352,67 @@ class _TopBar extends StatelessWidget {
             color: Colors.white.withAlpha(200),
           ),
           onPressed: () {
-            // TODO: show track options (add to playlist, share, etc.)
+            if (song != null) {
+              _showSongOptions(context, song);
+            }
           },
         ),
       ],
+    );
+  }
+
+  void _showSongOptions(BuildContext context, Song song) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A24),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            ListTile(
+              leading: const Icon(
+                Icons.playlist_add_rounded,
+                color: Colors.white,
+              ),
+              title: const Text(
+                'Add to playlist',
+                style: TextStyle(color: Colors.white),
+              ),
+              onTap: () => Navigator.pop(ctx),
+            ),
+            ListTile(
+              leading: const Icon(Icons.share_outlined, color: Colors.white),
+              title: const Text('Share', style: TextStyle(color: Colors.white)),
+              onTap: () => Navigator.pop(ctx),
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.person_outline_rounded,
+                color: Colors.white,
+              ),
+              title: const Text(
+                'View artist',
+                style: TextStyle(color: Colors.white),
+              ),
+              onTap: () => Navigator.pop(ctx),
+            ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -311,9 +434,8 @@ class _PlaybackControls extends StatelessWidget {
             color: state.isShuffle ? activeColor : Colors.white.withAlpha(170),
             size: 22,
           ),
-          onPressed: () => context.read<PlayerBloc>().add(
-            const ToggleShuffleEvent(),
-          ),
+          onPressed: () =>
+              context.read<PlayerBloc>().add(const ToggleShuffleEvent()),
         ),
         IconButton(
           icon: const Icon(
@@ -321,9 +443,8 @@ class _PlaybackControls extends StatelessWidget {
             size: 42,
             color: Colors.white,
           ),
-          onPressed: () => context.read<PlayerBloc>().add(
-            const SkipPreviousEvent(),
-          ),
+          onPressed: () =>
+              context.read<PlayerBloc>().add(const SkipPreviousEvent()),
         ),
         _PlayPauseButton(),
         IconButton(
@@ -332,7 +453,8 @@ class _PlaybackControls extends StatelessWidget {
             size: 42,
             color: Colors.white,
           ),
-          onPressed: () => context.read<PlayerBloc>().add(const SkipNextEvent()),
+          onPressed: () =>
+              context.read<PlayerBloc>().add(const SkipNextEvent()),
         ),
         IconButton(
           icon: Icon(
@@ -340,9 +462,8 @@ class _PlaybackControls extends StatelessWidget {
             color: state.isRepeat ? activeColor : Colors.white.withAlpha(170),
             size: 22,
           ),
-          onPressed: () => context.read<PlayerBloc>().add(
-            const ToggleRepeatEvent(),
-          ),
+          onPressed: () =>
+              context.read<PlayerBloc>().add(const ToggleRepeatEvent()),
         ),
       ],
     );
@@ -353,29 +474,54 @@ class _PlayPauseButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<PlayerBloc>().state;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
-      width: 68,
-      height: 68,
+      width: 72,
+      height: 72,
       decoration: BoxDecoration(
-        color: Colors.white,
         shape: BoxShape.circle,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Colors.white, Colors.white.withAlpha(230)],
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.white.withAlpha(60),
-            blurRadius: 24,
+            color: colorScheme.primary.withAlpha(80),
+            blurRadius: 32,
             spreadRadius: 2,
+            offset: const Offset(0, 8),
+          ),
+          BoxShadow(
+            color: Colors.white.withAlpha(100),
+            blurRadius: 16,
+            spreadRadius: -4,
           ),
         ],
       ),
-      child: IconButton(
-        icon: Icon(
-          state.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-          size: 38,
-          color: Colors.black,
-        ),
-        onPressed: () => context.read<PlayerBloc>().add(
-          const TogglePlayPauseEvent(),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: () =>
+              context.read<PlayerBloc>().add(const TogglePlayPauseEvent()),
+          child: Center(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              transitionBuilder: (child, animation) {
+                return ScaleTransition(scale: animation, child: child);
+              },
+              child: Icon(
+                state.isPlaying
+                    ? Icons.pause_rounded
+                    : Icons.play_arrow_rounded,
+                key: ValueKey(state.isPlaying),
+                size: 42,
+                color: Colors.black,
+              ),
+            ),
+          ),
         ),
       ),
     );

@@ -37,9 +37,9 @@ class AlbumArtWidget extends StatelessWidget {
           width: size,
           height: size,
           fit: BoxFit.cover,
-          loadingBuilder: (_, child, progress) =>
+          loadingBuilder: (context, child, progress) =>
               progress == null ? child : _buildVinyl(),
-          errorBuilder: (_, __, ___) => _buildVinyl(),
+          errorBuilder: (context, error, stackTrace) => _buildVinyl(),
         ),
       );
     }
@@ -86,10 +86,7 @@ class AlbumArtWidget extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: Colors.black.withAlpha(20),
-              border: Border.all(
-                color: Colors.white.withAlpha(18),
-                width: 1.5,
-              ),
+              border: Border.all(color: Colors.white.withAlpha(18), width: 1.5),
             ),
           ),
           Container(
@@ -98,10 +95,7 @@ class AlbumArtWidget extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: Colors.black.withAlpha(40),
-              border: Border.all(
-                color: Colors.white.withAlpha(14),
-                width: 1,
-              ),
+              border: Border.all(color: Colors.white.withAlpha(14), width: 1),
             ),
           ),
           Container(
@@ -110,10 +104,7 @@ class AlbumArtWidget extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: Colors.black.withAlpha(60),
-              border: Border.all(
-                color: Colors.white.withAlpha(30),
-                width: 1,
-              ),
+              border: Border.all(color: Colors.white.withAlpha(30), width: 1),
             ),
             child: Icon(
               Icons.music_note_rounded,

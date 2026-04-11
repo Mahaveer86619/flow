@@ -42,6 +42,8 @@ class WindowsMediaSession {
     required VoidCallback onPause,
     required VoidCallback onNext,
     required VoidCallback onPrevious,
+    VoidCallback? onFastForward,
+    VoidCallback? onRewind,
   }) async {
     if (!_isWindows) return;
     AppLogger.i(_tag, 'Initialising SMTC');
@@ -49,13 +51,13 @@ class WindowsMediaSession {
     try {
       _smtc = SMTCWindows(
         config: const SMTCConfig(
-          fastForwardEnabled: false,
+          fastForwardEnabled: true,
           nextEnabled: true,
           prevEnabled: true,
           playEnabled: true,
           pauseEnabled: true,
           stopEnabled: false,
-          rewindEnabled: false,
+          rewindEnabled: true,
         ),
       );
 
@@ -72,6 +74,10 @@ class WindowsMediaSession {
             onNext();
           case PressedButton.previous:
             onPrevious();
+          case PressedButton.fastForward:
+            onFastForward?.call();
+          case PressedButton.rewind:
+            onRewind?.call();
           default:
             break;
         }
@@ -88,13 +94,15 @@ class WindowsMediaSession {
   Future<void> updateSong(Song song) async {
     if (!_isWindows || _smtc == null) return;
     try {
-      await _smtc!.updateMetadata(MusicMetadata(
-        title: song.title,
-        artist: song.artist,
-        albumArtist: song.artist,
-        album: song.album.isNotEmpty ? song.album : song.artist,
-        thumbnail: song.thumbnailUrl,
-      ));
+      await _smtc!.updateMetadata(
+        MusicMetadata(
+          title: song.title,
+          artist: song.artist,
+          albumArtist: song.artist,
+          album: song.album.isNotEmpty ? song.album : song.artist,
+          thumbnail: song.thumbnailUrl,
+        ),
+      );
       AppLogger.d(_tag, 'Metadata updated: "${song.title}"');
     } catch (e) {
       AppLogger.w(_tag, 'updateSong failed: $e');
@@ -116,13 +124,15 @@ class WindowsMediaSession {
     if (!_isWindows || _smtc == null) return;
     if (duration.inMilliseconds <= 0) return;
     try {
-      await _smtc!.updateTimeline(PlaybackTimeline(
-        startTimeMs: 0,
-        endTimeMs: duration.inMilliseconds,
-        positionMs: position.inMilliseconds.clamp(0, duration.inMilliseconds),
-        minSeekTimeMs: 0,
-        maxSeekTimeMs: duration.inMilliseconds,
-      ));
+      await _smtc!.updateTimeline(
+        PlaybackTimeline(
+          startTimeMs: 0,
+          endTimeMs: duration.inMilliseconds,
+          positionMs: position.inMilliseconds.clamp(0, duration.inMilliseconds),
+          minSeekTimeMs: 0,
+          maxSeekTimeMs: duration.inMilliseconds,
+        ),
+      );
     } catch (e) {
       AppLogger.w(_tag, 'updateTimeline failed: $e');
     }

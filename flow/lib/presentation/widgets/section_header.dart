@@ -15,30 +15,32 @@ class SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isSmall = Breakpoints.isMobile(MediaQuery.sizeOf(context).width);
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         Text(
           title,
           style: GoogleFonts.spaceGrotesk(
-            fontSize: isSmall ? 15.0 : 18.0,
+            fontSize: isSmall ? 20.0 : 24.0,
             fontWeight: FontWeight.w700,
+            letterSpacing: -0.5,
           ),
         ),
         if (onSeeAll != null)
-          TextButton(
-            onPressed: onSeeAll,
-            style: TextButton.styleFrom(
-              minimumSize: Size.zero,
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            child: Text(
-              'See all',
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.primary,
-                fontSize: isSmall ? 12.0 : 13.0,
+          GestureDetector(
+            onTap: onSeeAll,
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: Text(
+                'See all',
+                style: GoogleFonts.outfit(
+                  color: colorScheme.primary,
+                  fontSize: isSmall ? 13.0 : 14.0,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ),

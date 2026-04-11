@@ -24,6 +24,8 @@ class Song {
   final Color colorPrimary;
   final Color colorSecondary;
 
+  final bool isDownloaded;
+
   const Song({
     required this.id,
     required this.title,
@@ -33,7 +35,33 @@ class Song {
     this.thumbnailUrl,
     required this.colorPrimary,
     required this.colorSecondary,
+    this.isDownloaded = false,
   });
+
+  Song copyWith({bool? isDownloaded}) {
+    return Song(
+      id: id,
+      title: title,
+      artist: artist,
+      album: album,
+      duration: duration,
+      thumbnailUrl: thumbnailUrl,
+      colorPrimary: colorPrimary,
+      colorSecondary: colorSecondary,
+      isDownloaded: isDownloaded ?? this.isDownloaded,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Song && runtimeType == other.runtimeType && id == other.id;
+
+  @override
+  int get hashCode => id.hashCode;
+
+  @override
+  String toString() => 'Song(id: $id, title: $title, artist: $artist)';
 }
 
 class Playlist {

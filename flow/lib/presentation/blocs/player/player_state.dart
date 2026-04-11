@@ -26,9 +26,14 @@ class PlayerState {
   final bool isRepeat;
   final double volume;
   final List<String> likedSongIds;
+  final List<String> recentlyPlayedIds;
   final List<Song> recentlyPlayed;
   final List<Song> queue;
   final int queueIndex;
+
+  /// Dynamically extracted colors from current song artwork.
+  final Color? customPrimary;
+  final Color? customSecondary;
 
   const PlayerState({
     this.currentSong,
@@ -42,9 +47,12 @@ class PlayerState {
     this.isRepeat = false,
     this.volume = 0.7,
     this.likedSongIds = const [],
+    this.recentlyPlayedIds = const [],
     this.recentlyPlayed = const [],
     this.queue = const [],
     this.queueIndex = -1,
+    this.customPrimary,
+    this.customSecondary,
   });
 
   /// 0.0–1.0 fractional progress — derived from [position] / effective duration.
@@ -92,9 +100,13 @@ class PlayerState {
     bool? isRepeat,
     double? volume,
     List<String>? likedSongIds,
+    List<String>? recentlyPlayedIds,
     List<Song>? recentlyPlayed,
     List<Song>? queue,
     int? queueIndex,
+    Color? customPrimary,
+    Color? customSecondary,
+    bool clearCustomColors = false,
   }) {
     return PlayerState(
       currentSong: currentSong ?? this.currentSong,
@@ -110,9 +122,16 @@ class PlayerState {
       isRepeat: isRepeat ?? this.isRepeat,
       volume: volume ?? this.volume,
       likedSongIds: likedSongIds ?? this.likedSongIds,
+      recentlyPlayedIds: recentlyPlayedIds ?? this.recentlyPlayedIds,
       recentlyPlayed: recentlyPlayed ?? this.recentlyPlayed,
       queue: queue ?? this.queue,
       queueIndex: queueIndex ?? this.queueIndex,
+      customPrimary: clearCustomColors
+          ? null
+          : (customPrimary ?? this.customPrimary),
+      customSecondary: clearCustomColors
+          ? null
+          : (customSecondary ?? this.customSecondary),
     );
   }
 }

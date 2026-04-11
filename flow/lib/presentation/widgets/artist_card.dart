@@ -12,7 +12,7 @@ import 'package:google_fonts/google_fonts.dart';
 ///   - `'colorPrimary'`   → Color   (gradient fallback)
 ///   - `'colorSecondary'` → Color   (gradient fallback)
 ///   - `'thumbnailUrl'`   → String? (shown when non-null)
-class ArtistCard extends StatelessWidget {
+class ArtistCard extends StatefulWidget {
   final Map<String, dynamic> artist;
   final VoidCallback? onTap;
   final double cardSize;
@@ -21,49 +21,96 @@ class ArtistCard extends StatelessWidget {
     super.key,
     required this.artist,
     this.onTap,
-    this.cardSize = 110,
+    this.cardSize = 100,
   });
 
   @override
+  State<ArtistCard> createState() => _ArtistCardState();
+}
+
+class _ArtistCardState extends State<ArtistCard> {
+  bool _isHovered = false;
+
+  @override
   Widget build(BuildContext context) {
-    final name         = artist['name'] as String;
-    final primary      = artist['colorPrimary'] as Color;
-    final secondary    = artist['colorSecondary'] as Color;
-    final thumbnailUrl = artist['thumbnailUrl'] as String?;
+    final name = widget.artist['name'] as String;
+    final primary = widget.artist['colorPrimary'] as Color;
+    final secondary = widget.artist['colorSecondary'] as Color;
+    final thumbnailUrl = widget.artist['thumbnailUrl'] as String?;
 
-    final initials =
-        name.split(' ').map((w) => w.isNotEmpty ? w[0] : '').take(2).join();
+    final initials = name
+        .split(' ')
+        .where((w) => w.isNotEmpty)
+        .map((w) => w[0])
+        .take(2)
+        .join()
+        .toUpperCase();
 
-    return SizedBox(
-      width: cardSize,
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      cursor: SystemMouseCursors.click,
       child: GestureDetector(
-        onTap: onTap,
-        child: Column(
-          children: [
-            // ── Artwork tile ─────────────────────────────────────────────────
-            ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: thumbnailUrl != null
-                  ? Image.network(
-                      thumbnailUrl,
-                      width: cardSize,
-                      height: cardSize,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) =>
-                          _Initials(size: cardSize, initials: initials,
-                              primary: primary, secondary: secondary),
-                    )
-                  : _Initials(size: cardSize, initials: initials,
-                        primary: primary, secondary: secondary),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              name,
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-            ),
-          ],
+        onTap: widget.onTap,
+        child: SizedBox(
+          width: widget.cardSize,
+          child: Column(
+            children: [
+              AnimatedScale(
+                scale: _isHovered ? 1.05 : 1.0,
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOutCubic,
+                child: Container(
+                  width: widget.cardSize,
+                  height: widget.cardSize,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withAlpha(_isHovered ? 60 : 40),
+                        blurRadius: _isHovered ? 20 : 12,
+                        offset: Offset(0, _isHovered ? 8 : 4),
+                      ),
+                    ],
+                  ),
+                  child: ClipOval(
+                    child: thumbnailUrl != null
+                        ? Image.network(
+                            thumbnailUrl,
+                            width: widget.cardSize,
+                            height: widget.cardSize,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) =>
+                                _Initials(
+                                  size: widget.cardSize,
+                                  initials: initials,
+                                  primary: primary,
+                                  secondary: secondary,
+                                ),
+                          )
+                        : _Initials(
+                            size: widget.cardSize,
+                            initials: initials,
+                            primary: primary,
+                            secondary: secondary,
+                          ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                name,
+                style: GoogleFonts.outfit(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  letterSpacing: -0.2,
+                ),
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+              ),
+            ],
+          ),
         ),
       ),
     );

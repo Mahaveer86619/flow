@@ -26,6 +26,9 @@ abstract class SongRepository {
   /// Tracks from a radio station (up-next).
   Future<List<Song>> getRadioTracks(String videoId, {int limit = 25});
 
+  /// Get multiple songs by their IDs.
+  Future<List<Song>> getSongsByIds(List<String> ids);
+
   /// Static browse categories — synchronous, never needs the network.
   List<Map<String, dynamic>> getCategories();
 }

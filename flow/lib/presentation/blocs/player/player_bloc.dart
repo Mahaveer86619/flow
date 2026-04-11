@@ -1,17 +1,19 @@
 import 'dart:async';
-import 'dart:math';
+import 'dart:io';
 import 'package:audio_service/audio_service.dart';
+import 'package:flutter/material.dart' show Color, NetworkImage;
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:just_audio/just_audio.dart' hide PlayerState;
+import 'package:just_audio/just_audio.dart' as ja;
+import 'package:palette_generator/palette_generator.dart';
 import 'package:just_audio/just_audio.dart'
-    as ja
-    show PlayerState, ProcessingState;
+    show AudioPlayer, ConcatenatingAudioSource, AudioSource, LoopMode;
 import '../../../core/config/server_config.dart';
 import '../../../core/logger/app_logger.dart';
 import '../../../core/platform/windows_media_session.dart';
 import '../../../core/storage/local_storage.dart';
 import '../../../domain/entities/song.dart';
 
+import '../../../core/network/download_service.dart';
 import '../../../domain/repositories/song_repository.dart';
 
 part 'player_event.dart';
@@ -59,9 +61,12 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     on<SeekToEvent>(_onSeekTo);
     on<SkipNextEvent>(_onSkipNext);
     on<SkipPreviousEvent>(_onSkipPrevious);
+    on<FastForwardEvent>(_onFastForward);
+    on<RewindEvent>(_onRewind);
     on<ToggleShuffleEvent>(_onToggleShuffle);
     on<ToggleRepeatEvent>(_onToggleRepeat);
     on<ToggleLikeEvent>(_onToggleLike);
+    on<ToggleDownloadEvent>(_onToggleDownload);
     on<SetVolumeEvent>(_onSetVolume);
     on<_PositionUpdateEvent>(_onPositionUpdate);
     on<_BufferedPositionChangedEvent>(_onBufferedPositionChanged);
@@ -69,6 +74,7 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     on<_InitialLoadingChangedEvent>(_onInitialLoadingChanged);
     on<_TrackCompletedEvent>(_onTrackCompleted);
     on<_RestoreStateEvent>(_onRestoreState);
+    on<_PaletteUpdatedEvent>(_onPaletteUpdated);
 
     _subscribeToPlayer();
     add(const _RestoreStateEvent());
@@ -86,6 +92,12 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
       },
       onPrevious: () {
         if (!isClosed) add(const SkipPreviousEvent());
+      },
+      onFastForward: () {
+        if (!isClosed) add(const FastForwardEvent());
+      },
+      onRewind: () {
+        if (!isClosed) add(const RewindEvent());
       },
     );
   }
@@ -155,31 +167,57 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
         position: Duration.zero,
         bufferedPosition: Duration.zero,
         clearActualDuration: true,
+        clearCustomColors: true,
       ),
     );
+
+    _extractPalette(song);
   }
 
   // ── Restore ───────────────────────────────────────────────────────────────
 
   void _onRestoreState(_RestoreStateEvent event, Emitter<PlayerState> emit) {
     final likedIds = _storage.likedSongIds;
+    final recentIds = _storage.recentlyPlayedIds;
     final volume = _storage.volume;
     final shuffle = _storage.isShuffle;
     final repeat = _storage.isRepeat;
+
     AppLogger.i(
       _tag,
-      'Restored — liked=${likedIds.length} vol=$volume '
-      'shuffle=$shuffle repeat=$repeat',
+      'Restored — liked=${likedIds.length} recent=${recentIds.length} '
+      'vol=$volume shuffle=$shuffle repeat=$repeat',
     );
+
     _audioPlayer.setVolume(volume);
+
+    // Initial state with persisted IDs
     emit(
       state.copyWith(
         likedSongIds: likedIds,
+        recentlyPlayedIds: recentIds,
         volume: volume,
         isShuffle: shuffle,
         isRepeat: repeat,
       ),
     );
+
+    // If we have recent IDs, we might want to fetch the actual song objects
+    // for the UI to display them immediately.
+    if (recentIds.isNotEmpty) {
+      _hydrateRecentlyPlayed(recentIds);
+    }
+  }
+
+  Future<void> _hydrateRecentlyPlayed(List<String> ids) async {
+    try {
+      final songs = await _songRepository.getSongsByIds(ids);
+      if (!isClosed) {
+        emit(state.copyWith(recentlyPlayed: songs));
+      }
+    } catch (e) {
+      AppLogger.w(_tag, 'Failed to hydrate recently played: $e');
+    }
   }
 
   // ── Event handlers ────────────────────────────────────────────────────────
@@ -191,15 +229,24 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     if (event.songs.isEmpty) return;
     final idx = event.startIndex.clamp(0, event.songs.length - 1);
 
+    // Stop and reset before setting new source to avoid threading issues on Windows
+    await _audioPlayer.stop();
+
     emit(
       state.copyWith(
         queue: List.from(event.songs),
         queueIndex: idx,
         currentSong: event.songs[idx],
+        isPlaying: false,
         isInitialLoading: true,
+        position: Duration.zero,
+        bufferedPosition: Duration.zero,
+        clearActualDuration: true,
+        clearCustomColors: true,
       ),
     );
 
+    _extractPalette(event.songs[idx]);
     await _updatePlaylist(event.songs, initialIndex: idx);
     add(const _InitialLoadingChangedEvent(false));
   }
@@ -208,15 +255,23 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     PlaySingleEvent event,
     Emitter<PlayerState> emit,
   ) async {
+    await _audioPlayer.stop();
+
     emit(
       state.copyWith(
         queue: [event.song],
         queueIndex: 0,
         currentSong: event.song,
+        isPlaying: false,
         isInitialLoading: true,
+        position: Duration.zero,
+        bufferedPosition: Duration.zero,
+        clearActualDuration: true,
+        clearCustomColors: true,
       ),
     );
 
+    _extractPalette(event.song);
     await _updatePlaylist([event.song]);
     add(const _InitialLoadingChangedEvent(false));
   }
@@ -231,8 +286,10 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
         queueIndex: 0,
         currentSong: event.song,
         isInitialLoading: true,
+        clearCustomColors: true,
       ),
     );
+    _extractPalette(event.song);
     await _updatePlaylist([event.song]);
     add(const _InitialLoadingChangedEvent(false));
 
@@ -264,12 +321,16 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
   }
 
   Future<void> _updatePlaylist(List<Song> songs, {int initialIndex = 0}) async {
-    await _playlist.clear();
-    for (final song in songs) {
-      await _playlist.add(_buildAudioSource(song));
-    }
-
     try {
+      AppLogger.i(
+        _tag,
+        'Updating playlist: songs=${songs.length} index=$initialIndex',
+      );
+      await _playlist.clear();
+      for (final song in songs) {
+        await _playlist.add(_buildAudioSource(song));
+      }
+
       await _audioPlayer.setAudioSource(
         _playlist,
         initialIndex: initialIndex,
@@ -280,26 +341,44 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
       _mediaSession.updateSong(current);
       _mediaSession.setPlaybackStatus(true);
 
+      AppLogger.d(_tag, 'Starting playback for: ${current.title}');
       await _audioPlayer.play();
+      emit(state.copyWith(isPlaying: true));
     } catch (e, st) {
-      AppLogger.e(_tag, 'Failed to set AudioSource', e, st);
+      AppLogger.e(_tag, 'Failed to set AudioSource or Play', e, st);
     }
   }
 
-  AudioSource _buildAudioSource(Song song) {
-    final streamUrl = '${ServerConfig.instance.baseUrl}/v1/stream/${song.id}';
+  AudioSource _buildAudioSource(Song song, {bool? isLikedOverride}) {
     final token = _storage.jwtToken;
+    final isLiked = isLikedOverride ?? state.likedSongIds.contains(song.id);
+
+    // Layout foundation: Use local file if downloaded
+    // In a real app, this should be reactive, but for now we check at creation time.
+    final localFile = File(
+      '${Directory.systemTemp.path}/downloads/${song.id}.mp3',
+    ); // Placeholder path check logic
+
+    // We'll use a more robust check in _updatePlaylist or similar for production
+    // For now, assume it's streaming unless we explicitly handle offline mode.
+    final streamUrl = '${ServerConfig.instance.baseUrl}/v1/stream/${song.id}';
+
     return AudioSource.uri(
       Uri.parse(streamUrl),
-      headers: {if (token != null) 'Authorization': 'Bearer $token'},
+      headers: {
+        if (token != null) 'Authorization': 'Bearer $token',
+        'User-Agent': 'FlowMusicApp/1.0',
+      },
       tag: MediaItem(
         id: song.id,
         title: song.title,
         artist: song.artist,
         album: song.album.isNotEmpty ? song.album : song.artist,
+        duration: song.duration,
         artUri: song.thumbnailUrl != null
             ? Uri.parse(song.thumbnailUrl!)
             : null,
+        extras: <String, dynamic>{'isLiked': isLiked},
       ),
     );
   }
@@ -348,6 +427,25 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     }
   }
 
+  void _onFastForward(FastForwardEvent event, Emitter<PlayerState> emit) {
+    final target = _audioPlayer.position + const Duration(seconds: 10);
+    final total = _audioPlayer.duration ?? Duration.zero;
+    if (target < total) {
+      _audioPlayer.seek(target);
+    } else {
+      _audioPlayer.seekToNext();
+    }
+  }
+
+  void _onRewind(RewindEvent event, Emitter<PlayerState> emit) {
+    final target = _audioPlayer.position - const Duration(seconds: 10);
+    if (target > Duration.zero) {
+      _audioPlayer.seek(target);
+    } else {
+      _audioPlayer.seek(Duration.zero);
+    }
+  }
+
   void _onToggleShuffle(ToggleShuffleEvent event, Emitter<PlayerState> emit) {
     final next = !state.isShuffle;
     _storage.saveShuffle(next);
@@ -364,13 +462,64 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
 
   void _onToggleLike(ToggleLikeEvent event, Emitter<PlayerState> emit) {
     final liked = List<String>.from(state.likedSongIds);
+    final isNowLiked = !liked.contains(event.song.id);
     if (liked.contains(event.song.id)) {
       liked.remove(event.song.id);
     } else {
       liked.add(event.song.id);
     }
     _storage.saveLikedSongIds(liked);
+
+    // Update the tag in the playlist if it's currently in the queue
+    final idx = state.queue.indexWhere((s) => s.id == event.song.id);
+    if (idx != -1) {
+      final newSource = _buildAudioSource(
+        event.song,
+        isLikedOverride: isNowLiked,
+      );
+      _playlist.removeAt(idx);
+      _playlist.insert(idx, newSource);
+    }
+
     emit(state.copyWith(likedSongIds: liked));
+  }
+
+  Future<void> _onToggleDownload(
+    ToggleDownloadEvent event,
+    Emitter<PlayerState> emit,
+  ) async {
+    final song = event.song;
+    final isDownloaded = await DownloadService.instance.isDownloaded(song.id);
+
+    try {
+      if (isDownloaded) {
+        await DownloadService.instance.deleteDownload(song.id);
+      } else {
+        await DownloadService.instance.downloadSong(song);
+      }
+
+      // Update current song if it's the one being downloaded
+      if (state.currentSong?.id == song.id) {
+        emit(
+          state.copyWith(
+            currentSong: state.currentSong!.copyWith(
+              isDownloaded: !isDownloaded,
+            ),
+          ),
+        );
+      }
+
+      // Update queue
+      final newQueue = state.queue.map((s) {
+        if (s.id == song.id) {
+          return s.copyWith(isDownloaded: !isDownloaded);
+        }
+        return s;
+      }).toList();
+      emit(state.copyWith(queue: newQueue));
+    } catch (e) {
+      AppLogger.e(_tag, 'Toggle download failed', e);
+    }
   }
 
   void _onSetVolume(SetVolumeEvent event, Emitter<PlayerState> emit) {
@@ -425,6 +574,44 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     if (!state.isRepeat && !_audioPlayer.hasNext) {
       _mediaSession.setStopped();
       emit(state.copyWith(isPlaying: false));
+    }
+  }
+
+  void _onPaletteUpdated(
+    _PaletteUpdatedEvent event,
+    Emitter<PlayerState> emit,
+  ) {
+    emit(
+      state.copyWith(
+        customPrimary: event.primary,
+        customSecondary: event.secondary,
+      ),
+    );
+  }
+
+  Future<void> _extractPalette(Song song) async {
+    if (song.thumbnailUrl == null) return;
+
+    try {
+      final palette = await PaletteGenerator.fromImageProvider(
+        NetworkImage(song.thumbnailUrl!),
+        maximumColorCount: 20,
+      );
+
+      final primary =
+          palette.vibrantColor?.color ??
+          palette.dominantColor?.color ??
+          song.colorPrimary;
+      final secondary =
+          palette.mutedColor?.color ??
+          palette.lightVibrantColor?.color ??
+          song.colorSecondary;
+
+      if (!isClosed) {
+        add(_PaletteUpdatedEvent(primary, secondary));
+      }
+    } catch (e) {
+      AppLogger.w(_tag, 'Palette extraction failed: $e');
     }
   }
 
