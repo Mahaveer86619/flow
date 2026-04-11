@@ -226,18 +226,34 @@ class MockSongDataSource implements SongDataSource {
         artists.add({
           'name': s.artist,
           'thumbnailUrl': null,
-          'colorPrimary': s.colorPrimary,
-          'colorSecondary': s.colorSecondary,
+          'colorPrimary': s.colorPrimary.value,
+          'colorSecondary': s.colorSecondary.value,
         });
       }
     }
 
+    final rawShelves = [
+      {
+        'title': 'Quick Picks',
+        'items': _songs.sublist(0, 6).map((s) => {'type': 'song', 'data': s.toJson()}).toList(),
+      },
+      {
+        'title': 'Listen Again',
+        'items': _songs.sublist(0, 6).map((s) => {'type': 'song', 'data': s.toJson()}).toList(),
+      },
+      {
+        'title': 'Top Artists',
+        'items': artists.take(8).map((a) => {'type': 'artist', 'data': a}).toList(),
+      },
+      {
+        'title': 'Chill Vibes',
+        'items': _playlists.take(4).map((p) => {'type': 'playlist', 'data': p.toJson()}).toList(),
+      },
+    ];
+
     return HomeDataModel(
-      quickAccess: _songs.sublist(0, 6),
-      listeningAgain: _songs.sublist(0, 6),
-      forgottenFavorites: _songs.reversed.take(6).toList(),
-      musicForYou: List.unmodifiable(_songs),
-      trendingArtists: artists.take(8).toList(),
+      rawShelves: rawShelves,
+      trending: _songs.sublist(0, 10),
     );
   }
 

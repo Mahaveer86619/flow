@@ -66,6 +66,11 @@ class ToggleRepeatEvent extends PlayerEvent {
   const ToggleRepeatEvent();
 }
 
+/// Toggle endless radio (auto-fetching next tracks).
+class ToggleEndlessRadioEvent extends PlayerEvent {
+  const ToggleEndlessRadioEvent();
+}
+
 /// Add or remove [song] from the liked-songs set.
 class ToggleLikeEvent extends PlayerEvent {
   final Song song;
@@ -115,6 +120,11 @@ class _BufferedPositionChangedEvent extends PlayerEvent {
 class _InitialLoadingChangedEvent extends PlayerEvent {
   final bool isInitialLoading;
   const _InitialLoadingChangedEvent(this.isInitialLoading);
+}
+
+class _DownloadProgressUpdatedEvent extends PlayerEvent {
+  final Map<String, double> progress;
+  const _DownloadProgressUpdatedEvent(this.progress);
 }
 
 class _TrackCompletedEvent extends PlayerEvent {

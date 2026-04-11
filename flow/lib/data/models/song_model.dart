@@ -49,7 +49,10 @@ class SongModel {
       artist: json['artist'] as String? ?? 'Unknown',
       album: json['album'] as String? ?? '',
       duration: Duration(
-        milliseconds: (json['durationMs'] as num?)?.toInt() ?? 0,
+        milliseconds:
+            (json['durationMs'] as num?)?.toInt() ??
+            (json['duration'] as num?)?.toInt() ??
+            0,
       ),
       thumbnailUrl: json['thumbnailUrl'] as String?,
       colorPrimary: json['colorPrimary'] != null

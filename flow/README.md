@@ -1,141 +1,74 @@
-# Flow
+# Flow (Mobile & Desktop)
 
-A cross-platform music player built with Flutter. Responsive across mobile, tablet, and desktop with a full-featured player, home feed, search, and library. Backed by the Flow backend (`music-source/ytmusic-api`).
+A cross-platform music streaming client built with Flutter. It provides a seamless experience for browsing and playing music from YouTube Music, with a focus on high-quality audio and a polished user interface.
 
-## Features
+## Key Features
 
-- **Home feed** — Quick Access grid, Listening Again, Forgotten Favorites, Music For You, Trending Artists
-- **Search** — real-time search with 400 ms debounce, results from the backend
-- **Library** — user playlists loaded from YouTube Music
-- **Player** — full-screen on mobile, persistent sidebar on desktop; real album art
-- **Queue** — reorderable playback queue
-- **Responsive layout** — three distinct shells based on screen width
-
-## Responsive Layout
-
-| Breakpoint | Shell |
-|---|---|
-| `< 700 px` (mobile) | Bottom navigation bar + mini-player overlay + full-screen player |
-| `700–1099 px` (tablet) | Same as mobile with wider content |
-| `≥ 1100 px` (desktop) | Navigation rail + content pane + permanent right-side player panel |
+- **Personalized Home Feed:** Quick Access, Listening Again, Forgotten Favorites, and curated music for you.
+- **Advanced Search:** Real-time search for songs, artists, and albums with history and category browsing.
+- **Full Library Management:** Access and manage your YouTube Music playlists directly in the app.
+- **Immersive Player:** Features a unique squiggly progress bar, dynamic color palette extraction from album art, and cross-platform playback.
+- **Desktop Excellence:** Integrated Windows System Media Transport Controls (SMTC) for media key support and a persistent sidebar layout for larger screens.
+- **Cross-Platform:** Responsive layouts for Mobile (Android/iOS) and Desktop (Windows/macOS/Linux).
+- **Security:** JWT-based user authentication and secure per-user account linking.
 
 ## Tech Stack
 
-- **Flutter** (Dart SDK ^3.11.4)
-- **flutter_bloc ^9.1.1** — BLoC + Cubit state management
-- **google_fonts ^6.2.1** — Outfit + Space Grotesk typefaces
-- **flutter_dotenv ^5.2.1** — runtime environment config
-- **http ^1.2.0** — REST API calls
-- Material 3, seed color `#7C3AED` (purple), dark mode
+- **Framework:** Flutter (Dart SDK ^3.11.4)
+- **State Management:** `flutter_bloc` (BLoC + Cubit)
+- **Audio Engine:** `just_audio` with background playback support.
+- **Storage:** `hive_flutter` for high-performance persistent local data.
+- **Networking:** `http` for RESTful communication with the backend.
+- **Design:** Material 3 with customized typography (Outfit & Space Grotesk).
 
 ## Getting Started
 
-**Prerequisites:** Flutter SDK ≥ 3.11.4
+### 1. Prerequisites
+- Flutter SDK ≥ 3.11.4
+- A running instance of the [Flow Backend](../flow-source/)
 
+### 2. Installation
 ```bash
 cd flow
 flutter pub get
+```
+
+### 3. Environment Configuration
+Create a `flow/.env` file:
+```env
+# URL of your running backend (e.g., http://localhost:8000)
+API_BASE_URL=http://localhost:8000
+
+# Optional: Set to true to use static mock data instead of the API
+USE_MOCK=false
+
+# Optional: Enable verbose logging
+DEBUG=true
+```
+
+### 4. Run the App
+```bash
 flutter run
 ```
 
-## Environment
-
-Configure `flow/.env` before running:
-
-```env
-# URL of the running backend (no trailing slash)
-API_BASE_URL=http://localhost:8000
-
-# Set to true to skip the backend and use hard-coded mock data
-USE_MOCK=false
-```
-
-To run against mock data without a backend:
-```
-USE_MOCK=true
-```
-
-## Backend API Contract
-
-The app consumes the following endpoints from the backend:
-
-### Songs
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/songs/feed` | Flat list of songs from the personalised home feed |
-| `GET` | `/api/songs/search?q=<query>` | Song search results |
-| `GET` | `/api/stream/<video_id>` | Proxied audio stream (range-request aware) |
-
-**Normalised song shape:**
-```json
-{
-  "id": "videoId",
-  "title": "Song Title",
-  "artist": "Artist Name",
-  "album": "Album Name",
-  "durationMs": 222000,
-  "thumbnailUrl": "https://..."
-}
-```
-
-### Playlists
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/library/playlists` | User's playlist metadata |
-| `GET` | `/api/playlists/<id>/tracks` | Normalised track list for a playlist |
-| `GET` | `/api/playlists/<id>` | Raw playlist detail (ytmusicapi format) |
-| `POST` | `/api/playlists` | Create playlist |
-| `PATCH` | `/api/playlists/<id>` | Edit playlist |
-| `DELETE` | `/api/playlists/<id>` | Delete playlist |
-
-**Normalised playlist shape:**
-```json
-{
-  "id": "PLxxx",
-  "name": "Playlist Name",
-  "description": "25 songs",
-  "thumbnailUrl": "https://...",
-  "trackCount": 25
-}
-```
-
-### Auth & misc
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/status` | Auth check |
-| `POST` | `/api/auth` | Authenticate via raw headers or cURL |
-| `DELETE` | `/api/auth` | Log out |
-| `GET` | `/api/proxy-image?url=` | CORS-safe image proxy |
-| `GET` | `/api/albums/<browse_id>` | Album detail |
-
 ## Architecture
 
-```
-lib/
-├── main.dart                         # DI root — wires data source → repo → use cases → BLoC
-├── domain/
-│   ├── entities/song.dart            # Song, Playlist (pure Dart)
-│   ├── repositories/song_repository.dart  # Abstract interface
-│   └── usecases/                     # One class per operation
-├── data/
-│   ├── models/                       # DTOs with fromJson / toEntity()
-│   ├── sources/
-│   │   ├── song_data_source.dart     # Abstract interface
-│   │   ├── api_song_data_source.dart # Hits the real backend  ← swap here
-│   │   └── mock_song_data_source.dart
-│   └── repositories/song_repository_impl.dart
-└── presentation/
-    ├── blocs/player/                 # PlayerBloc (events / state)
-    ├── cubits/home|search|library/   # Feature cubits
-    ├── screens/                      # One folder per screen
-    └── widgets/                      # Shared UI components
-```
+The app follows a clean architecture pattern with a clear separation of concerns:
 
-**Swapping the data source:** change `USE_MOCK=true` in `.env` (no code change needed).
+- `lib/core/`: Foundation logic including authentication, network monitoring, and local storage.
+- `lib/domain/`: Pure business logic, entities, and repository interfaces.
+- `lib/data/`: Data source implementations (API/Mock) and model serialization.
+- `lib/presentation/`: UI components, screens, and state management (BLoCs/Cubits).
+
+## Backend Integration
+
+The app connects to the Flow API via the following core endpoints:
+- **Authentication:** `/v1/auth/*`
+- **Browsing:** `/v1/home`, `/v1/feed`
+- **Library:** `/v1/library`, `/v1/playlists/*`
+- **Playback:** `/v1/stream/{id}` (Audio proxy), `/v1/proxy-image` (Image proxy)
 
 ## Supported Platforms
-
-Android, iOS, Windows, Linux, macOS, Web
+- **Android / iOS:** Full mobile experience with mini-player and full-screen player.
+- **Windows:** Supports media keys and system tray integration via SMTC.
+- **macOS / Linux / Web:** Fully responsive layout support.

@@ -13,48 +13,132 @@ class QueueScreen extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final nextSongs = state.queue.skip(state.queueIndex + 1).toList();
 
+    final currentSong = state.currentSong;
+    final bgColor = currentSong != null
+        ? currentSong.colorPrimary.withAlpha(20)
+        : colorScheme.surface;
+
     return Scaffold(
       backgroundColor: colorScheme.surface,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: Text(
-          'Queue',
-          style: GoogleFonts.spaceGrotesk(fontWeight: FontWeight.w700),
-        ),
-        centerTitle: true,
-      ),
-      body: state.currentSong == null
+      body: currentSong == null
           ? const Center(child: Text('No song playing'))
-          : ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              children: [
-                Text(
-                  'Now Playing',
-                  style: GoogleFonts.outfit(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: colorScheme.primary,
-                  ),
+          : Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    currentSong.colorPrimary.withAlpha(40),
+                    colorScheme.surface,
+                  ],
                 ),
-                const SizedBox(height: 12),
-                _QueueSongTile(song: state.currentSong!, isPlaying: true),
-                if (nextSongs.isNotEmpty) ...[
-                  const SizedBox(height: 32),
-                  Text(
-                    'Next In Queue',
-                    style: GoogleFonts.outfit(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
+              ),
+              child: CustomScrollView(
+                slivers: [
+                  SliverAppBar(
+                    backgroundColor: Colors.transparent,
+                    elevation: 0,
+                    pinned: true,
+                    title: Text(
+                      'Queue',
+                      style: GoogleFonts.spaceGrotesk(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 22,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    centerTitle: true,
+                    leading: IconButton(
+                      icon: const Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        size: 32,
+                      ),
+                      onPressed: () => Navigator.of(context).pop(),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  ...nextSongs.map(
-                    (s) => _QueueSongTile(song: s, isPlaying: false),
+
+                  // Now Playing Header
+                  _SectionHeader(
+                    title: 'Now Playing',
+                    color: colorScheme.primary,
                   ),
+
+                  // Now Playing Item
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      child: _QueueSongTile(
+                        song: currentSong,
+                        isPlaying: true,
+                        isNowPlaying: true,
+                      ),
+                    ),
+                  ),
+
+                  if (nextSongs.isNotEmpty) ...[
+                    // Next Up Header
+                    _SectionHeader(
+                      title: 'Next In Queue',
+                      color: colorScheme.onSurface,
+                    ),
+
+                    // Queue List
+                    SliverList(
+                      delegate: SliverChildBuilderDelegate((context, index) {
+                        final song = nextSongs[index];
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 4,
+                          ),
+                          child: _QueueSongTile(
+                            song: song,
+                            isPlaying: false,
+                            onTap: () {
+                              context.read<PlayerBloc>().add(
+                                PlayQueueEvent(
+                                  songs: state.queue,
+                                  startIndex: state.queueIndex + 1 + index,
+                                ),
+                              );
+                            },
+                          ),
+                        );
+                      }, childCount: nextSongs.length),
+                    ),
+                  ],
+
+                  const SliverToBoxAdapter(child: SizedBox(height: 100)),
                 ],
-              ],
+              ),
             ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  final Color color;
+  const _SectionHeader({required this.title, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 24, 16, 12),
+        child: Text(
+          title,
+          style: GoogleFonts.outfit(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: color.withAlpha(180),
+            letterSpacing: 0.5,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -62,57 +146,215 @@ class QueueScreen extends StatelessWidget {
 class _QueueSongTile extends StatelessWidget {
   final Song song;
   final bool isPlaying;
-  const _QueueSongTile({required this.song, this.isPlaying = false});
+  final bool isNowPlaying;
+  final VoidCallback? onTap;
+
+  const _QueueSongTile({
+    required this.song,
+    this.isPlaying = false,
+    this.isNowPlaying = false,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          width: 50,
-          height: 50,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [song.colorPrimary, song.colorSecondary],
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: isNowPlaying
+              ? colorScheme.primaryContainer.withAlpha(80)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          children: [
+            // Artwork
+            _Artwork(song: song, isPlaying: isPlaying),
+            const SizedBox(width: 16),
+
+            // Title & Artist
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    song.title,
+                    style: GoogleFonts.outfit(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 16,
+                      color: isNowPlaying
+                          ? colorScheme.primary
+                          : colorScheme.onSurface,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    song.artist,
+                    style: GoogleFonts.outfit(
+                      fontSize: 13,
+                      color: colorScheme.onSurface.withAlpha(140),
+                      fontWeight: FontWeight.w500,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
             ),
-          ),
-          child: song.thumbnailUrl != null
-              ? Image.network(
-                  song.thumbnailUrl!,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => _fallback(),
-                )
-              : _fallback(),
+
+            // Reorder Handle / More
+            if (!isNowPlaying)
+              ReorderableDragStartListener(
+                index: 0, // Placeholder
+                child: Icon(
+                  Icons.drag_handle_rounded,
+                  color: colorScheme.onSurface.withAlpha(80),
+                  size: 20,
+                ),
+              )
+            else
+              const Icon(
+                Icons.graphic_eq_rounded,
+                color: Colors.white70,
+                size: 20,
+              ),
+
+            IconButton(
+              icon: const Icon(Icons.more_vert_rounded),
+              onPressed: () {
+                _showOptions(context);
+              },
+              iconSize: 20,
+              visualDensity: VisualDensity.compact,
+            ),
+          ],
         ),
       ),
-      title: Text(
-        song.title,
-        style: TextStyle(
-          fontWeight: isPlaying ? FontWeight.w700 : FontWeight.w500,
-          color: isPlaying ? colorScheme.primary : colorScheme.onSurface,
+    );
+  }
+
+  void _showOptions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.onSurface.withAlpha(40),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            ListTile(
+              leading: const Icon(Icons.playlist_add_rounded),
+              title: const Text('Add to Playlist'),
+              onTap: () => Navigator.pop(context),
+            ),
+            ListTile(
+              leading: const Icon(Icons.share_rounded),
+              title: const Text('Share Song'),
+              onTap: () => Navigator.pop(context),
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.delete_outline_rounded,
+                color: Colors.redAccent,
+              ),
+              title: const Text(
+                'Remove from Queue',
+                style: TextStyle(color: Colors.redAccent),
+              ),
+              onTap: () => Navigator.pop(context),
+            ),
+            const SizedBox(height: 24),
+          ],
         ),
       ),
-      subtitle: Text(song.artist),
-      trailing: IconButton(
-        icon: const Icon(Icons.more_vert_rounded),
-        onPressed: () {},
+    );
+  }
+}
+
+class _Artwork extends StatelessWidget {
+  final Song song;
+  final bool isPlaying;
+  const _Artwork({required this.song, required this.isPlaying});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 54,
+      height: 54,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          if (isPlaying)
+            BoxShadow(
+              color: song.colorPrimary.withAlpha(100),
+              blurRadius: 15,
+              offset: const Offset(0, 5),
+            ),
+        ],
       ),
-      onTap: () {
-        if (!isPlaying) {
-          context.read<PlayerBloc>().add(PlaySingleEvent(song));
-        }
-      },
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (song.thumbnailUrl != null)
+            Image.network(
+              song.thumbnailUrl!,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => _fallback(),
+            )
+          else
+            _fallback(),
+
+          if (isPlaying)
+            Container(
+              color: Colors.black38,
+              child: const Center(
+                child: Icon(
+                  Icons.play_arrow_rounded,
+                  color: Colors.white,
+                  size: 28,
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
   Widget _fallback() {
-    return Center(
-      child: isPlaying
-          ? const Icon(Icons.graphic_eq_rounded, color: Colors.white)
-          : const Icon(Icons.music_note_rounded, color: Colors.white, size: 20),
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [song.colorPrimary, song.colorSecondary],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: const Icon(
+        Icons.music_note_rounded,
+        color: Colors.white,
+        size: 24,
+      ),
     );
   }
 }

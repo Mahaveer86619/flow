@@ -36,6 +36,7 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
   StreamSubscription<Duration>? _bufferedSub;
   StreamSubscription<ja.PlayerState>? _playerStateSub;
   StreamSubscription<int?>? _currentIndexSub;
+  StreamSubscription<Map<String, double>>? _downloadSub;
 
   /// The active playlist for just_audio.
   final ConcatenatingAudioSource _playlist = ConcatenatingAudioSource(
@@ -65,6 +66,7 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     on<RewindEvent>(_onRewind);
     on<ToggleShuffleEvent>(_onToggleShuffle);
     on<ToggleRepeatEvent>(_onToggleRepeat);
+    on<ToggleEndlessRadioEvent>(_onToggleEndlessRadio);
     on<ToggleLikeEvent>(_onToggleLike);
     on<ToggleDownloadEvent>(_onToggleDownload);
     on<SetVolumeEvent>(_onSetVolume);
@@ -72,11 +74,13 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     on<_BufferedPositionChangedEvent>(_onBufferedPositionChanged);
     on<_BufferingChangedEvent>(_onBufferingChanged);
     on<_InitialLoadingChangedEvent>(_onInitialLoadingChanged);
+    on<_DownloadProgressUpdatedEvent>(_onDownloadProgressUpdated);
     on<_TrackCompletedEvent>(_onTrackCompleted);
     on<_RestoreStateEvent>(_onRestoreState);
     on<_PaletteUpdatedEvent>(_onPaletteUpdated);
 
     _subscribeToPlayer();
+    _subscribeToDownloads();
     add(const _RestoreStateEvent());
 
     // Initialise Windows SMTC — no-op on other platforms
@@ -141,6 +145,12 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     });
   }
 
+  void _subscribeToDownloads() {
+    _downloadSub = DownloadService.instance.progressStream.listen((prog) {
+      if (!isClosed) add(_DownloadProgressUpdatedEvent(prog));
+    });
+  }
+
   void _onAutoTrackChange(int newIndex) {
     final song = state.queue[newIndex];
     AppLogger.i(_tag, 'Auto-advanced to: "${song.title}" (idx=$newIndex)');
@@ -155,7 +165,9 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     _mediaSession.updateSong(song);
 
     // Prefetch radio if we're near the end of the queue
-    if (state.queue.length - newIndex < 3 && state.queue.isNotEmpty) {
+    if (state.isEndlessRadio &&
+        state.queue.length - newIndex < 3 &&
+        state.queue.isNotEmpty) {
       _fetchMoreRadioTracks();
     }
 
@@ -460,6 +472,17 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     emit(state.copyWith(isRepeat: next));
   }
 
+  void _onToggleEndlessRadio(
+    ToggleEndlessRadioEvent event,
+    Emitter<PlayerState> emit,
+  ) {
+    final next = !state.isEndlessRadio;
+    emit(state.copyWith(isEndlessRadio: next));
+    if (next && state.queue.length - state.queueIndex < 3) {
+      _fetchMoreRadioTracks();
+    }
+  }
+
   void _onToggleLike(ToggleLikeEvent event, Emitter<PlayerState> emit) {
     final liked = List<String>.from(state.likedSongIds);
     final isNowLiked = !liked.contains(event.song.id);
@@ -567,13 +590,24 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     emit(state.copyWith(isInitialLoading: event.isInitialLoading));
   }
 
+  void _onDownloadProgressUpdated(
+    _DownloadProgressUpdatedEvent event,
+    Emitter<PlayerState> emit,
+  ) {
+    emit(state.copyWith(downloadProgress: event.progress));
+  }
+
   void _onTrackCompleted(
     _TrackCompletedEvent event,
     Emitter<PlayerState> emit,
   ) {
     if (!state.isRepeat && !_audioPlayer.hasNext) {
-      _mediaSession.setStopped();
-      emit(state.copyWith(isPlaying: false));
+      if (state.isEndlessRadio && state.currentSong != null) {
+        add(PlayRadioEvent(state.currentSong!));
+      } else {
+        _mediaSession.setStopped();
+        emit(state.copyWith(isPlaying: false));
+      }
     }
   }
 
@@ -622,6 +656,7 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     await _bufferedSub?.cancel();
     await _playerStateSub?.cancel();
     await _currentIndexSub?.cancel();
+    await _downloadSub?.cancel();
     await _audioPlayer.dispose();
     await _mediaSession.dispose();
     return super.close();

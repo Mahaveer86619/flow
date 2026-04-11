@@ -24,12 +24,16 @@ class PlayerState {
 
   final bool isShuffle;
   final bool isRepeat;
+  final bool isEndlessRadio;
   final double volume;
   final List<String> likedSongIds;
   final List<String> recentlyPlayedIds;
   final List<Song> recentlyPlayed;
   final List<Song> queue;
   final int queueIndex;
+
+  /// Map of songId -> 0.0-1.0 progress
+  final Map<String, double> downloadProgress;
 
   /// Dynamically extracted colors from current song artwork.
   final Color? customPrimary;
@@ -45,12 +49,14 @@ class PlayerState {
     this.actualDuration,
     this.isShuffle = false,
     this.isRepeat = false,
+    this.isEndlessRadio = true,
     this.volume = 0.7,
     this.likedSongIds = const [],
     this.recentlyPlayedIds = const [],
     this.recentlyPlayed = const [],
     this.queue = const [],
     this.queueIndex = -1,
+    this.downloadProgress = const {},
     this.customPrimary,
     this.customSecondary,
   });
@@ -76,6 +82,8 @@ class PlayerState {
   bool isLiked(Song song) => likedSongIds.contains(song.id);
   int get likedSongsCount => likedSongIds.length;
 
+  double getDownloadProgress(String songId) => downloadProgress[songId] ?? -1.0;
+
   String get currentTimeString {
     final s = position.inSeconds;
     return '${s ~/ 60}:${(s % 60).toString().padLeft(2, '0')}';
@@ -98,12 +106,14 @@ class PlayerState {
     bool clearActualDuration = false,
     bool? isShuffle,
     bool? isRepeat,
+    bool? isEndlessRadio,
     double? volume,
     List<String>? likedSongIds,
     List<String>? recentlyPlayedIds,
     List<Song>? recentlyPlayed,
     List<Song>? queue,
     int? queueIndex,
+    Map<String, double>? downloadProgress,
     Color? customPrimary,
     Color? customSecondary,
     bool clearCustomColors = false,
@@ -120,12 +130,14 @@ class PlayerState {
           : (actualDuration ?? this.actualDuration),
       isShuffle: isShuffle ?? this.isShuffle,
       isRepeat: isRepeat ?? this.isRepeat,
+      isEndlessRadio: isEndlessRadio ?? this.isEndlessRadio,
       volume: volume ?? this.volume,
       likedSongIds: likedSongIds ?? this.likedSongIds,
       recentlyPlayedIds: recentlyPlayedIds ?? this.recentlyPlayedIds,
       recentlyPlayed: recentlyPlayed ?? this.recentlyPlayed,
       queue: queue ?? this.queue,
       queueIndex: queueIndex ?? this.queueIndex,
+      downloadProgress: downloadProgress ?? this.downloadProgress,
       customPrimary: clearCustomColors
           ? null
           : (customPrimary ?? this.customPrimary),

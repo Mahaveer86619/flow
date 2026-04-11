@@ -103,71 +103,52 @@ class YTMusicService:
             return []
 
     def build_home_data(
-        self, user: Optional[User] = None, limit: int = 5
+        self, user: Optional[User] = None, limit: int = 15
     ) -> HomeResponse:
         ytm = self.get_client(user)
-        shelves = ytm.get_home(limit=limit)
+        raw_shelves = ytm.get_home(limit=limit)
 
-        sections: Dict[str, List] = {
-            "quickAccess": [],
-            "listeningAgain": [],
-            "forgottenFavorites": [],
-            "musicForYou": [],
-            "trendingArtists": [],
-        }
+        shelves = []
         seen_ids = set()
-        overflow = []
 
-        for shelf in shelves:
-            title = shelf.get("title") or ""
-            contents = shelf.get("contents") or []
-            section = self._classify_shelf(title)
-
-            artists_in_shelf = []
-            songs_in_shelf = []
-
+        for raw_shelf in raw_shelves:
+            title = raw_shelf.get("title") or "Recommended"
+            contents = raw_shelf.get("contents") or []
+            
+            items = []
             for item in contents:
-                if is_artist_item(item):
+                # Deduplicate songs specifically
+                video_id = item.get("videoId")
+                if video_id:
+                    if video_id in seen_ids:
+                        continue
+                    seen_ids.add(video_id)
+                    song = normalize_song(item)
+                    if song:
+                        items.append({"type": "song", "data": song.model_dump()})
+                elif is_artist_item(item):
                     artist = normalize_artist(item)
                     if artist:
-                        artists_in_shelf.append(artist)
-                else:
-                    song = normalize_song(item)
-                    if song and song.id not in seen_ids:
-                        seen_ids.add(song.id)
-                        songs_in_shelf.append(song)
+                        items.append({"type": "artist", "data": artist.model_dump()})
+                elif "playlistId" in item or "browseId" in item:
+                    # Could be playlist or album
+                    is_album = str(item.get("browseId", "")).startswith("MPREb")
+                    playlist = normalize_playlist(item)
+                    if playlist:
+                        items.append({
+                            "type": "album" if is_album else "playlist", 
+                            "data": playlist.model_dump()
+                        })
 
-            sections["trendingArtists"].extend(artists_in_shelf)
-
-            if songs_in_shelf:
-                if section:
-                    sections[section].extend(songs_in_shelf)
-                else:
-                    overflow.append(songs_in_shelf)
-
-        fill_priority = [
-            "listeningAgain",
-            "forgottenFavorites",
-            "musicForYou",
-            "quickAccess",
-        ]
-        for songs in overflow:
-            target = min(fill_priority, key=lambda k: len(sections[k]))
-            sections[target].extend(songs)
-
-        if not sections["quickAccess"]:
-            source = sections["listeningAgain"] or sections["musicForYou"]
-            sections["quickAccess"] = source[:8]
-
-        sections["quickAccess"] = sections["quickAccess"][:8]
-        sections["listeningAgain"] = sections["listeningAgain"][:15]
-        sections["forgottenFavorites"] = sections["forgottenFavorites"][:15]
-        sections["musicForYou"] = sections["musicForYou"][:20]
-        sections["trendingArtists"] = sections["trendingArtists"][:10]
+            if items:
+                shelves.append({
+                    "title": title,
+                    "items": items
+                })
 
         trending = self._get_trending_songs(ytm)
 
-        return HomeResponse(**sections, trending=trending)
+        return HomeResponse(shelves=shelves, trending=trending)
 
     def get_home_cached(
         self, user: Optional[User] = None, limit: int = 5
@@ -190,30 +171,33 @@ class YTMusicService:
     def build_feed_data(self) -> HomeResponse:
         ytm = ytmusicapi.YTMusic()
         trending = self._get_trending_songs(ytm)
-        music_for_you: List[SongResponse] = []
-        if not trending:
-            try:
-                shelves = ytm.get_home(limit=3)
-                seen: set = set()
-                for shelf in shelves:
-                    for item in shelf.get("contents") or []:
-                        song = normalize_song(item)
-                        if song and song.id not in seen:
-                            seen.add(song.id)
-                            music_for_you.append(song)
-                            if len(music_for_you) >= 20:
-                                break
-                    if len(music_for_you) >= 20:
-                        break
-            except Exception:
-                pass
+        shelves = []
+        
+        music_for_you_items = []
+        try:
+            raw_shelves = ytm.get_home(limit=3)
+            seen = set()
+            for shelf in raw_shelves:
+                for item in shelf.get("contents") or []:
+                    song = normalize_song(item)
+                    if song and song.id not in seen:
+                        seen.add(song.id)
+                        music_for_you_items.append({"type": "song", "data": song.model_dump()})
+                        if len(music_for_you_items) >= 20:
+                            break
+                if len(music_for_you_items) >= 20:
+                    break
+        except Exception:
+            pass
+
+        if music_for_you_items:
+            shelves.append({
+                "title": "Music For You",
+                "items": music_for_you_items
+            })
 
         return HomeResponse(
-            quickAccess=[],
-            listeningAgain=[],
-            forgottenFavorites=[],
-            musicForYou=music_for_you,
-            trendingArtists=[],
+            shelves=shelves,
             trending=trending,
         )
 

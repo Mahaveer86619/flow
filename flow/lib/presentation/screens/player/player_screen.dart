@@ -255,15 +255,7 @@ class _MainPlayerSection extends StatelessWidget {
                     context.read<PlayerBloc>().add(ToggleLikeEvent(song)),
               ),
               IconButton(
-                icon: Icon(
-                  song.isDownloaded
-                      ? Icons.download_done_rounded
-                      : Icons.download_for_offline_outlined,
-                  size: 26,
-                  color: song.isDownloaded
-                      ? Colors.greenAccent
-                      : Colors.white.withAlpha(140),
-                ),
+                icon: _DownloadIcon(song: song),
                 onPressed: () =>
                     context.read<PlayerBloc>().add(ToggleDownloadEvent(song)),
               ),
@@ -274,6 +266,7 @@ class _MainPlayerSection extends StatelessWidget {
           // ── Squiggly progress bar ────────────────────────────────────────
           SquigglyProgressBar(
             progress: state.progress,
+            bufferedProgress: state.bufferProgress,
             onSeek: (fraction) =>
                 context.read<PlayerBloc>().add(SeekToEvent(fraction)),
           ),
@@ -407,6 +400,51 @@ class _MainPlayerSection extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _DownloadIcon extends StatelessWidget {
+  final Song song;
+  const _DownloadIcon({required this.song});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocSelector<PlayerBloc, PlayerState, double>(
+      selector: (state) => state.getDownloadProgress(song.id),
+      builder: (context, progress) {
+        if (progress >= 0 && progress < 1.0) {
+          return Stack(
+            alignment: Alignment.center,
+            children: [
+              SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  value: progress,
+                  strokeWidth: 2,
+                  color: Colors.greenAccent,
+                  backgroundColor: Colors.white10,
+                ),
+              ),
+              const Icon(
+                Icons.downloading_rounded,
+                size: 16,
+                color: Colors.greenAccent,
+              ),
+            ],
+          );
+        }
+        return Icon(
+          song.isDownloaded
+              ? Icons.download_done_rounded
+              : Icons.download_for_offline_outlined,
+          size: 26,
+          color: song.isDownloaded
+              ? Colors.greenAccent
+              : Colors.white.withAlpha(140),
+        );
+      },
     );
   }
 }

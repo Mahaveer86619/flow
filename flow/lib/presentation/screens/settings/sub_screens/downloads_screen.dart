@@ -123,7 +123,7 @@ class DownloadsScreen extends StatelessWidget {
     if (!hasPermission) return;
 
     try {
-      String? selectedDirectory = await FilePicker.instance.getDirectoryPath();
+      String? selectedDirectory = await FilePicker.getDirectoryPath();
       if (selectedDirectory != null) {
         cubit.setDownloadPath(selectedDirectory);
       }

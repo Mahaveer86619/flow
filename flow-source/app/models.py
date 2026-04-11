@@ -80,11 +80,7 @@ class PlaylistResponse(BaseModel):
 
 
 class HomeResponse(BaseModel):
-    quickAccess: List[SongResponse]
-    listeningAgain: List[SongResponse]
-    forgottenFavorites: List[SongResponse]
-    musicForYou: List[SongResponse]
-    trendingArtists: List[ArtistResponse]
+    shelves: List[Dict[str, Any]]
     trending: List[SongResponse] = []
 
 

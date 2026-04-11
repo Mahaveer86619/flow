@@ -1,78 +1,96 @@
 import 'package:flutter/material.dart';
 import '../../domain/entities/home_data.dart';
+import 'playlist_model.dart';
 import 'song_model.dart';
 
-// ── HomeDataModel ─────────────────────────────────────────────────────────────
-//
-// DTO that mirrors the GET /api/home response:
-//   { quickAccess, listeningAgain, forgottenFavorites, musicForYou,
-//     trendingArtists }
-//
-// Each song section is parsed via SongModel.fromJson so colours and thumbnails
-// are handled in one place. Artist maps have colours derived from the name
-// so ArtistCard can always render a gradient fallback.
-// ─────────────────────────────────────────────────────────────────────────────
-
 class HomeDataModel {
-  final List<SongModel> quickAccess;
-  final List<SongModel> listeningAgain;
-  final List<SongModel> forgottenFavorites;
-  final List<SongModel> musicForYou;
-  final List<Map<String, dynamic>> trendingArtists;
+  final List<Map<String, dynamic>> rawShelves;
   final List<SongModel> trending;
 
-  const HomeDataModel({
-    required this.quickAccess,
-    required this.listeningAgain,
-    required this.forgottenFavorites,
-    required this.musicForYou,
-    required this.trendingArtists,
-    this.trending = const [],
-  });
-
-  // ── JSON ─────────────────────────────────────────────────────────────────────
+  const HomeDataModel({required this.rawShelves, this.trending = const []});
 
   factory HomeDataModel.fromJson(Map<String, dynamic> json) {
-    List<SongModel> parseSongs(String key) => ((json[key] as List<dynamic>?) ?? [])
+    final shelves = <Map<String, dynamic>>[];
+
+    void addShelf(String title, String key, String type) {
+      final items = json[key] as List<dynamic>?;
+      if (items != null && items.isNotEmpty) {
+        shelves.add({
+          'title': title,
+          'items': items.map((i) => {'type': type, 'data': i}).toList(),
+        });
+      }
+    }
+
+    addShelf('Quick pick', 'quickAccess', 'song');
+    addShelf('Listening again', 'listeningAgain', 'song');
+    addShelf('Forgotten favorites', 'forgottenFavorites', 'song');
+    addShelf('Music for you', 'musicForYou', 'song');
+    addShelf('Trending artists', 'trendingArtists', 'artist');
+
+    final rawShelves = (json['shelves'] as List<dynamic>? ?? [])
+        .cast<Map<String, dynamic>>();
+    shelves.addAll(rawShelves);
+
+    final trending = ((json['trending'] as List<dynamic>?) ?? [])
         .map((s) => SongModel.fromJson(s as Map<String, dynamic>))
         .toList();
 
-    final artists = ((json['trendingArtists'] as List<dynamic>?) ?? [])
-        .map((a) {
-          final m = a as Map<String, dynamic>;
-          final name = m['name'] as String? ?? '';
-          final colors = _artistColors(name);
-          return <String, dynamic>{
-            'name': name,
-            'thumbnailUrl': m['thumbnailUrl'] as String?,
-            'colorPrimary': colors.$1,
-            'colorSecondary': colors.$2,
-          };
-        })
-        .toList();
-
-    return HomeDataModel(
-      quickAccess: parseSongs('quickAccess'),
-      listeningAgain: parseSongs('listeningAgain'),
-      forgottenFavorites: parseSongs('forgottenFavorites'),
-      musicForYou: parseSongs('musicForYou'),
-      trendingArtists: artists,
-      trending: parseSongs('trending'),
-    );
+    return HomeDataModel(rawShelves: shelves, trending: trending);
   }
 
-  // ── Domain mapping ────────────────────────────────────────────────────────────
+  HomeData toEntity() {
+    final shelves = rawShelves.map((shelfJson) {
+      final title = shelfJson['title'] as String? ?? 'Recommended';
+      final items = (shelfJson['items'] as List<dynamic>? ?? []).map((
+        itemJson,
+      ) {
+        final typeStr = itemJson['type'] as String;
+        final data = itemJson['data'] as Map<String, dynamic>;
 
-  HomeData toEntity() => HomeData(
-        quickAccess: quickAccess.map((m) => m.toEntity()).toList(),
-        listeningAgain: listeningAgain.map((m) => m.toEntity()).toList(),
-        forgottenFavorites: forgottenFavorites.map((m) => m.toEntity()).toList(),
-        musicForYou: musicForYou.map((m) => m.toEntity()).toList(),
-        trendingArtists: trendingArtists,
-        trending: trending.map((m) => m.toEntity()).toList(),
-      );
+        HomeItemType type;
+        dynamic mappedData;
 
-  // ── Artist colour derivation ──────────────────────────────────────────────────
+        switch (typeStr) {
+          case 'song':
+            type = HomeItemType.song;
+            mappedData = SongModel.fromJson(data).toEntity();
+            break;
+          case 'artist':
+            type = HomeItemType.artist;
+            final name = data['name'] as String? ?? 'Unknown';
+            final colors = _artistColors(name);
+            mappedData = {
+              'name': name,
+              'thumbnailUrl': data['thumbnailUrl'] as String?,
+              'colorPrimary': colors.$1,
+              'colorSecondary': colors.$2,
+            };
+            break;
+          case 'album':
+            type = HomeItemType.album;
+            mappedData = PlaylistModel.fromJson(data).toEntity();
+            break;
+          case 'playlist':
+            type = HomeItemType.playlist;
+            mappedData = PlaylistModel.fromJson(data).toEntity();
+            break;
+          default:
+            type = HomeItemType.song;
+            mappedData = SongModel.fromJson(data).toEntity();
+        }
+
+        return HomeItem(type: type, data: mappedData);
+      }).toList();
+
+      return HomeShelf(title: title, items: items);
+    }).toList();
+
+    return HomeData(
+      shelves: shelves,
+      trending: trending.map((m) => m.toEntity()).toList(),
+    );
+  }
 
   static const _colorPairs = [
     (Color(0xFF7C3AED), Color(0xFF2563EB)),

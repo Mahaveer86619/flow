@@ -14,70 +14,68 @@ class LibraryScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final isSmall = Breakpoints.isMobile(MediaQuery.sizeOf(context).width);
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isSmall = Breakpoints.isMobile(screenWidth);
+    final columns = screenWidth > 1200 ? 5 : (screenWidth > 800 ? 3 : 2);
 
     return CustomScrollView(
       slivers: [
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 4, 8),
+            padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
                   'Your Library',
                   style: GoogleFonts.spaceGrotesk(
-                    fontSize: isSmall ? 16.0 : 20.0,
-                    fontWeight: FontWeight.w700,
+                    fontSize: isSmall ? 28.0 : 32.0,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -1,
                   ),
                 ),
-                IconButton(
+                const Spacer(),
+                IconButton.filledTonal(
                   icon: const Icon(Icons.add_rounded),
-                  onPressed: () {},
-                  tooltip: 'Create playlist',
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Create playlist coming soon!'),
+                      ),
+                    );
+                  },
                 ),
               ],
             ),
           ),
         ),
+
+        // Filter Chips
         SliverToBoxAdapter(
           child: BlocBuilder<LibraryCubit, LibraryState>(
             buildWhen: (prev, curr) => prev.filterIndex != curr.filterIndex,
             builder: (context, state) => SingleChildScrollView(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
               child: Row(
                 children: List.generate(LibraryState.filterOptions.length, (i) {
                   final selected = state.filterIndex == i;
                   return Padding(
-                    padding: EdgeInsets.only(
-                      right: i < LibraryState.filterOptions.length - 1 ? 8 : 0,
-                    ),
-                    child: GestureDetector(
-                      onTap: () => context.read<LibraryCubit>().setFilter(i),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: selected
-                              ? colorScheme.primaryContainer
-                              : colorScheme.surfaceContainerHigh,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          LibraryState.filterOptions[i],
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13,
-                            color: selected
-                                ? colorScheme.onPrimaryContainer
-                                : colorScheme.onSurface,
-                          ),
-                        ),
+                    padding: const EdgeInsets.only(right: 8),
+                    child: FilterChip(
+                      label: Text(LibraryState.filterOptions[i]),
+                      selected: selected,
+                      onSelected: (_) =>
+                          context.read<LibraryCubit>().setFilter(i),
+                      labelStyle: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        color: selected
+                            ? colorScheme.onPrimary
+                            : colorScheme.onSurface,
                       ),
+                      selectedColor: colorScheme.primary,
+                      checkmarkColor: colorScheme.onPrimary,
+                      backgroundColor: colorScheme.surfaceContainerHigh,
                     ),
                   );
                 }),
@@ -85,143 +83,256 @@ class LibraryScreen extends StatelessWidget {
             ),
           ),
         ),
+
         BlocBuilder<LibraryCubit, LibraryState>(
           builder: (context, state) {
             if (state.isLoading) {
-              return const SliverFillRemaining(
-                child: Center(child: CircularProgressIndicator()),
+              return const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.only(top: 100),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
               );
             }
             if (state.error) {
-              return SliverFillRemaining(
-                child: ErrorView(
-                  errorType: state.errorType,
-                  onRetry: () => context.read<LibraryCubit>().reload(),
+              return SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 100),
+                  child: ErrorView(
+                    errorType: state.errorType,
+                    onRetry: () => context.read<LibraryCubit>().reload(),
+                  ),
                 ),
               );
             }
 
-            return SliverMainAxisGroup(
-              slivers: [
-                SliverToBoxAdapter(
-                  child: BlocSelector<PlayerBloc, PlayerState, int>(
-                    selector: (s) => s.likedSongsCount,
-                    builder: (context, likedCount) => _SpecialPlaylistTile(
-                      icon: Icons.favorite_rounded,
-                      iconColor: const Color(0xFFEC4899),
-                      name: 'Liked Songs',
-                      subtitle: '$likedCount songs',
-                    ),
-                  ),
+            final playlists = state.playlists;
+
+            return SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              sliver: SliverGrid(
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: columns,
+                  mainAxisSpacing: 24,
+                  crossAxisSpacing: 16,
+                  childAspectRatio: 0.75,
                 ),
-                SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, i) => RepaintBoundary(
-                      child: _PlaylistTile(playlist: state.playlists[i]),
-                    ),
-                    childCount: state.playlists.length,
-                  ),
-                ),
-              ],
+                delegate: SliverChildBuilderDelegate((context, i) {
+                  if (i == 0) {
+                    return BlocSelector<PlayerBloc, PlayerState, int>(
+                      selector: (s) => s.likedSongsCount,
+                      builder: (context, likedCount) => _SpecialPlaylistCard(
+                        icon: Icons.favorite_rounded,
+                        color: const Color(0xFFEC4899),
+                        name: 'Liked Songs',
+                        subtitle: '$likedCount songs',
+                      ),
+                    );
+                  }
+                  return _PlaylistCard(playlist: playlists[i - 1]);
+                }, childCount: playlists.length + 1),
+              ),
             );
           },
         ),
-        const SliverToBoxAdapter(child: SizedBox(height: 24)),
+        const SliverToBoxAdapter(child: SizedBox(height: 100)),
       ],
     );
   }
 }
 
-class _PlaylistArtFallback extends StatelessWidget {
+class _PlaylistCard extends StatefulWidget {
   final Playlist playlist;
-  const _PlaylistArtFallback({required this.playlist});
+  const _PlaylistCard({required this.playlist});
+
+  @override
+  State<_PlaylistCard> createState() => _PlaylistCardState();
+}
+
+class _PlaylistCardState extends State<_PlaylistCard> {
+  bool _isHovered = false;
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => PlaylistScreen(playlist: widget.playlist),
+            ),
+          );
+        },
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: AnimatedScale(
+                scale: _isHovered ? 1.05 : 1.0,
+                duration: const Duration(milliseconds: 200),
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withAlpha(_isHovered ? 60 : 40),
+                        blurRadius: _isHovered ? 20 : 12,
+                        offset: Offset(0, _isHovered ? 8 : 4),
+                      ),
+                    ],
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      if (widget.playlist.thumbnailUrl != null)
+                        Image.network(
+                          widget.playlist.thumbnailUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _fallback(),
+                        )
+                      else
+                        _fallback(),
+
+                      if (_isHovered)
+                        Container(
+                          color: Colors.black26,
+                          child: const Center(
+                            child: Icon(
+                              Icons.play_arrow_rounded,
+                              color: Colors.white,
+                              size: 48,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              widget.playlist.name,
+              style: GoogleFonts.outfit(
+                fontWeight: FontWeight.w700,
+                fontSize: 15,
+                color: colorScheme.onSurface,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            Text(
+              widget.playlist.description.isEmpty
+                  ? 'Playlist'
+                  : widget.playlist.description,
+              style: GoogleFonts.outfit(
+                fontSize: 13,
+                color: colorScheme.onSurface.withAlpha(140),
+                fontWeight: FontWeight.w500,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _fallback() {
     return Container(
-      width: 58,
-      height: 58,
-      color: playlist.color,
-      child: const Icon(
-        Icons.queue_music_rounded,
-        color: Colors.white,
-        size: 28,
+      color: widget.playlist.color,
+      child: const Center(
+        child: Icon(Icons.queue_music_rounded, color: Colors.white, size: 40),
       ),
     );
   }
 }
 
-class _SpecialPlaylistTile extends StatelessWidget {
+class _SpecialPlaylistCard extends StatefulWidget {
   final IconData icon;
-  final Color iconColor;
+  final Color color;
   final String name;
   final String subtitle;
-  const _SpecialPlaylistTile({
+
+  const _SpecialPlaylistCard({
     required this.icon,
-    required this.iconColor,
+    required this.color,
     required this.name,
     required this.subtitle,
   });
 
   @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      leading: Container(
-        width: 58,
-        height: 58,
-        decoration: BoxDecoration(
-          color: iconColor.withAlpha(35),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Icon(icon, color: iconColor, size: 28),
-      ),
-      title: Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
-      subtitle: Text(subtitle),
-      trailing: const Icon(Icons.chevron_right_rounded),
-      onTap: () {},
-    );
-  }
+  State<_SpecialPlaylistCard> createState() => _SpecialPlaylistCardState();
 }
 
-class _PlaylistTile extends StatelessWidget {
-  final Playlist playlist;
-  const _PlaylistTile({required this.playlist});
+class _SpecialPlaylistCardState extends State<_SpecialPlaylistCard> {
+  bool _isHovered = false;
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      leading: ClipRRect(
-        borderRadius: BorderRadius.circular(10),
-        child: playlist.thumbnailUrl != null
-            ? Image.network(
-                playlist.thumbnailUrl!,
-                width: 58,
-                height: 58,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) =>
-                    _PlaylistArtFallback(playlist: playlist),
-              )
-            : _PlaylistArtFallback(playlist: playlist),
-      ),
-      title: Text(
-        playlist.name,
-        style: const TextStyle(fontWeight: FontWeight.w600),
-      ),
-      subtitle: Text(playlist.description),
-      trailing: IconButton(
-        icon: Icon(
-          Icons.more_vert_rounded,
-          color: Theme.of(context).colorScheme.onSurface.withAlpha(140),
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('${widget.name} coming soon!')),
+          );
+        },
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: AnimatedScale(
+                scale: _isHovered ? 1.05 : 1.0,
+                duration: const Duration(milliseconds: 200),
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [widget.color, widget.color.withAlpha(180)],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: widget.color.withAlpha(_isHovered ? 80 : 50),
+                        blurRadius: _isHovered ? 20 : 12,
+                        offset: Offset(0, _isHovered ? 8 : 4),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Icon(widget.icon, color: Colors.white, size: 40),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              widget.name,
+              style: GoogleFonts.outfit(
+                fontWeight: FontWeight.w700,
+                fontSize: 15,
+              ),
+            ),
+            Text(
+              widget.subtitle,
+              style: GoogleFonts.outfit(
+                fontSize: 13,
+                color: Theme.of(context).colorScheme.onSurface.withAlpha(140),
+              ),
+            ),
+          ],
         ),
-        onPressed: () {},
       ),
-      onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => PlaylistScreen(playlist: playlist)),
-        );
-      },
     );
   }
 }

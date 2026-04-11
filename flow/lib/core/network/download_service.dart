@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
@@ -12,6 +13,12 @@ class DownloadService {
 
   final http.Client _client = http.Client();
   static const _tag = 'DownloadService';
+
+  final _progressController = StreamController<Map<String, double>>.broadcast();
+  Stream<Map<String, double>> get progressStream => _progressController.stream;
+
+  // Cache of current downloads to prevent duplicates
+  final Map<String, double> _activeDownloads = {};
 
   Future<String> get _localPath async {
     final customPath = LocalStorage.instance.downloadPath;
@@ -28,6 +35,8 @@ class DownloadService {
   }
 
   Future<void> downloadSong(Song song) async {
+    if (_activeDownloads.containsKey(song.id)) return;
+
     try {
       final file = await _getLocalFile(song.id);
       if (await file.exists()) {
@@ -41,21 +50,45 @@ class DownloadService {
       final token = LocalStorage.instance.jwtToken;
 
       AppLogger.i(_tag, 'Starting download: ${song.title}');
-      final response = await _client.get(
-        Uri.parse(streamUrl),
-        headers: {
-          if (token != null) 'Authorization': 'Bearer $token',
-          'User-Agent': 'FlowMusicApp/1.0',
-        },
-      );
 
-      if (response.statusCode == 200) {
-        await file.writeAsBytes(response.bodyBytes);
-        AppLogger.i(_tag, 'Download complete: ${song.title}');
-      } else {
+      final request = http.Request('GET', Uri.parse(streamUrl));
+      if (token != null) {
+        request.headers['Authorization'] = 'Bearer $token';
+      }
+      request.headers['User-Agent'] = 'FlowMusicApp/1.0';
+
+      final response = await _client.send(request);
+
+      if (response.statusCode != 200) {
         throw Exception('Server returned ${response.statusCode}');
       }
+
+      final contentLength = response.contentLength ?? 0;
+      int downloaded = 0;
+      final bytes = <int>[];
+
+      _activeDownloads[song.id] = 0.0;
+      _progressController.add(Map.from(_activeDownloads));
+
+      await for (final chunk in response.stream) {
+        bytes.addAll(chunk);
+        downloaded += chunk.length;
+
+        if (contentLength > 0) {
+          final progress = downloaded / contentLength;
+          _activeDownloads[song.id] = progress;
+          _progressController.add(Map.from(_activeDownloads));
+        }
+      }
+
+      await file.writeAsBytes(bytes);
+      _activeDownloads.remove(song.id);
+      _progressController.add(Map.from(_activeDownloads));
+
+      AppLogger.i(_tag, 'Download complete: ${song.title}');
     } catch (e, st) {
+      _activeDownloads.remove(song.id);
+      _progressController.add(Map.from(_activeDownloads));
       AppLogger.e(_tag, 'Download failed: ${song.title}', e, st);
       rethrow;
     }

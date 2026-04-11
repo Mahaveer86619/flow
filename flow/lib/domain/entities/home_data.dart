@@ -1,44 +1,52 @@
 import 'song.dart';
 
-// ── HomeData ──────────────────────────────────────────────────────────────────
-//
-// The structured home screen payload returned by GET /api/home.
-// Each field maps 1-to-1 to a UI section; the backend owns the split logic.
-// ─────────────────────────────────────────────────────────────────────────────
+class HomeShelf {
+  final String title;
+  final List<HomeItem> items;
+
+  const HomeShelf({required this.title, required this.items});
+}
+
+enum HomeItemType { song, artist, album, playlist }
+
+class HomeItem {
+  final HomeItemType type;
+  final dynamic data; // Can be Song, Artist (Map), or Playlist
+
+  const HomeItem({required this.type, required this.data});
+}
 
 class HomeData {
-  final List<Song> quickAccess;
-  final List<Song> listeningAgain;
-  final List<Song> forgottenFavorites;
-  final List<Song> musicForYou;
-
-  /// Raw artist maps — each has at minimum {name: String, thumbnailUrl: String?}.
-  /// colorPrimary / colorSecondary are derived by the data layer so the
-  /// presentation layer can render gradient fallbacks without API round-trips.
-  final List<Map<String, dynamic>> trendingArtists;
-
-  /// Worldwide chart songs (from /api/v1/home → trending field).
+  final List<HomeShelf> shelves;
   final List<Song> trending;
 
   const HomeData({
-    this.quickAccess = const [],
-    this.listeningAgain = const [],
-    this.forgottenFavorites = const [],
-    this.musicForYou = const [],
-    this.trendingArtists = const [],
+    this.shelves = const [],
     this.trending = const [],
   });
 
-  /// Deduplicated union of all song sections — used as the player queue so
-  /// "next" works across the entire home feed.
+  /// Deduplicated union of all songs in all shelves — used as the player queue.
   List<Song> get allSongs {
     final seen = <String>{};
-    return [
-      ...quickAccess,
-      ...listeningAgain,
-      ...forgottenFavorites,
-      ...musicForYou,
-      ...trending,
-    ].where((s) => seen.add(s.id)).toList();
+    final songs = <Song>[];
+    
+    for (final shelf in shelves) {
+      for (final item in shelf.items) {
+        if (item.type == HomeItemType.song && item.data is Song) {
+          final s = item.data as Song;
+          if (seen.add(s.id)) {
+            songs.add(s);
+          }
+        }
+      }
+    }
+    
+    for (final s in trending) {
+      if (seen.add(s.id)) {
+        songs.add(s);
+      }
+    }
+    
+    return songs;
   }
 }

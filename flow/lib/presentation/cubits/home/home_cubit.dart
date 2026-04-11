@@ -58,11 +58,7 @@ class HomeCubit extends Cubit<HomeState> {
       emit(HomeState(
         isLoading: false,
         greeting: greeting,
-        quickAccess: data.quickAccess,
-        listeningAgain: data.listeningAgain,
-        forgottenFavorites: data.forgottenFavorites,
-        musicForYou: data.musicForYou,
-        trendingArtists: data.trendingArtists,
+        shelves: data.shelves,
         trending: data.trending,
         allSongs: data.allSongs,
       ));
