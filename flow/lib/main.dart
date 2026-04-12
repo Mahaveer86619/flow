@@ -147,28 +147,48 @@ class FlowApp extends StatelessWidget {
 
   ThemeData _buildTheme(Brightness brightness) {
     const seedColor = Color(0xFF7C3AED);
+    final isDark = brightness == Brightness.dark;
+
     final colorScheme = ColorScheme.fromSeed(
       seedColor: seedColor,
       brightness: brightness,
+      surface: isDark ? const Color(0xFF07070F) : const Color(0xFFFBFBFF),
+      onSurface: isDark ? Colors.white : const Color(0xFF07070F),
     );
-    final base = brightness == Brightness.dark
+
+    final base = isDark
         ? ThemeData.dark(useMaterial3: true)
         : ThemeData.light(useMaterial3: true);
 
     return base.copyWith(
       colorScheme: colorScheme,
-      textTheme: GoogleFonts.outfitTextTheme(base.textTheme),
+      scaffoldBackgroundColor: colorScheme.surface,
+      textTheme: GoogleFonts.outfitTextTheme(base.textTheme).apply(
+        bodyColor: colorScheme.onSurface,
+        displayColor: colorScheme.onSurface,
+      ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: colorScheme.surface,
-        indicatorColor: colorScheme.primaryContainer,
+        indicatorColor: colorScheme.primary.withAlpha(isDark ? 40 : 25),
         labelTextStyle: WidgetStatePropertyAll(
-          GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w500),
+          GoogleFonts.outfit(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: colorScheme.onSurface,
+          ),
         ),
       ),
       appBarTheme: AppBarTheme(
-        backgroundColor: colorScheme.surface,
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
+        centerTitle: false,
+        titleTextStyle: GoogleFonts.spaceGrotesk(
+          fontSize: 22,
+          fontWeight: FontWeight.w700,
+          color: colorScheme.onSurface,
+        ),
       ),
     );
   }

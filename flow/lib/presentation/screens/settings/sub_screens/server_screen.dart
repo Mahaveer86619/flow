@@ -20,9 +20,7 @@ class _ServerScreenState extends State<ServerScreen> {
   void initState() {
     super.initState();
     _ctrl = TextEditingController(
-      text: ServerConfig.instance.isCustom
-          ? ServerConfig.instance.baseUrl
-          : '',
+      text: ServerConfig.instance.isCustom ? ServerConfig.instance.baseUrl : '',
     );
   }
 
@@ -41,12 +39,12 @@ class _ServerScreenState extends State<ServerScreen> {
       _testResult = null;
     });
     try {
-      final uri = Uri.parse('$url/api/v1/home');
+      final uri = Uri.parse('$url/v1/health');
       final resp = await http.get(uri).timeout(const Duration(seconds: 6));
       setState(() {
         _testOk = resp.statusCode >= 200 && resp.statusCode < 300;
         _testResult = _testOk
-            ? 'Connected — HTTP ${resp.statusCode}'
+            ? 'Connected — Server is healthy'
             : 'Server responded with HTTP ${resp.statusCode}';
       });
     } catch (e) {
@@ -131,15 +129,19 @@ class _ServerScreenState extends State<ServerScreen> {
                 ),
                 if (isCustom) ...[
                   const SizedBox(height: 4),
-                  Row(children: [
-                    Icon(Icons.edit_outlined, size: 13, color: cs.primary),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Custom',
-                      style: GoogleFonts.outfit(
-                          fontSize: 12, color: cs.primary),
-                    ),
-                  ]),
+                  Row(
+                    children: [
+                      Icon(Icons.edit_outlined, size: 13, color: cs.primary),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Custom',
+                        style: GoogleFonts.outfit(
+                          fontSize: 12,
+                          color: cs.primary,
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ],
             ),
@@ -191,9 +193,7 @@ class _ServerScreenState extends State<ServerScreen> {
               margin: const EdgeInsets.only(bottom: 12),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: _testOk
-                    ? Colors.green.withAlpha(30)
-                    : cs.errorContainer,
+                color: _testOk ? Colors.green.withAlpha(30) : cs.errorContainer,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Row(
@@ -235,7 +235,8 @@ class _ServerScreenState extends State<ServerScreen> {
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
               ),
@@ -248,7 +249,8 @@ class _ServerScreenState extends State<ServerScreen> {
                   style: FilledButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
               ),
@@ -261,7 +263,9 @@ class _ServerScreenState extends State<ServerScreen> {
               child: TextButton.icon(
                 onPressed: _reset,
                 icon: const Icon(Icons.restore_rounded, size: 18),
-                label: Text('Reset to default (${ServerConfig.instance.fallbackUrl})'),
+                label: Text(
+                  'Reset to default (${ServerConfig.instance.fallbackUrl})',
+                ),
                 style: TextButton.styleFrom(foregroundColor: cs.error),
               ),
             ),
@@ -284,7 +288,10 @@ class _ServerScreenState extends State<ServerScreen> {
                     'Format: http://host:port — no trailing slash. '
                     'Changes apply to the next data fetch and stream.',
                     style: GoogleFonts.outfit(
-                        fontSize: 12, color: cs.outline, height: 1.5),
+                      fontSize: 12,
+                      color: cs.outline,
+                      height: 1.5,
+                    ),
                   ),
                 ),
               ],

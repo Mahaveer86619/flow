@@ -35,10 +35,17 @@ class _HomeScreenContent extends StatelessWidget {
 
     return BlocBuilder<HomeCubit, HomeState>(
       builder: (context, state) {
+        final cs = Theme.of(context).colorScheme;
+        // Pre-compute index map for performance (O(N) once instead of O(N^2) total)
+        final Map<String, int> songIndexMap = {
+          for (int i = 0; i < state.allSongs.length; i++)
+            state.allSongs[i].id: i,
+        };
+
         return RefreshIndicator(
           onRefresh: () => context.read<HomeCubit>().refresh(),
-          backgroundColor: const Color(0xFF1A1A2E),
-          color: const Color(0xFF7C3AED),
+          backgroundColor: cs.surfaceContainerHigh,
+          color: cs.primary,
           displacement: 100,
           child: CustomScrollView(
             cacheExtent: 2000,
@@ -48,7 +55,7 @@ class _HomeScreenContent extends StatelessWidget {
             slivers: [
               // ── Custom immersive AppBar (Always Visible) ─────────────────────────
               SliverAppBar(
-                expandedHeight: 80,
+                expandedHeight: 100,
                 floating: true,
                 pinned: false,
                 backgroundColor: Colors.transparent,
@@ -57,7 +64,7 @@ class _HomeScreenContent extends StatelessWidget {
                   background: Padding(
                     padding: EdgeInsets.fromLTRB(
                       16,
-                      MediaQuery.paddingOf(context).top + 4,
+                      MediaQuery.paddingOf(context).top + 12,
                       16,
                       0,
                     ),
@@ -69,16 +76,12 @@ class _HomeScreenContent extends StatelessWidget {
                             Text(
                               'Flow',
                               style: GoogleFonts.spaceGrotesk(
-                                fontSize: 28,
+                                fontSize: 32,
                                 fontWeight: FontWeight.w800,
-                                letterSpacing: -1.0,
+                                letterSpacing: -1.2,
                               ),
                             ),
                             const Spacer(),
-                            IconButton(
-                              icon: const Icon(Icons.notifications_outlined),
-                              onPressed: () {},
-                            ),
                             IconButton(
                               icon: const Icon(Icons.history_rounded),
                               onPressed: () {},
@@ -95,6 +98,7 @@ class _HomeScreenContent extends StatelessWidget {
                             ),
                           ],
                         ),
+                        const SizedBox(height: 2),
                         Row(
                           children: [
                             Text(
@@ -149,6 +153,7 @@ class _HomeScreenContent extends StatelessWidget {
                   (shelf) => _HomeShelfRenderer(
                     shelf: shelf,
                     allSongs: state.allSongs,
+                    songIndexMap: songIndexMap,
                     profileUrl: state.profileUrl,
                   ),
                 ),
@@ -220,11 +225,13 @@ class _FilterChipsDelegate extends SliverPersistentHeaderDelegate {
 class _HomeShelfRenderer extends StatelessWidget {
   final HomeShelf shelf;
   final List<Song> allSongs;
+  final Map<String, int> songIndexMap;
   final String? profileUrl;
 
   const _HomeShelfRenderer({
     required this.shelf,
     required this.allSongs,
+    required this.songIndexMap,
     this.profileUrl,
   });
 
@@ -284,8 +291,11 @@ class _HomeShelfRenderer extends StatelessWidget {
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               itemCount: songs.length,
-              itemBuilder: (context, i) =>
-                  _QuickAccessLargeCard(song: songs[i], allSongs: allSongs),
+              itemBuilder: (context, i) => _QuickAccessLargeCard(
+                song: songs[i],
+                allSongs: allSongs,
+                songIndexMap: songIndexMap,
+              ),
             ),
           ),
         ),
@@ -361,10 +371,11 @@ class _HomeShelfRenderer extends StatelessWidget {
               itemBuilder: (context, i) {
                 final item = shelf.items[i];
                 if (item.type == HomeItemType.song) {
+                  final song = item.data as Song;
                   return SongCard(
-                    song: item.data as Song,
+                    song: song,
                     queue: allSongs,
-                    index: allSongs.indexOf(item.data as Song),
+                    index: songIndexMap[song.id] ?? 0,
                   );
                 }
                 final playlist = item.data as Playlist;
@@ -410,7 +421,7 @@ class _HomeShelfRenderer extends StatelessWidget {
               itemBuilder: (context, i) => SongCard(
                 song: songs[i],
                 queue: allSongs,
-                index: allSongs.indexOf(songs[i]),
+                index: songIndexMap[songs[i].id] ?? 0,
               ),
             ),
           ),
@@ -645,7 +656,12 @@ class _SkeletonHorizontalRow extends StatelessWidget {
 class _QuickAccessLargeCard extends StatefulWidget {
   final Song song;
   final List<Song> allSongs;
-  const _QuickAccessLargeCard({required this.song, required this.allSongs});
+  final Map<String, int> songIndexMap;
+  const _QuickAccessLargeCard({
+    required this.song,
+    required this.allSongs,
+    required this.songIndexMap,
+  });
 
   @override
   State<_QuickAccessLargeCard> createState() => _QuickAccessLargeCardState();
@@ -668,7 +684,7 @@ class _QuickAccessLargeCardState extends State<_QuickAccessLargeCard> {
           context.read<PlayerBloc>().add(
             PlayQueueEvent(
               songs: widget.allSongs,
-              startIndex: widget.allSongs.indexOf(widget.song),
+              startIndex: widget.songIndexMap[widget.song.id] ?? 0,
             ),
           );
           if (!isDesktop) {

@@ -81,22 +81,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     // ── Dynamic Top Padding ────────────────────────────────────
                     SliverToBoxAdapter(
                       child: SizedBox(
-                        height: MediaQuery.paddingOf(context).top,
-                      ),
-                    ),
-
-                    // ── Drag Handle ──────────────────────────────────────────────
-                    SliverToBoxAdapter(
-                      child: Center(
-                        child: Container(
-                          margin: const EdgeInsets.only(top: 12),
-                          width: 40,
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withAlpha(80),
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
+                        height: MediaQuery.paddingOf(context).top + 32,
                       ),
                     ),
 

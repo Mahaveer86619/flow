@@ -90,7 +90,7 @@ class LibraryScreen extends StatelessWidget {
             background: Padding(
               padding: EdgeInsets.fromLTRB(
                 16,
-                MediaQuery.paddingOf(context).top + 8,
+                MediaQuery.paddingOf(context).top + 12,
                 16,
                 0,
               ),
@@ -99,16 +99,12 @@ class LibraryScreen extends StatelessWidget {
                   Text(
                     'Library',
                     style: GoogleFonts.spaceGrotesk(
-                      fontSize: 28,
+                      fontSize: 32,
                       fontWeight: FontWeight.w800,
-                      letterSpacing: -1.0,
+                      letterSpacing: -1.2,
                     ),
                   ),
                   const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.notifications_outlined),
-                    onPressed: () {},
-                  ),
                   IconButton(
                     icon: const Icon(Icons.settings_outlined),
                     onPressed: () {
@@ -138,6 +134,7 @@ class LibraryScreen extends StatelessWidget {
                 child: Center(child: CircularProgressIndicator()),
               );
             }
+
             if (state.error && state.playlists.isEmpty) {
               return SliverFillRemaining(
                 child: ErrorView(
@@ -147,31 +144,35 @@ class LibraryScreen extends StatelessWidget {
               );
             }
 
-            final playlists = state.playlists;
+            if (state.playlists.isEmpty) {
+              return const SliverFillRemaining(
+                child: Center(child: Text('Nothing here yet')),
+              );
+            }
 
             return SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               sliver: SliverGrid(
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: columns,
-                  mainAxisSpacing: 24,
+                  mainAxisSpacing: 16,
                   crossAxisSpacing: 16,
-                  childAspectRatio: 0.75,
+                  childAspectRatio: 0.8,
                 ),
                 delegate: SliverChildBuilderDelegate((context, i) {
-                  if (i == 0) {
-                    return BlocSelector<PlayerBloc, PlayerState, int>(
-                      selector: (s) => s.likedSongsCount,
-                      builder: (context, likedCount) => _SpecialPlaylistCard(
-                        icon: Icons.favorite_rounded,
-                        color: const Color(0xFFEC4899),
-                        name: 'Liked Songs',
-                        subtitle: '$likedCount songs',
+                  final pl = state.playlists[i];
+                  return _LibraryPlaylistCard(
+                    title: pl.name,
+                    subtitle: pl.description,
+                    imageUrl: pl.thumbnailUrl,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => PlaylistScreen(playlist: pl),
                       ),
-                    );
-                  }
-                  return _PlaylistCard(playlist: playlists[i - 1]);
-                }, childCount: playlists.length + 1),
+                    ),
+                  );
+                }, childCount: state.playlists.length),
               ),
             );
           },
@@ -182,197 +183,64 @@ class LibraryScreen extends StatelessWidget {
   }
 }
 
-class _PlaylistCard extends StatefulWidget {
-  final Playlist playlist;
-  const _PlaylistCard({required this.playlist});
-
-  @override
-  State<_PlaylistCard> createState() => _PlaylistCardState();
-}
-
-class _PlaylistCardState extends State<_PlaylistCard> {
-  bool _isHovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => PlaylistScreen(playlist: widget.playlist),
-            ),
-          );
-        },
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: AnimatedScale(
-                scale: _isHovered ? 1.05 : 1.0,
-                duration: const Duration(milliseconds: 200),
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withAlpha(_isHovered ? 60 : 40),
-                        blurRadius: _isHovered ? 20 : 12,
-                        offset: Offset(0, _isHovered ? 8 : 4),
-                      ),
-                    ],
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      if (widget.playlist.thumbnailUrl != null)
-                        Image.network(
-                          widget.playlist.thumbnailUrl!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => _fallback(),
-                        )
-                      else
-                        _fallback(),
-
-                      if (_isHovered)
-                        Container(
-                          color: Colors.black26,
-                          child: const Center(
-                            child: Icon(
-                              Icons.play_arrow_rounded,
-                              color: Colors.white,
-                              size: 48,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              widget.playlist.name,
-              style: GoogleFonts.outfit(
-                fontWeight: FontWeight.w700,
-                fontSize: 15,
-                color: colorScheme.onSurface,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            Text(
-              widget.playlist.description.isEmpty
-                  ? 'Playlist'
-                  : widget.playlist.description,
-              style: GoogleFonts.outfit(
-                fontSize: 13,
-                color: colorScheme.onSurface.withAlpha(140),
-                fontWeight: FontWeight.w500,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _fallback() {
-    return Container(
-      color: widget.playlist.color,
-      child: const Center(
-        child: Icon(Icons.queue_music_rounded, color: Colors.white, size: 40),
-      ),
-    );
-  }
-}
-
-class _SpecialPlaylistCard extends StatefulWidget {
-  final IconData icon;
-  final Color color;
-  final String name;
+class _LibraryPlaylistCard extends StatelessWidget {
+  final String title;
   final String subtitle;
+  final String? imageUrl;
+  final VoidCallback onTap;
 
-  const _SpecialPlaylistCard({
-    required this.icon,
-    required this.color,
-    required this.name,
+  const _LibraryPlaylistCard({
+    required this.title,
     required this.subtitle,
+    this.imageUrl,
+    required this.onTap,
   });
 
   @override
-  State<_SpecialPlaylistCard> createState() => _SpecialPlaylistCardState();
-}
-
-class _SpecialPlaylistCardState extends State<_SpecialPlaylistCard> {
-  bool _isHovered = false;
-
-  @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('${widget.name} coming soon!')),
-          );
-        },
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: AnimatedScale(
-                scale: _isHovered ? 1.05 : 1.0,
-                duration: const Duration(milliseconds: 200),
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [widget.color, widget.color.withAlpha(180)],
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: widget.color.withAlpha(_isHovered ? 80 : 50),
-                        blurRadius: _isHovered ? 20 : 12,
-                        offset: Offset(0, _isHovered ? 8 : 4),
+    final cs = Theme.of(context).colorScheme;
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                color: cs.surfaceContainerHigh,
+                borderRadius: BorderRadius.circular(12),
+                image: imageUrl != null
+                    ? DecorationImage(
+                        image: NetworkImage(imageUrl!),
+                        fit: BoxFit.cover,
+                      )
+                    : null,
+              ),
+              child: imageUrl == null
+                  ? Center(
+                      child: Icon(
+                        Icons.playlist_play_rounded,
+                        size: 40,
+                        color: cs.onSurface.withAlpha(40),
                       ),
-                    ],
-                  ),
-                  child: Center(
-                    child: Icon(widget.icon, color: Colors.white, size: 40),
-                  ),
-                ),
-              ),
+                    )
+                  : null,
             ),
-            const SizedBox(height: 12),
-            Text(
-              widget.name,
-              style: GoogleFonts.outfit(
-                fontWeight: FontWeight.w700,
-                fontSize: 15,
-              ),
-            ),
-            Text(
-              widget.subtitle,
-              style: GoogleFonts.outfit(
-                fontSize: 13,
-                color: Theme.of(context).colorScheme.onSurface.withAlpha(140),
-              ),
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          Text(
+            subtitle,
+            style: TextStyle(fontSize: 11, color: cs.onSurface.withAlpha(140)),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }

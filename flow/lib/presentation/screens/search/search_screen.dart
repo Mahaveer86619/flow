@@ -57,7 +57,7 @@ class _SearchScreenState extends State<SearchScreen> {
       ),
       slivers: [
         SliverAppBar(
-          expandedHeight: 140,
+          expandedHeight: 150,
           floating: true,
           pinned: false,
           backgroundColor: Colors.transparent,
@@ -68,7 +68,7 @@ class _SearchScreenState extends State<SearchScreen> {
                 Padding(
                   padding: EdgeInsets.fromLTRB(
                     16,
-                    MediaQuery.paddingOf(context).top + 8,
+                    MediaQuery.paddingOf(context).top + 12,
                     16,
                     0,
                   ),
@@ -77,16 +77,12 @@ class _SearchScreenState extends State<SearchScreen> {
                       Text(
                         'Search',
                         style: GoogleFonts.spaceGrotesk(
-                          fontSize: 28,
+                          fontSize: 32,
                           fontWeight: FontWeight.w800,
-                          letterSpacing: -1.0,
+                          letterSpacing: -1.2,
                         ),
                       ),
                       const Spacer(),
-                      IconButton(
-                        icon: const Icon(Icons.notifications_outlined),
-                        onPressed: () {},
-                      ),
                       IconButton(
                         icon: const Icon(Icons.settings_outlined),
                         onPressed: () {

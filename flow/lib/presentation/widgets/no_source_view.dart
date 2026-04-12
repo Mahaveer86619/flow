@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../core/auth/auth_cubit.dart';
 import '../screens/settings/settings_screen.dart';
 
 class NoSourceView extends StatelessWidget {
@@ -8,6 +10,8 @@ class NoSourceView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final isAuth = context.watch<AuthCubit>().state.isAuthenticated;
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 40),
@@ -22,14 +26,14 @@ class NoSourceView extends StatelessWidget {
                 shape: BoxShape.circle,
               ),
               child: Icon(
-                Icons.link_off_rounded,
+                isAuth ? Icons.link_off_rounded : Icons.account_circle_outlined,
                 size: 40,
                 color: cs.onSurface.withAlpha(80),
               ),
             ),
             const SizedBox(height: 24),
             Text(
-              'No source connected',
+              isAuth ? 'No source connected' : 'Not signed in',
               style: GoogleFonts.spaceGrotesk(
                 fontSize: 22,
                 fontWeight: FontWeight.w700,
@@ -37,7 +41,9 @@ class NoSourceView extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             Text(
-              'Connect your YouTube Music account to get a personalised feed.',
+              isAuth
+                  ? 'Connect your YouTube Music account to get a personalised feed.'
+                  : 'Sign in or set up a self-hosted server to access your music.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 14,
@@ -48,10 +54,10 @@ class NoSourceView extends StatelessWidget {
             const SizedBox(height: 32),
             FilledButton.icon(
               icon: const Icon(Icons.settings_outlined, size: 18),
-              label: const Text('Connect a source'),
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const SettingsScreen()),
-              ),
+              label: Text(isAuth ? 'Connect a source' : 'Go to Settings'),
+              onPressed: () => Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const SettingsScreen())),
             ),
           ],
         ),

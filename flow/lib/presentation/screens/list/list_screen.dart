@@ -23,6 +23,11 @@ class ListScreen extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final isDesktop = Breakpoints.isDesktop(MediaQuery.sizeOf(context).width);
 
+    // Pre-calculate index map for performance
+    final Map<String, int> songIndexMap = {
+      for (int i = 0; i < allSongs.length; i++) allSongs[i].id: i,
+    };
+
     return Scaffold(
       backgroundColor: colorScheme.surface,
       appBar: AppBar(
@@ -76,7 +81,7 @@ class ListScreen extends StatelessWidget {
                     context.read<PlayerBloc>().add(
                       PlayQueueEvent(
                         songs: allSongs,
-                        startIndex: allSongs.indexOf(song),
+                        startIndex: songIndexMap[song.id] ?? 0,
                       ),
                     );
                     if (!isDesktop) {

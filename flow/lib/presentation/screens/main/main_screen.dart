@@ -44,25 +44,51 @@ class _MainScreenState extends State<MainScreen> {
             const MiniPlayer(),
           ],
         ),
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: _index,
-          onDestinationSelected: (i) => setState(() => _index = i),
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.home_outlined),
-              selectedIcon: Icon(Icons.home_rounded),
-              label: 'Home',
+        bottomNavigationBar: Theme(
+          data: Theme.of(context).copyWith(
+            navigationBarTheme: NavigationBarThemeData(
+              backgroundColor: Colors.transparent,
+              indicatorColor: colorScheme.primary.withAlpha(40),
+              labelTextStyle: WidgetStatePropertyAll(
+                GoogleFonts.outfit(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+              iconTheme: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.selected)) {
+                  return IconThemeData(color: colorScheme.primary, size: 26);
+                }
+                return IconThemeData(
+                  color: colorScheme.onSurface.withAlpha(140),
+                  size: 24,
+                );
+              }),
             ),
-            NavigationDestination(
-              icon: Icon(Icons.search_rounded),
-              label: 'Search',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.library_music_outlined),
-              selectedIcon: Icon(Icons.library_music_rounded),
-              label: 'Library',
-            ),
-          ],
+          ),
+          child: NavigationBar(
+            height: 65,
+            selectedIndex: _index,
+            onDestinationSelected: (i) => setState(() => _index = i),
+            elevation: 0,
+            destinations: const [
+              NavigationDestination(
+                icon: Icon(Icons.home_outlined),
+                selectedIcon: Icon(Icons.home_rounded),
+                label: 'Home',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.search_rounded),
+                label: 'Search',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.library_music_outlined),
+                selectedIcon: Icon(Icons.library_music_rounded),
+                label: 'Library',
+              ),
+            ],
+          ),
         ),
       ),
     );

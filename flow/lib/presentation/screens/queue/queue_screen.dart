@@ -64,18 +64,10 @@ class QueueScreen extends StatelessWidget {
                     parent: AlwaysScrollableScrollPhysics(),
                   ),
                   slivers: [
-                    // ── Drag Handle ──────────────────────────────────────────────
+                    // ── Dynamic Top Padding ────────────────────────────────────
                     SliverToBoxAdapter(
-                      child: Center(
-                        child: Container(
-                          margin: const EdgeInsets.only(top: 12),
-                          width: 40,
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color: colorScheme.onSurface.withAlpha(40),
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
+                      child: SizedBox(
+                        height: MediaQuery.paddingOf(context).top + 32,
                       ),
                     ),
                     SliverAppBar(

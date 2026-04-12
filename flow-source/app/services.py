@@ -281,15 +281,19 @@ _extraction_locks: Dict[str, asyncio.Lock] = {}
 
 try:
     import curl_cffi  # noqa: F401
-    # Use True so yt-dlp picks whichever impersonate target the installed
-    # curl-cffi version actually supports (avoids "chrome not available" error
-    # when the curl-cffi wheel doesn't include every named browser profile).
-    _IMPERSONATE_TARGET: Optional[bool] = True
-    logger.info("curl-cffi available — browser impersonation enabled (auto target)")
-except ImportError:
+    from yt_dlp.networking.impersonate import ImpersonateTarget
+
+    # yt-dlp 2025.01.15+ expects an ImpersonateTarget object when using
+    # the programmatic API. Passing a string like "chrome" causes an empty
+    # AssertionError because it's not pre-parsed as it is in the CLI.
+    _IMPERSONATE_TARGET: Optional[ImpersonateTarget] = ImpersonateTarget.from_str(
+        "chrome"
+    )
+    logger.info("curl-cffi available — browser impersonation enabled (chrome)")
+except (ImportError, AttributeError):
     _IMPERSONATE_TARGET = None
     logger.warning(
-        "curl-cffi not installed — browser impersonation disabled. "
+        "curl-cffi not installed or old yt-dlp — browser impersonation disabled. "
         "Rebuild the Docker image: docker compose build --no-cache flow-api"
     )
 
@@ -318,36 +322,38 @@ async def extract_audio_url(video_id: str, user: Optional[User] = None) -> str:
 def _extract_sync(video_id: str, user: Optional[User] = None) -> str:
     now = time.monotonic()
 
-    # 0. Fast path: use ytmusicapi get_song() which is already authenticated.
-    #    The MWEB/WEB_REMIX client sometimes returns pre-signed audio URLs directly
-    #    in streamingData.adaptiveFormats without needing yt-dlp at all.
-    if user and user.yt_auth_json:
-        try:
-            ytm = yt_service.get_client(user)
-            song = ytm.get_song(video_id)
-            streaming = song.get("streamingData") or {}
-            candidates = (streaming.get("adaptiveFormats") or []) + (streaming.get("formats") or [])
-            audio = [
-                f for f in candidates
-                if f.get("mimeType", "").startswith("audio/")
-                and f.get("url")  # skip ciphered (signatureCipher) entries
-            ]
-            if audio:
-                audio.sort(key=lambda f: f.get("averageBitrate", 0), reverse=True)
-                url = audio[0]["url"]
-                _url_cache[video_id] = (url, now + 1800)  # 30 min — stream URLs expire
-                logger.info(
-                    f"Got stream URL via ytmusicapi for {video_id}: "
-                    f"mime={audio[0].get('mimeType')} bitrate={audio[0].get('averageBitrate')}"
-                )
-                return url
-            else:
-                logger.debug(
-                    f"ytmusicapi get_song returned {len(candidates)} formats but none "
-                    f"with a direct URL for {video_id} — falling back to yt-dlp"
-                )
-        except Exception as e:
-            logger.debug(f"ytmusicapi fast path failed for {video_id}: {e}")
+    # 0. Fast path: (Disabled for now - ytmusicapi get_song() URLs often return 403
+    #    because they lack proper 'n' parameter deciphering handled by yt-dlp).
+    # if user and user.yt_auth_json:
+    #     try:
+    #         ytm = yt_service.get_client(user)
+    #         song = ytm.get_song(video_id)
+    #         streaming = song.get("streamingData") or {}
+    #         candidates = (streaming.get("adaptiveFormats") or []) + (
+    #             streaming.get("formats") or []
+    #         )
+    #         audio = [
+    #             f
+    #             for f in candidates
+    #             if f.get("mimeType", "").startswith("audio/")
+    #             and f.get("url")  # skip ciphered (signatureCipher) entries
+    #         ]
+    #         if audio:
+    #             audio.sort(key=lambda f: f.get("averageBitrate", 0), reverse=True)
+    #             url = audio[0]["url"]
+    #             _url_cache[video_id] = (url, now + 1800)  # 30 min — stream URLs expire
+    #             logger.info(
+    #                 f"Got stream URL via ytmusicapi for {video_id}: "
+    #                 f"mime={audio[0].get('mimeType')} bitrate={audio[0].get('averageBitrate')}"
+    #             )
+    #             return url
+    #         else:
+    #             logger.debug(
+    #                 f"ytmusicapi get_song returned {len(candidates)} formats but none "
+    #                 f"with a direct URL for {video_id} — falling back to yt-dlp"
+    #             )
+    #     except Exception as e:
+    #         logger.debug(f"ytmusicapi fast path failed for {video_id}: {e}")
 
     # 1. Build cookie paths — user-specific first, then global, then unauthenticated
     cookie_paths: List[Optional[str]] = []
@@ -365,12 +371,6 @@ def _extract_sync(video_id: str, user: Optional[User] = None) -> str:
         + ", ".join(repr(cp) for cp in cookie_paths)
     )
 
-    # 2. Strategies ordered by speed and reliability.
-    #
-    #    Root cause on server IPs: YouTube bot-detects via TLS fingerprint before
-    #    checking cookies. curl-cffi impersonation gives yt-dlp Chrome's TLS stack.
-    #    _IMPERSONATE_TARGET is "chrome" if curl-cffi is installed, else None
-    #    (falls back to plain requests — may still work with valid cookies).
     imp = _IMPERSONATE_TARGET
     strategies = [
         {
@@ -380,15 +380,15 @@ def _extract_sync(video_id: str, user: Optional[User] = None) -> str:
             "impersonate": imp,
         },
         {
-            "name": f"tv_embedded{'+imp' if imp else ''}",
-            "player_clients": ["tv_embedded"],
-            "format": "bestaudio/best",
+            "name": f"web{'+imp' if imp else ''}",
+            "player_clients": ["web"],
+            "format": "bestaudio[ext=m4a]/bestaudio/best",
             "impersonate": imp,
         },
         {
-            "name": f"web{'+imp' if imp else ''}",
-            "player_clients": ["web"],
-            "format": "bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio/best",
+            "name": f"android_vr{'+imp' if imp else ''}",
+            "player_clients": ["android_vr"],
+            "format": "bestaudio/best",
             "impersonate": imp,
         },
     ]
@@ -404,6 +404,9 @@ def _extract_sync(video_id: str, user: Optional[User] = None) -> str:
                 "noplaylist": True,
                 "format": strategy["format"],
                 "cookiefile": cp,
+                "js_runtimes": {
+                    "node": {}
+                },  # required for signature solving in yt-dlp 2025.01.15+
                 "extractor_args": {
                     "youtube": {
                         "player_client": strategy["player_clients"],
@@ -425,7 +428,8 @@ def _extract_sync(video_id: str, user: Optional[User] = None) -> str:
                 if not final_url:
                     # Fallback: scan formats list manually
                     audio_only = [
-                        f for f in (info.get("formats") or [])
+                        f
+                        for f in (info.get("formats") or [])
                         if f.get("vcodec") == "none"
                         and f.get("acodec") not in (None, "none")
                         and f.get("url")

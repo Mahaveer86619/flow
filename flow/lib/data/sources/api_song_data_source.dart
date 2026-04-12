@@ -238,15 +238,15 @@ class ApiSongDataSource implements SongDataSource {
   // ── Static browse categories ──────────────────────────────────────────────────
 
   static const List<Map<String, dynamic>> _staticCategories = [
-    {'name': 'Electronic', 'color': Color(0xFF7C3AED)},
-    {'name': 'Hip-Hop', 'color': Color(0xFFDC2626)},
-    {'name': 'Ambient', 'color': Color(0xFF059669)},
-    {'name': 'Pop', 'color': Color(0xFFEC4899)},
-    {'name': 'Jazz', 'color': Color(0xFFF59E0B)},
-    {'name': 'Rock', 'color': Color(0xFF374151)},
-    {'name': 'Classical', 'color': Color(0xFF0891B2)},
-    {'name': 'R&B', 'color': Color(0xFFDB2777)},
-    {'name': 'Podcasts', 'color': Color(0xFF6366F1)},
-    {'name': 'Metal', 'color': Color(0xFF1F2937)},
+    {'name': 'Electronic', 'color': Color(0xFF8B5CF6)},
+    {'name': 'Hip-Hop', 'color': Color(0xFFEF4444)},
+    {'name': 'Ambient', 'color': Color(0xFF10B981)},
+    {'name': 'Pop', 'color': Color(0xFFF472B6)},
+    {'name': 'Jazz', 'color': Color(0xFFFBBF24)},
+    {'name': 'Rock', 'color': Color(0xFF4B5563)},
+    {'name': 'Classical', 'color': Color(0xFF22D3EE)},
+    {'name': 'R&B', 'color': Color(0xFFFB7185)},
+    {'name': 'Podcasts', 'color': Color(0xFF818CF8)},
+    {'name': 'Metal', 'color': Color(0xFF374151)},
   ];
 }

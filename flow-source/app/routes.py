@@ -44,6 +44,12 @@ from .utils import (
 
 router = APIRouter()
 
+
+@router.get("/health")
+async def health_check():
+    return {"status": "ok"}
+
+
 logger = logging.getLogger("uvicorn")
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="v1/auth/login")
@@ -598,27 +604,91 @@ async def stream_audio(
         upstream_headers["range"] = request.headers["range"]
         logger.info(f"Range request: {request.headers['range']} for {video_id}")
 
+    # We'll use a standard Chrome User-Agent to match the impersonation used by yt-dlp
+    upstream_headers.update(
+        {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+            "Referer": "https://www.youtube.com/",
+            "Connection": "keep-alive",
+        }
+    )
+
     client = get_shared_client()
     try:
         # We use a stream context to ensure the connection is closed
         request_to_upstream = httpx.Request("GET", audio_url, headers=upstream_headers)
         upstream = await client.send(request_to_upstream, stream=True)
 
+        logger.info(
+            f"Upstream response for {video_id}: status={upstream.status_code} "
+            f"content-type={upstream.headers.get('content-type')} "
+            f"content-length={upstream.headers.get('content-length')} "
+            f"range={upstream.headers.get('content-range')}"
+        )
+
+        if upstream.status_code >= 400:
+            logger.error(f"Upstream returned {upstream.status_code} for {video_id}")
+            # If forbidden or not found, try to clear cache so next request triggers re-extraction
+            if upstream.status_code in (403, 410):
+                from .services import _url_cache
+
+                if video_id in _url_cache:
+                    del _url_cache[video_id]
+
         passthrough = {
             k: v
             for k, v in upstream.headers.items()
-            if k.lower() in ("content-type", "content-range", "accept-ranges")
+            if k.lower()
+            in (
+                "content-type",
+                "content-range",
+                "accept-ranges",
+                "etag",
+                "last-modified",
+            )
         }
-        passthrough.setdefault("accept-ranges", "bytes")
+        # Only pass content-length if we are serving a range or if we are sure it won't confuse the client
+        if "content-length" in upstream.headers and "range" in request.headers:
+            passthrough["content-length"] = upstream.headers["content-length"]
+
+        if "accept-ranges" not in passthrough:
+            passthrough["accept-ranges"] = "bytes"
+
+        # Determine media type more robustly
+        content_type = upstream.headers.get("content-type")
+        if not content_type or content_type == "application/octet-stream":
+            if ".googlevideo.com" in audio_url:
+                if "mime=audio%2Fmp4" in audio_url or "mime=audio/mp4" in audio_url:
+                    content_type = "audio/mp4"
+                elif "mime=audio%2Fwebm" in audio_url or "mime=audio/webm" in audio_url:
+                    content_type = "audio/webm"
+                else:
+                    content_type = "audio/webm"
+            else:
+                content_type = "audio/mpeg"
+
+        logger.info(
+            f"Serving stream for {video_id} as {content_type} with headers: {passthrough}"
+        )
 
         async def _iter():
+            logger.info(f"Starting to yield chunks for {video_id}")
+            total_sent = 0
             try:
-                # Use a larger chunk size for smoother buffering (512KB)
-                async for chunk in upstream.aiter_bytes(524288):
+                # Use a smaller chunk size (64KB) to start playback faster
+                async for chunk in upstream.aiter_bytes(65536):
+                    if total_sent == 0:
+                        logger.info(f"First chunk yielded for {video_id}")
+                    total_sent += len(chunk)
                     yield chunk
+                logger.info(
+                    f"Finished streaming {video_id}: sent {total_sent} bytes total"
+                )
             except Exception as e:
                 # Client probably disconnected
-                logger.debug(f"Streaming interrupted for {video_id}: {e}")
+                logger.warning(
+                    f"Streaming interrupted for {video_id} after {total_sent} bytes: {e}"
+                )
             finally:
                 await upstream.aclose()
 
@@ -626,7 +696,7 @@ async def stream_audio(
             _iter(),
             status_code=upstream.status_code,
             headers=passthrough,
-            media_type=upstream.headers.get("content-type", "audio/webm"),
+            media_type=content_type,
         )
     except Exception as e:
         import traceback

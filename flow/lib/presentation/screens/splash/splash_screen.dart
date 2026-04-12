@@ -49,16 +49,9 @@ class _SplashScreenState extends State<SplashScreen>
     _controller.forward().then((_) async {
       await Future.delayed(const Duration(milliseconds: 700));
       if (!mounted) return;
-      // Wait for AuthCubit to finish initialising (it starts with isLoading: true).
-      final authCubit = context.read<AuthCubit>();
-      AuthState authState = authCubit.state;
-      if (authState.isLoading) {
-        authState = await authCubit.stream.firstWhere((s) => !s.isLoading);
-      }
-      if (!mounted) return;
-      final Widget destination = authState.isAuthenticated
-          ? const _RootShell()
-          : const LoginScreen();
+      // Always navigate to the shell. The screens themselves will handle
+      // the unauthenticated/no-source state.
+      const Widget destination = _RootShell();
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(
           pageBuilder: (context, animation, secondary) => destination,
@@ -137,24 +130,9 @@ class _RootShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocListener<AuthCubit, AuthState>(
-      listenWhen: (prev, curr) =>
-          prev.isAuthenticated && !curr.isAuthenticated && !curr.isLoading,
-      listener: (context, _) {
-        Navigator.of(context).pushAndRemoveUntil(
-          PageRouteBuilder(
-            pageBuilder: (_, __, ___) => const LoginScreen(),
-            transitionsBuilder: (_, anim, __, child) =>
-                FadeTransition(opacity: anim, child: child),
-            transitionDuration: const Duration(milliseconds: 400),
-          ),
-          (_) => false,
-        );
-      },
-      child: ResponsiveLayout(
-        mobile: (_) => const MainScreen(),
-        desktop: (_) => const DesktopShell(),
-      ),
+    return ResponsiveLayout(
+      mobile: (_) => const MainScreen(),
+      desktop: (_) => const DesktopShell(),
     );
   }
 }

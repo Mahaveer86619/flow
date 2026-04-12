@@ -40,8 +40,11 @@ class HomeCubit extends Cubit<HomeState> {
 
   Future<void> _load() async {
     // If the user has no YT auth, show the no-source view immediately.
-    if (!LocalStorage.instance.cachedHasYtAuth) {
-      AppLogger.i(_tag, 'No YT auth — emitting noSource');
+    final token = LocalStorage.instance.jwtToken;
+    final hasYt = LocalStorage.instance.cachedHasYtAuth;
+
+    if (token == null || !hasYt) {
+      AppLogger.i(_tag, 'Unauthenticated or no YT auth — emitting noSource');
       if (!isClosed) emit(const HomeState(noSource: true));
       return;
     }

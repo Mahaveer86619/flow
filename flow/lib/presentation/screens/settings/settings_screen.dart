@@ -7,6 +7,7 @@ import '../../../core/storage/local_storage.dart';
 import '../../../data/sources/auth_data_source.dart';
 import '../../cubits/home/home_cubit.dart';
 import '../../cubits/settings/settings_cubit.dart';
+import '../auth/login_screen.dart';
 import 'sub_screens/about_screen.dart';
 import 'sub_screens/appearance_screen.dart';
 import 'sub_screens/downloads_screen.dart';
@@ -46,57 +47,87 @@ class SettingsScreen extends StatelessWidget {
               username: authState.username ?? '',
               email: authState.email ?? '',
               onLogout: () => context.read<AuthCubit>().logout(),
+            )
+          else
+            _Section(
+              title: 'Account',
+              children: [
+                _Tile(
+                  icon: Icons.login_rounded,
+                  title: 'Sign in',
+                  subtitle: 'Access your library and sources',
+                  onTap: () => _push(context, const LoginScreen()),
+                ),
+              ],
             ),
-          _Section(title: 'Sources', children: [
-            _SourceTile(
-              connected: authState.hasYtAuth,
-              onTap: () => authState.hasYtAuth
-                  ? _disconnectYT(context)
-                  : _push(context, const YTConnectScreen()),
-            ),
-          ]),
-          _Section(title: 'Audio', children: [
-            _Tile(
-              icon: Icons.equalizer_rounded,
-              title: 'Equalizer',
-              subtitle: settings.eqPreset,
-              onTap: () => _push(context, const EqualizerScreen()),
-            ),
-          ]),
-          _Section(title: 'Storage', children: [
-            _Tile(
-              icon: Icons.download_outlined,
-              title: 'Downloads',
-              subtitle: '${settings.downloadQuality} quality',
-              onTap: () => _push(context, const DownloadsScreen()),
-            ),
-          ]),
-          _Section(title: 'Display', children: [
-            _Tile(
-              icon: Icons.palette_outlined,
-              title: 'Appearance',
-              subtitle: _themeLabel(settings.themeMode),
-              onTap: () => _push(context, const AppearanceScreen()),
-            ),
-          ]),
-          _Section(title: 'Connection', children: [
-            _Tile(
-              icon: Icons.dns_outlined,
-              title: 'Server',
-              subtitle: ServerConfig.instance.isCustom
-                  ? 'Custom — ${ServerConfig.instance.baseUrl}'
-                  : 'Default',
-              onTap: () => _push(context, const ServerScreen()),
-            ),
-          ]),
-          _Section(title: 'Info', children: [
-            _Tile(
-              icon: Icons.info_outline_rounded,
-              title: 'About Flow',
-              subtitle: 'v1.0.0',
-              onTap: () => _push(context, const AboutScreen()),
-            ),
-          ]),
+          _Section(
+            title: 'Sources',
+            children: [
+              _SourceTile(
+                connected: authState.hasYtAuth,
+                onTap: () => authState.hasYtAuth
+                    ? _disconnectYT(context)
+                    : _push(context, const YTConnectScreen()),
+              ),
+            ],
+          ),
+          _Section(
+            title: 'Audio',
+            children: [
+              _Tile(
+                icon: Icons.equalizer_rounded,
+                title: 'Equalizer',
+                subtitle: settings.eqPreset,
+                onTap: () => _push(context, const EqualizerScreen()),
+              ),
+            ],
+          ),
+          _Section(
+            title: 'Storage',
+            children: [
+              _Tile(
+                icon: Icons.download_outlined,
+                title: 'Downloads',
+                subtitle: '${settings.downloadQuality} quality',
+                onTap: () => _push(context, const DownloadsScreen()),
+              ),
+            ],
+          ),
+          _Section(
+            title: 'Display',
+            children: [
+              _Tile(
+                icon: Icons.palette_outlined,
+                title: 'Appearance',
+                subtitle: _themeLabel(settings.themeMode),
+                onTap: () => _push(context, const AppearanceScreen()),
+              ),
+            ],
+          ),
+          _Section(
+            title: 'Connection',
+            children: [
+              _Tile(
+                icon: Icons.dns_outlined,
+                title: 'Server',
+                subtitle: ServerConfig.instance.isCustom
+                    ? 'Custom — ${ServerConfig.instance.baseUrl}'
+                    : 'Default',
+                onTap: () => _push(context, const ServerScreen()),
+              ),
+            ],
+          ),
+          _Section(
+            title: 'Info',
+            children: [
+              _Tile(
+                icon: Icons.info_outline_rounded,
+                title: 'About Flow',
+                subtitle: 'v1.0.0',
+                onTap: () => _push(context, const AboutScreen()),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -118,7 +149,8 @@ class SettingsScreen extends StatelessWidget {
       builder: (ctx) => AlertDialog(
         title: const Text('Disconnect YouTube Music'),
         content: const Text(
-            'Are you sure you want to disconnect your YouTube Music account?'),
+          'Are you sure you want to disconnect your YouTube Music account?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
@@ -232,8 +264,7 @@ class _AccountCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final initial =
-        username.isNotEmpty ? username[0].toUpperCase() : '?';
+    final initial = username.isNotEmpty ? username[0].toUpperCase() : '?';
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
@@ -287,9 +318,7 @@ class _AccountCard extends StatelessWidget {
               onPressed: onLogout,
               icon: const Icon(Icons.logout_rounded, size: 18),
               label: const Text('Logout'),
-              style: TextButton.styleFrom(
-                foregroundColor: cs.error,
-              ),
+              style: TextButton.styleFrom(foregroundColor: cs.error),
             ),
           ],
         ),
@@ -351,9 +380,7 @@ class _SourceTile extends StatelessWidget {
         ],
       ),
       trailing: Icon(
-        connected
-            ? Icons.link_off_rounded
-            : Icons.chevron_right_rounded,
+        connected ? Icons.link_off_rounded : Icons.chevron_right_rounded,
       ),
       onTap: onTap,
     );
