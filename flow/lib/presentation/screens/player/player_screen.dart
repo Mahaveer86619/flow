@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../domain/entities/song.dart';
@@ -8,122 +9,144 @@ import '../../widgets/album_art_widget.dart';
 import '../../widgets/squiggly_progress_bar.dart';
 import '../queue/queue_screen.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PlayerScreen (mobile) — vertically scrollable layout.
-//
-// Scroll sections:
-//   1. Main player    — album art, song info, progress, controls (fills viewport)
-//   2. Artist card    — large gradient card, same aspect ratio as album art
-//   3. Metadata card  — album, duration, artist details
-// ─────────────────────────────────────────────────────────────────────────────
-
 class PlayerScreen extends StatefulWidget {
   const PlayerScreen({super.key});
+
+  static Future<void> show(BuildContext context) {
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      useSafeArea: false,
+      enableDrag: false, // Handle drag manually via DraggableScrollableSheet
+      builder: (context) => const PlayerScreen(),
+    );
+  }
 
   @override
   State<PlayerScreen> createState() => _PlayerScreenState();
 }
 
 class _PlayerScreenState extends State<PlayerScreen> {
-  final ScrollController _scrollController = ScrollController();
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  void _scrollToInfo() {
-    _scrollController.animateTo(
-      MediaQuery.sizeOf(context).height,
-      duration: const Duration(milliseconds: 800),
-      curve: Curves.easeOutCubic,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final state = context.watch<PlayerBloc>().state;
     final song = state.currentSong;
 
-    if (song == null) {
-      return Scaffold(
-        backgroundColor: const Color(0xFF0A0A14),
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          foregroundColor: Colors.white,
-        ),
-        body: const Center(
-          child: Text(
-            'Nothing playing',
-            style: TextStyle(color: Colors.white54),
-          ),
-        ),
-      );
-    }
+    if (song == null) return const SizedBox.shrink();
 
     final primary = state.customPrimary ?? song.colorPrimary;
     final secondary = state.customSecondary ?? song.colorSecondary;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFF0A0A14),
-      body: AnimatedContainer(
-        duration: const Duration(milliseconds: 600),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: const Alignment(0.6, 0.8),
-            colors: [
-              secondary.withAlpha(150),
-              primary.withAlpha(80),
-              const Color(0xFF0A0A14),
-            ],
-            stops: const [0.0, 0.4, 1.0],
-          ),
-        ),
-        child: CustomScrollView(
-          controller: _scrollController,
-          physics: const BouncingScrollPhysics(),
-          slivers: [
-            // ── 1. Main player (fills the viewport) ──────────────────────
-            SliverToBoxAdapter(
-              child: SizedBox(
-                height: MediaQuery.sizeOf(context).height,
-                child: SafeArea(
-                  child: _MainPlayerSection(
-                    song: song,
-                    onScrollRequest: _scrollToInfo,
+    return NotificationListener<DraggableScrollableNotification>(
+      onNotification: (notification) {
+        if (notification.extent <= 0.0) {
+          Navigator.pop(context);
+        }
+        return true;
+      },
+      child: DraggableScrollableSheet(
+        initialChildSize: 1.0,
+        minChildSize: 0.0,
+        maxChildSize: 1.0,
+        snap: true,
+        snapSizes: const [0.0, 1.0],
+        builder: (context, scrollController) {
+          return AnnotatedRegion<SystemUiOverlayStyle>(
+            value: const SystemUiOverlayStyle(
+              statusBarColor: Colors.transparent,
+              statusBarIconBrightness: Brightness.light,
+            ),
+            child: Scaffold(
+              backgroundColor: const Color(0xFF0A0A14), // Solid background
+              body: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: const Alignment(0.6, 0.8),
+                    colors: [
+                      secondary.withAlpha(200),
+                      primary.withAlpha(120),
+                      const Color(0xFF0A0A14).withAlpha(0),
+                    ],
+                    stops: const [0.0, 0.4, 1.0],
                   ),
+                ),
+                child: CustomScrollView(
+                  controller: scrollController,
+                  physics: const BouncingScrollPhysics(
+                    parent: AlwaysScrollableScrollPhysics(),
+                  ),
+                  slivers: [
+                    // ── Dynamic Top Padding ────────────────────────────────────
+                    SliverToBoxAdapter(
+                      child: SizedBox(
+                        height: MediaQuery.paddingOf(context).top,
+                      ),
+                    ),
+
+                    // ── Drag Handle ──────────────────────────────────────────────
+                    SliverToBoxAdapter(
+                      child: Center(
+                        child: Container(
+                          margin: const EdgeInsets.only(top: 12),
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withAlpha(80),
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // ── 1. Main player ──────────────────────────────────────────
+                    SliverToBoxAdapter(
+                      child: SizedBox(
+                        // Dynamically adjust height to fill the screen nicely, subtracting top padding
+                        height:
+                            MediaQuery.sizeOf(context).height -
+                            MediaQuery.paddingOf(context).top -
+                            40,
+                        child: _MainPlayerSection(
+                          song: song,
+                          onScrollRequest: () {
+                            scrollController.animateTo(
+                              MediaQuery.sizeOf(context).height,
+                              duration: const Duration(milliseconds: 600),
+                              curve: Curves.easeOutCubic,
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                    // ── 2. Artist card ────────────────────────────────────────────
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                        child: _ArtistCard(song: song),
+                      ),
+                    ),
+
+                    // ── 3. Metadata card ──────────────────────────────────────────
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 52),
+                        child: _MetadataCard(song: song),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
-
-            // ── 2. Artist card ────────────────────────────────────────────
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                child: _ArtistCard(song: song),
-              ),
-            ),
-
-            // ── 3. Metadata card ──────────────────────────────────────────
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 52),
-                child: _MetadataCard(song: song),
-              ),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Section 1 — Main player (fills viewport height)
-// ─────────────────────────────────────────────────────────────────────────────
-
+// ── _MainPlayerSection ──
 class _MainPlayerSection extends StatelessWidget {
   final Song song;
   final VoidCallback onScrollRequest;
@@ -137,53 +160,53 @@ class _MainPlayerSection extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
         children: [
-          const SizedBox(height: 6),
-
-          // ── Top bar ──────────────────────────────────────────────────────
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              IconButton(
-                icon: const Icon(
-                  Icons.keyboard_arrow_down_rounded,
-                  size: 32,
-                  color: Colors.white,
+          SafeArea(
+            bottom: false,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                IconButton(
+                  icon: const Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    size: 32,
+                    color: Colors.white,
+                  ),
+                  onPressed: () => Navigator.pop(context),
                 ),
-                onPressed: () => Navigator.pop(context),
-              ),
-              Expanded(
-                child: Column(
-                  children: [
-                    Text(
-                      'NOW PLAYING',
-                      style: GoogleFonts.outfit(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white.withAlpha(160),
-                        letterSpacing: 1.5,
+                Expanded(
+                  child: Column(
+                    children: [
+                      Text(
+                        'NOW PLAYING',
+                        style: GoogleFonts.outfit(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white.withAlpha(160),
+                          letterSpacing: 1.5,
+                        ),
                       ),
-                    ),
-                    Text(
-                      song.title,
-                      style: GoogleFonts.spaceGrotesk(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
+                      Text(
+                        song.title,
+                        style: GoogleFonts.spaceGrotesk(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
                       ),
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              IconButton(
-                icon: Icon(
-                  Icons.more_vert_rounded,
-                  color: Colors.white.withAlpha(200),
+                IconButton(
+                  icon: Icon(
+                    Icons.more_vert_rounded,
+                    color: Colors.white.withAlpha(200),
+                  ),
+                  onPressed: () => _showSongOptions(context, song),
                 ),
-                onPressed: () => _showSongOptions(context, song),
-              ),
-            ],
+              ],
+            ),
           ),
           const SizedBox(height: 12),
 
@@ -195,11 +218,14 @@ class _MainPlayerSection extends StatelessWidget {
                     ? constraints.maxHeight
                     : constraints.maxWidth;
                 return Center(
-                  child: AlbumArtWidget(
-                    size: size,
-                    colorPrimary: song.colorPrimary,
-                    colorSecondary: song.colorSecondary,
-                    thumbnailUrl: song.thumbnailUrl,
+                  child: Hero(
+                    tag: 'art_${song.id}',
+                    child: AlbumArtWidget(
+                      size: size,
+                      colorPrimary: song.colorPrimary,
+                      colorSecondary: song.colorSecondary,
+                      thumbnailUrl: song.thumbnailUrl,
+                    ),
                   ),
                 );
               },
@@ -266,7 +292,7 @@ class _MainPlayerSection extends StatelessWidget {
           // ── Squiggly progress bar ────────────────────────────────────────
           SquigglyProgressBar(
             progress: state.progress,
-            bufferedProgress: state.bufferProgress,
+            bufferProgress: state.bufferProgress,
             onSeek: (fraction) =>
                 context.read<PlayerBloc>().add(SeekToEvent(fraction)),
           ),
@@ -311,9 +337,7 @@ class _MainPlayerSection extends StatelessWidget {
                   size: 28,
                 ),
                 tooltip: 'Queue',
-                onPressed: () => Navigator.of(
-                  context,
-                ).push(MaterialPageRoute(builder: (_) => const QueueScreen())),
+                onPressed: () => QueueScreen.show(context),
               ),
               GestureDetector(
                 onTap: onScrollRequest,
@@ -449,10 +473,6 @@ class _DownloadIcon extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Playback controls row
-// ─────────────────────────────────────────────────────────────────────────────
-
 class _PlaybackControls extends StatelessWidget {
   final Color activeColor;
   const _PlaybackControls({required this.activeColor});
@@ -482,7 +502,6 @@ class _PlaybackControls extends StatelessWidget {
           onPressed: () =>
               context.read<PlayerBloc>().add(const SkipPreviousEvent()),
         ),
-        // Play/Pause button
         _PlayPauseButton(),
         IconButton(
           icon: const Icon(
@@ -564,10 +583,6 @@ class _PlayPauseButton extends StatelessWidget {
     );
   }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Section 2 — Artist card (Modern circular design)
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _ArtistCard extends StatelessWidget {
   final Song song;
@@ -699,10 +714,6 @@ class _ArtistInitials extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Section 3 — Metadata card
-// ─────────────────────────────────────────────────────────────────────────────
-
 class _MetadataCard extends StatelessWidget {
   final Song song;
   const _MetadataCard({required this.song});
@@ -771,7 +782,6 @@ class _MetaRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     return Row(
       children: [
         Container(

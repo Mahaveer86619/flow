@@ -10,11 +10,17 @@ class AuthDataSource {
 
   String get _base => ServerConfig.instance.baseUrl;
 
+  Map<String, String> _headers([String? token]) => {
+    'User-Agent': 'FlowMusicApp/1.0',
+    if (token != null) 'Authorization': 'Bearer $token',
+  };
+
   Future<String> login(String username, String password) async {
     AppLogger.i(_tag, 'login($username)');
     final resp = await http
         .post(
           Uri.parse('$_base/v1/auth/login'),
+          headers: _headers(),
           body: {'username': username, 'password': password},
         )
         .timeout(_timeout);
@@ -23,17 +29,17 @@ class AuthDataSource {
     return json['access_token'] as String;
   }
 
-  Future<void> signup(
-      String username, String email, String password) async {
+  Future<void> signup(String username, String email, String password) async {
     AppLogger.i(_tag, 'signup($username)');
-    AppLogger.d(_tag, 'base url: $_base full url: ${Uri.parse("$_base/v1/auth/signup")}');
-    AppLogger.d(_tag, 'signup($username) - email: $email');
     final resp = await http
         .post(
           Uri.parse('$_base/v1/auth/signup'),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode(
-              {'username': username, 'email': email, 'password': password}),
+          headers: _headers()..addAll({'Content-Type': 'application/json'}),
+          body: jsonEncode({
+            'username': username,
+            'email': email,
+            'password': password,
+          }),
         )
         .timeout(_timeout);
     _assertOk(resp);
@@ -42,25 +48,22 @@ class AuthDataSource {
   Future<Map<String, dynamic>> getMe(String token) async {
     AppLogger.d(_tag, 'getMe()');
     final resp = await http
-        .get(
-          Uri.parse('$_base/v1/auth/me'),
-          headers: {'Authorization': 'Bearer $token'},
-        )
+        .get(Uri.parse('$_base/v1/auth/me'), headers: _headers(token))
         .timeout(_timeout);
     _assertOk(resp);
     return jsonDecode(resp.body) as Map<String, dynamic>;
   }
 
   Future<void> connectYTCookies(
-      String token, Map<String, String> cookies) async {
+    String token,
+    Map<String, String> cookies,
+  ) async {
     AppLogger.i(_tag, 'connectYTCookies()');
     final resp = await http
         .post(
           Uri.parse('$_base/v1/yt-auth/cookies'),
-          headers: {
-            'Authorization': 'Bearer $token',
-            'Content-Type': 'application/json',
-          },
+          headers: _headers(token)
+            ..addAll({'Content-Type': 'application/json'}),
           body: jsonEncode({'cookies': cookies}),
         )
         .timeout(_timeout);
@@ -70,10 +73,7 @@ class AuthDataSource {
   Future<void> disconnectYT(String token) async {
     AppLogger.i(_tag, 'disconnectYT()');
     final resp = await http
-        .delete(
-          Uri.parse('$_base/v1/yt-auth'),
-          headers: {'Authorization': 'Bearer $token'},
-        )
+        .delete(Uri.parse('$_base/v1/yt-auth'), headers: _headers(token))
         .timeout(_timeout);
     _assertOk(resp);
   }

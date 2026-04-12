@@ -1,13 +1,12 @@
 import os
 
-import ngrok
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from .config import settings
 from .database import Base, engine
-from .routes import router
+from .routes import close_shared_client, router
 from .utils import write_cookie_file
 
 
@@ -44,8 +43,12 @@ def create_app() -> FastAPI:
         if write_cookie_file(settings.AUTH_FILE_PATH, settings.COOKIES_FILE_PATH):
             print(f"Global cookies initialized at {settings.COOKIES_FILE_PATH}")
 
-        # Ngrok exposure if flavor is dev
-        pass  # ngrok is started in run.py before uvicorn
+        # Cloudflare tunnel exposure is managed by Docker sidecar
+        pass
+
+    @app.on_event("shutdown")
+    async def shutdown_event():
+        await close_shared_client()
 
     return app
 

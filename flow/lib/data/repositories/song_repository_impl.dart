@@ -141,6 +141,16 @@ class SongRepositoryImpl implements SongRepository {
   }
 
   @override
+  Future<void> prefetchAudio(String videoId) async {
+    try {
+      await _source.prefetchAudio(videoId);
+    } catch (e) {
+      // Don't throw for prefetch, just log
+      AppLogger.w(_tag, 'Prefetch failed for $videoId: $e');
+    }
+  }
+
+  @override
   List<Map<String, dynamic>> getCategories() {
     final cats = _source.fetchCategories();
     AppLogger.d(_tag, 'getCategories: ${cats.length}');

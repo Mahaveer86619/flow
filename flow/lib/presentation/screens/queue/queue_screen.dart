@@ -7,6 +7,18 @@ import '../../blocs/player/player_bloc.dart';
 class QueueScreen extends StatelessWidget {
   const QueueScreen({super.key});
 
+  /// Opens the [QueueScreen] as a draggable modal bottom sheet.
+  static Future<void> show(BuildContext context) {
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      useSafeArea: false,
+      enableDrag: false,
+      builder: (context) => const QueueScreen(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = context.watch<PlayerBloc>().state;
@@ -14,107 +26,151 @@ class QueueScreen extends StatelessWidget {
     final nextSongs = state.queue.skip(state.queueIndex + 1).toList();
 
     final currentSong = state.currentSong;
-    final bgColor = currentSong != null
-        ? currentSong.colorPrimary.withAlpha(20)
-        : colorScheme.surface;
 
-    return Scaffold(
-      backgroundColor: colorScheme.surface,
-      body: currentSong == null
-          ? const Center(child: Text('No song playing'))
-          : Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    currentSong.colorPrimary.withAlpha(40),
-                    colorScheme.surface,
+    if (currentSong == null) return const SizedBox.shrink();
+
+    return NotificationListener<DraggableScrollableNotification>(
+      onNotification: (notification) {
+        if (notification.extent <= 0.0) {
+          Navigator.pop(context);
+        }
+        return true;
+      },
+      child: DraggableScrollableSheet(
+        initialChildSize: 1.0,
+        minChildSize: 0.0,
+        maxChildSize: 1.0,
+        snap: true,
+        snapSizes: const [0.0, 1.0],
+        builder: (context, scrollController) {
+          return SafeArea(
+            bottom: false,
+            child: Scaffold(
+              backgroundColor: const Color(0xFF0A0A14), // Solid background
+              body: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      currentSong.colorPrimary.withAlpha(40),
+                      const Color(0xFF0A0A14),
+                    ],
+                  ),
+                ),
+                child: CustomScrollView(
+                  controller: scrollController,
+                  physics: const BouncingScrollPhysics(
+                    parent: AlwaysScrollableScrollPhysics(),
+                  ),
+                  slivers: [
+                    // ── Drag Handle ──────────────────────────────────────────────
+                    SliverToBoxAdapter(
+                      child: Center(
+                        child: Container(
+                          margin: const EdgeInsets.only(top: 12),
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: colorScheme.onSurface.withAlpha(40),
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ),
+                    ),
+                    SliverAppBar(
+                      backgroundColor: Colors.transparent,
+                      elevation: 0,
+                      pinned: true,
+                      title: Padding(
+                        padding: EdgeInsets.only(
+                          top: MediaQuery.paddingOf(context).top,
+                        ),
+                        child: Text(
+                          'Queue',
+                          style: GoogleFonts.spaceGrotesk(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 22,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                      ),
+                      centerTitle: true,
+                      leading: Padding(
+                        padding: EdgeInsets.only(
+                          top: MediaQuery.paddingOf(context).top,
+                        ),
+                        child: IconButton(
+                          icon: const Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            size: 32,
+                          ),
+                          onPressed: () => Navigator.of(context).pop(),
+                        ),
+                      ),
+                    ),
+
+                    // Now Playing Header
+                    _SectionHeader(
+                      title: 'Now Playing',
+                      color: colorScheme.primary,
+                    ),
+
+                    // Now Playing Item
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        child: _QueueSongTile(
+                          song: currentSong,
+                          isPlaying: true,
+                          isNowPlaying: true,
+                        ),
+                      ),
+                    ),
+
+                    if (nextSongs.isNotEmpty) ...[
+                      // Next Up Header
+                      _SectionHeader(
+                        title: 'Next In Queue',
+                        color: colorScheme.onSurface,
+                      ),
+
+                      // Queue List
+                      SliverList(
+                        delegate: SliverChildBuilderDelegate((context, index) {
+                          final song = nextSongs[index];
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 4,
+                            ),
+                            child: _QueueSongTile(
+                              song: song,
+                              isPlaying: false,
+                              onTap: () {
+                                context.read<PlayerBloc>().add(
+                                  PlayQueueEvent(
+                                    songs: state.queue,
+                                    startIndex: state.queueIndex + 1 + index,
+                                  ),
+                                );
+                              },
+                            ),
+                          );
+                        }, childCount: nextSongs.length),
+                      ),
+                    ],
+                    const SliverToBoxAdapter(child: SizedBox(height: 100)),
                   ],
                 ),
               ),
-              child: CustomScrollView(
-                slivers: [
-                  SliverAppBar(
-                    backgroundColor: Colors.transparent,
-                    elevation: 0,
-                    pinned: true,
-                    title: Text(
-                      'Queue',
-                      style: GoogleFonts.spaceGrotesk(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 22,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                    centerTitle: true,
-                    leading: IconButton(
-                      icon: const Icon(
-                        Icons.keyboard_arrow_down_rounded,
-                        size: 32,
-                      ),
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
-                  ),
-
-                  // Now Playing Header
-                  _SectionHeader(
-                    title: 'Now Playing',
-                    color: colorScheme.primary,
-                  ),
-
-                  // Now Playing Item
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      child: _QueueSongTile(
-                        song: currentSong,
-                        isPlaying: true,
-                        isNowPlaying: true,
-                      ),
-                    ),
-                  ),
-
-                  if (nextSongs.isNotEmpty) ...[
-                    // Next Up Header
-                    _SectionHeader(
-                      title: 'Next In Queue',
-                      color: colorScheme.onSurface,
-                    ),
-
-                    // Queue List
-                    SliverList(
-                      delegate: SliverChildBuilderDelegate((context, index) {
-                        final song = nextSongs[index];
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 4,
-                          ),
-                          child: _QueueSongTile(
-                            song: song,
-                            isPlaying: false,
-                            onTap: () {
-                              context.read<PlayerBloc>().add(
-                                PlayQueueEvent(
-                                  songs: state.queue,
-                                  startIndex: state.queueIndex + 1 + index,
-                                ),
-                              );
-                            },
-                          ),
-                        );
-                      }, childCount: nextSongs.length),
-                    ),
-                  ],
-
-                  const SliverToBoxAdapter(child: SizedBox(height: 100)),
-                ],
-              ),
             ),
+          );
+        },
+      ),
     );
   }
 }

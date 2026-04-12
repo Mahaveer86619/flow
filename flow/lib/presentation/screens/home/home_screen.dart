@@ -15,29 +15,14 @@ import '../artist/artist_screen.dart';
 import '../player/player_screen.dart';
 import '../playlist/playlist_screen.dart';
 
+import '../settings/settings_screen.dart';
+
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<HomeCubit, HomeState>(
-      buildWhen: (prev, curr) =>
-          prev.isLoading != curr.isLoading ||
-          prev.error != curr.error ||
-          prev.noSource != curr.noSource,
-      builder: (context, state) {
-        if (state.isLoading) return const _HomeScreenSkeleton();
-        if (state.noSource) return const NoSourceView();
-        if (state.error) {
-          return ErrorView(
-            errorType: state.errorType,
-            onRetry: () => context.read<HomeCubit>().reload(),
-          );
-        }
-
-        return const _HomeScreenContent();
-      },
-    );
+    return const _HomeScreenContent();
   }
 }
 
@@ -46,103 +31,273 @@ class _HomeScreenContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isSmall = Breakpoints.isMobile(MediaQuery.sizeOf(context).width);
+    final colorScheme = Theme.of(context).colorScheme;
 
     return BlocBuilder<HomeCubit, HomeState>(
       builder: (context, state) {
-        return CustomScrollView(
-          cacheExtent: 2000,
-          slivers: [
-            // ── Greeting ──────────────────────────────────────────────────────────
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
-                child: Text(
-                  state.greeting,
-                  style: GoogleFonts.spaceGrotesk(
-                    fontSize: isSmall ? 28.0 : 36.0,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -1.2,
-                    height: 1.1,
+        return RefreshIndicator(
+          onRefresh: () => context.read<HomeCubit>().refresh(),
+          backgroundColor: const Color(0xFF1A1A2E),
+          color: const Color(0xFF7C3AED),
+          displacement: 100,
+          child: CustomScrollView(
+            cacheExtent: 2000,
+            physics: const BouncingScrollPhysics(
+              parent: AlwaysScrollableScrollPhysics(),
+            ),
+            slivers: [
+              // ── Custom immersive AppBar (Always Visible) ─────────────────────────
+              SliverAppBar(
+                expandedHeight: 80,
+                floating: true,
+                pinned: false,
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                flexibleSpace: FlexibleSpaceBar(
+                  background: Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      16,
+                      MediaQuery.paddingOf(context).top + 4,
+                      16,
+                      0,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              'Flow',
+                              style: GoogleFonts.spaceGrotesk(
+                                fontSize: 28,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -1.0,
+                              ),
+                            ),
+                            const Spacer(),
+                            IconButton(
+                              icon: const Icon(Icons.notifications_outlined),
+                              onPressed: () {},
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.history_rounded),
+                              onPressed: () {},
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.settings_outlined),
+                              onPressed: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => const SettingsScreen(),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                        Row(
+                          children: [
+                            Text(
+                              state.greeting,
+                              style: GoogleFonts.outfit(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: colorScheme.onSurface.withAlpha(140),
+                              ),
+                            ),
+                            if (state.isLoading && state.shelves.isNotEmpty)
+                              const Padding(
+                                padding: EdgeInsets.only(left: 12),
+                                child: SizedBox(
+                                  width: 12,
+                                  height: 12,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white24,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
 
-            // ── Dynamic Shelves ──────────────────────────────────────────────────
-            ...state.shelves.map((shelf) => _HomeShelfRenderer(
-                  shelf: shelf,
-                  allSongs: state.allSongs,
-                )),
+              // ── Filter Chips ───────────────────────────────────────────────────
+              SliverPersistentHeader(
+                pinned: true,
+                delegate: _FilterChipsDelegate(),
+              ),
 
-            const SliverToBoxAdapter(child: SizedBox(height: 40)),
-          ],
+              // ── Body Logic (Error / Loading / Content) ──────────────────────────
+              if (state.isLoading && state.shelves.isEmpty)
+                const _HomeScreenSkeleton()
+              else if (state.noSource)
+                const SliverFillRemaining(child: NoSourceView())
+              else if (state.error && state.shelves.isEmpty)
+                SliverFillRemaining(
+                  child: ErrorView(
+                    errorType: state.errorType,
+                    onRetry: () => context.read<HomeCubit>().reload(),
+                  ),
+                )
+              else ...[
+                // Dynamic Shelves
+                ...state.shelves.map(
+                  (shelf) => _HomeShelfRenderer(
+                    shelf: shelf,
+                    allSongs: state.allSongs,
+                    profileUrl: state.profileUrl,
+                  ),
+                ),
+                const SliverToBoxAdapter(child: SizedBox(height: 100)),
+              ],
+            ],
+          ),
         );
       },
     );
   }
 }
 
+class _FilterChipsDelegate extends SliverPersistentHeaderDelegate {
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final tags = ['All', 'Relax', 'Sleep', 'Energize', 'Sadhana', 'Focus'];
+
+    return Container(
+      color: Theme.of(
+        context,
+      ).scaffoldBackgroundColor.withAlpha(overlapsContent ? 255 : 0),
+      height: 60,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        itemCount: tags.length,
+        itemBuilder: (context, i) {
+          final isFirst = i == 0;
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: FilterChip(
+              label: Text(tags[i]),
+              selected: isFirst,
+              onSelected: (_) {},
+              backgroundColor: colorScheme.surfaceContainerHigh,
+              selectedColor: colorScheme.onSurface,
+              labelStyle: TextStyle(
+                color: isFirst ? colorScheme.surface : colorScheme.onSurface,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+                side: BorderSide.none,
+              ),
+              showCheckmark: false,
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  @override
+  double get maxExtent => 60;
+  @override
+  double get minExtent => 60;
+  @override
+  bool shouldRebuild(covariant SliverPersistentHeaderDelegate oldDelegate) =>
+      false;
+}
+
 class _HomeShelfRenderer extends StatelessWidget {
   final HomeShelf shelf;
   final List<Song> allSongs;
+  final String? profileUrl;
 
-  const _HomeShelfRenderer({required this.shelf, required this.allSongs});
+  const _HomeShelfRenderer({
+    required this.shelf,
+    required this.allSongs,
+    this.profileUrl,
+  });
 
   @override
   Widget build(BuildContext context) {
     final title = shelf.title.toLowerCase();
-    
+    String? shelfSubtitle;
+    String? shelfProfileUrl;
+
+    if (title.contains('listen again')) {
+      shelfSubtitle = 'MAHAVEER PANIGRAHI'; // Placeholder name as per ref image
+      shelfProfileUrl = profileUrl; // Use dynamic profile URL
+    }
+
     // Determine layout based on title or content
     if (title.contains('quick pick') || title.contains('top pick')) {
-      return _buildQuickAccessGrid(context);
+      return _buildQuickAccessGrid(context, shelfSubtitle, shelfProfileUrl);
     }
 
     final itemTypes = shelf.items.map((e) => e.type).toSet();
-    
+
     if (itemTypes.contains(HomeItemType.artist) && shelf.items.length > 2) {
-      return _buildArtistRow(context);
+      return _buildArtistRow(context, shelfSubtitle, shelfProfileUrl);
     }
 
-    if (itemTypes.contains(HomeItemType.album) || itemTypes.contains(HomeItemType.playlist)) {
-      return _buildPlaylistRow(context);
+    if (itemTypes.contains(HomeItemType.album) ||
+        itemTypes.contains(HomeItemType.playlist)) {
+      return _buildPlaylistRow(context, shelfSubtitle, shelfProfileUrl);
     }
 
-    return _buildStandardRow(context);
+    return _buildStandardRow(context, shelfSubtitle, shelfProfileUrl);
   }
 
-  Widget _buildQuickAccessGrid(BuildContext context) {
+  Widget _buildQuickAccessGrid(
+    BuildContext context,
+    String? subtitle,
+    String? profileUrl,
+  ) {
     final songs = shelf.items
         .where((i) => i.type == HomeItemType.song)
         .map((i) => i.data as Song)
         .toList();
 
-    return SliverToBoxAdapter(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(0, 24, 0, 0),
-        child: SizedBox(
-          height: 140,
-          child: GridView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              mainAxisSpacing: 10,
-              crossAxisSpacing: 8,
-              childAspectRatio: 0.35,
-            ),
-            itemCount: songs.length,
-            itemBuilder: (context, i) => _QuickAccessTile(
-              song: songs[i],
-              allSongs: allSongs,
+    return SliverMainAxisGroup(
+      slivers: [
+        SliverToBoxAdapter(
+          child: SectionHeader(
+            title: shelf.title,
+            subtitle: subtitle,
+            profileUrl: profileUrl,
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: SizedBox(
+            height: 200,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: songs.length,
+              itemBuilder: (context, i) =>
+                  _QuickAccessLargeCard(song: songs[i], allSongs: allSongs),
             ),
           ),
         ),
-      ),
+      ],
     );
   }
 
-  Widget _buildArtistRow(BuildContext context) {
+  Widget _buildArtistRow(
+    BuildContext context,
+    String? subtitle,
+    String? profileUrl,
+  ) {
     final artists = shelf.items
         .where((i) => i.type == HomeItemType.artist)
         .map((i) => i.data as Map<String, dynamic>)
@@ -151,9 +306,10 @@ class _HomeShelfRenderer extends StatelessWidget {
     return SliverMainAxisGroup(
       slivers: [
         SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 28, 16, 16),
-            child: SectionHeader(title: shelf.title),
+          child: SectionHeader(
+            title: shelf.title,
+            subtitle: subtitle,
+            profileUrl: profileUrl,
           ),
         ),
         SliverToBoxAdapter(
@@ -168,10 +324,8 @@ class _HomeShelfRenderer extends StatelessWidget {
                 artist: artists[i],
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => ArtistScreen(
-                      artist: artists[i],
-                      allSongs: allSongs,
-                    ),
+                    builder: (_) =>
+                        ArtistScreen(artist: artists[i], allSongs: allSongs),
                   ),
                 ),
               ),
@@ -182,13 +336,18 @@ class _HomeShelfRenderer extends StatelessWidget {
     );
   }
 
-  Widget _buildPlaylistRow(BuildContext context) {
+  Widget _buildPlaylistRow(
+    BuildContext context,
+    String? subtitle,
+    String? profileUrl,
+  ) {
     return SliverMainAxisGroup(
       slivers: [
         SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 28, 16, 16),
-            child: SectionHeader(title: shelf.title),
+          child: SectionHeader(
+            title: shelf.title,
+            subtitle: subtitle,
+            profileUrl: profileUrl,
           ),
         ),
         SliverToBoxAdapter(
@@ -202,7 +361,11 @@ class _HomeShelfRenderer extends StatelessWidget {
               itemBuilder: (context, i) {
                 final item = shelf.items[i];
                 if (item.type == HomeItemType.song) {
-                  return SongCard(song: item.data as Song, queue: allSongs, index: allSongs.indexOf(item.data as Song));
+                  return SongCard(
+                    song: item.data as Song,
+                    queue: allSongs,
+                    index: allSongs.indexOf(item.data as Song),
+                  );
                 }
                 final playlist = item.data as Playlist;
                 return _HomePlaylistCard(playlist: playlist);
@@ -214,20 +377,26 @@ class _HomeShelfRenderer extends StatelessWidget {
     );
   }
 
-  Widget _buildStandardRow(BuildContext context) {
+  Widget _buildStandardRow(
+    BuildContext context,
+    String? subtitle,
+    String? profileUrl,
+  ) {
     final songs = shelf.items
         .where((i) => i.type == HomeItemType.song)
         .map((i) => i.data as Song)
         .toList();
 
-    if (songs.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
+    if (songs.isEmpty)
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
 
     return SliverMainAxisGroup(
       slivers: [
         SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 28, 16, 16),
-            child: SectionHeader(title: shelf.title),
+          child: SectionHeader(
+            title: shelf.title,
+            subtitle: subtitle,
+            profileUrl: profileUrl,
           ),
         ),
         SliverToBoxAdapter(
@@ -265,72 +434,99 @@ class _HomePlaylistCardState extends State<_HomePlaylistCard> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    
+
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
         onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => PlaylistScreen(playlist: widget.playlist)),
+          MaterialPageRoute(
+            builder: (_) => PlaylistScreen(playlist: widget.playlist),
+          ),
         ),
         child: SizedBox(
           width: 140,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              AnimatedScale(
-                scale: _isHovered ? 1.04 : 1.0,
-                duration: const Duration(milliseconds: 200),
-                child: Container(
-                  width: 140,
-                  height: 140,
-                  decoration: BoxDecoration(
-                    color: widget.playlist.color,
-                    borderRadius: BorderRadius.circular(14),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withAlpha(_isHovered ? 60 : 40),
-                        blurRadius: _isHovered ? 20 : 12,
-                        offset: Offset(0, _isHovered ? 8 : 4),
-                      ),
-                    ],
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: Stack(
-                    children: [
-                      if (widget.playlist.thumbnailUrl != null)
-                        Positioned.fill(
-                          child: Image.network(
-                            widget.playlist.thumbnailUrl!,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => const Icon(Icons.queue_music_rounded, color: Colors.white, size: 48),
-                          ),
-                        )
-                      else
-                        const Center(child: Icon(Icons.queue_music_rounded, color: Colors.white, size: 48)),
-                      
-                      if (_isHovered)
-                        Positioned.fill(
-                          child: Container(
-                            color: Colors.black.withAlpha(30),
-                            child: const Center(child: Icon(Icons.play_arrow_rounded, color: Colors.white, size: 42)),
-                          ),
+              AspectRatio(
+                aspectRatio: 1,
+                child: AnimatedScale(
+                  scale: _isHovered ? 1.04 : 1.0,
+                  duration: const Duration(milliseconds: 200),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: widget.playlist.color,
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withAlpha(_isHovered ? 60 : 40),
+                          blurRadius: _isHovered ? 20 : 12,
+                          offset: Offset(0, _isHovered ? 8 : 4),
                         ),
-                    ],
+                      ],
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: Stack(
+                      children: [
+                        if (widget.playlist.thumbnailUrl != null)
+                          Positioned.fill(
+                            child: Image.network(
+                              widget.playlist.thumbnailUrl!,
+                              fit: BoxFit.cover,
+                              cacheWidth: 300,
+                              cacheHeight: 300,
+                              errorBuilder: (_, __, ___) => const Icon(
+                                Icons.queue_music_rounded,
+                                color: Colors.white,
+                                size: 48,
+                              ),
+                            ),
+                          )
+                        else
+                          const Center(
+                            child: Icon(
+                              Icons.queue_music_rounded,
+                              color: Colors.white,
+                              size: 48,
+                            ),
+                          ),
+
+                        if (_isHovered)
+                          Positioned.fill(
+                            child: Container(
+                              color: Colors.black.withAlpha(30),
+                              child: const Center(
+                                child: Icon(
+                                  Icons.play_arrow_rounded,
+                                  color: Colors.white,
+                                  size: 42,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
               ),
               const SizedBox(height: 10),
               Text(
                 widget.playlist.name,
-                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
                 overflow: TextOverflow.ellipsis,
                 maxLines: 1,
               ),
               Text(
                 widget.playlist.description,
-                style: TextStyle(fontSize: 12, color: cs.onSurface.withAlpha(140)),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: cs.onSurface.withAlpha(140),
+                ),
                 overflow: TextOverflow.ellipsis,
                 maxLines: 1,
               ),
@@ -351,8 +547,7 @@ class _HomeScreenSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CustomScrollView(
-      physics: const NeverScrollableScrollPhysics(),
+    return SliverMainAxisGroup(
       slivers: [
         SliverToBoxAdapter(
           child: Padding(
@@ -362,20 +557,24 @@ class _HomeScreenSkeleton extends StatelessWidget {
         ),
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+            padding: const EdgeInsets.only(top: 24),
             child: SizedBox(
-              height: 130,
-              child: GridView.builder(
+              height: 200,
+              child: ListView.separated(
                 scrollDirection: Axis.horizontal,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  mainAxisSpacing: 10,
-                  crossAxisSpacing: 8,
-                  childAspectRatio: 0.35,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: 3,
+                separatorBuilder: (_, __) => const SizedBox(width: 16),
+                itemBuilder: (_, __) => Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _SkeletonBox(width: 240, height: 135, radius: 16),
+                    const SizedBox(height: 12),
+                    _SkeletonBox(width: 180, height: 16, radius: 4),
+                    const SizedBox(height: 6),
+                    _SkeletonBox(width: 120, height: 12, radius: 4),
+                  ],
                 ),
-                itemCount: 6,
-                itemBuilder: (_, __) => const SkeletonQuickAccessTile(),
               ),
             ),
           ),
@@ -443,16 +642,16 @@ class _SkeletonHorizontalRow extends StatelessWidget {
   }
 }
 
-class _QuickAccessTile extends StatefulWidget {
+class _QuickAccessLargeCard extends StatefulWidget {
   final Song song;
   final List<Song> allSongs;
-  const _QuickAccessTile({required this.song, required this.allSongs});
+  const _QuickAccessLargeCard({required this.song, required this.allSongs});
 
   @override
-  State<_QuickAccessTile> createState() => _QuickAccessTileState();
+  State<_QuickAccessLargeCard> createState() => _QuickAccessLargeCardState();
 }
 
-class _QuickAccessTileState extends State<_QuickAccessTile> {
+class _QuickAccessLargeCardState extends State<_QuickAccessLargeCard> {
   bool _isHovered = false;
 
   @override
@@ -473,89 +672,82 @@ class _QuickAccessTileState extends State<_QuickAccessTile> {
             ),
           );
           if (!isDesktop) {
-            Navigator.of(
-              context,
-            ).push(MaterialPageRoute(builder: (_) => const PlayerScreen()));
+            PlayerScreen.show(context);
           }
         },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          decoration: BoxDecoration(
-            color: _isHovered
-                ? colorScheme.surfaceContainerHighest
-                : colorScheme.surfaceContainerHigh,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              if (_isHovered)
-                BoxShadow(
-                  color: Colors.black.withAlpha(40),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-            ],
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Row(
+        child: Container(
+          width: 240,
+          margin: const EdgeInsets.only(right: 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _TileArtwork(song: widget.song),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  widget.song.title,
-                  style: GoogleFonts.outfit(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                    letterSpacing: -0.2,
+              AspectRatio(
+                aspectRatio: 16 / 9,
+                child: Hero(
+                  tag: 'art_${widget.song.id}',
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withAlpha(40),
+                          blurRadius: 12,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: widget.song.thumbnailUrl != null
+                        ? Image.network(
+                            widget.song.thumbnailUrl!,
+                            fit: BoxFit.cover,
+                            cacheWidth: 800,
+                            cacheHeight: 450,
+                            errorBuilder: (context, error, stackTrace) =>
+                                _fallback(),
+                          )
+                        : _fallback(),
                   ),
-                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              if (_isHovered)
-                const Padding(
-                  padding: EdgeInsets.only(right: 12),
-                  child: Icon(Icons.play_arrow_rounded, size: 24),
-                )
-              else
-                const SizedBox(width: 8),
+              const SizedBox(height: 12),
+              Text(
+                widget.song.title,
+                style: GoogleFonts.outfit(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                  letterSpacing: -0.2,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              Text(
+                widget.song.artist,
+                style: GoogleFonts.outfit(
+                  fontSize: 13,
+                  color: colorScheme.onSurface.withAlpha(140),
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ],
           ),
         ),
       ),
     );
   }
-}
-
-class _TileArtwork extends StatelessWidget {
-  final Song song;
-  const _TileArtwork({required this.song});
-
-  @override
-  Widget build(BuildContext context) {
-    if (song.thumbnailUrl != null) {
-      return Image.network(
-        song.thumbnailUrl!,
-        width: 60,
-        height: 60,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => _fallback(),
-      );
-    }
-    return _fallback();
-  }
 
   Widget _fallback() {
     return Container(
-      width: 60,
-      height: 60,
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [song.colorPrimary, song.colorSecondary],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [widget.song.colorPrimary, widget.song.colorSecondary],
         ),
       ),
-      child: const Icon(
-        Icons.music_note_rounded,
-        color: Colors.white,
-        size: 28,
+      child: const Center(
+        child: Icon(Icons.music_note_rounded, color: Colors.white, size: 40),
       ),
     );
   }

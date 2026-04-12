@@ -17,6 +17,7 @@ import '../../blocs/player/player_bloc.dart';
 import '../../cubits/search/search_cubit.dart';
 import '../../widgets/error_view.dart';
 import '../player/player_screen.dart';
+import '../settings/settings_screen.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -51,42 +52,91 @@ class _SearchScreenState extends State<SearchScreen> {
     final isSmall = Breakpoints.isMobile(MediaQuery.sizeOf(context).width);
 
     return CustomScrollView(
+      physics: const BouncingScrollPhysics(
+        parent: AlwaysScrollableScrollPhysics(),
+      ),
       slivers: [
-        // ── Search bar ────────────────────────────────────────────────────────
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-            child: BlocBuilder<SearchCubit, SearchState>(
-              buildWhen: (prev, curr) => prev.hasQuery != curr.hasQuery,
-              builder: (context, state) => SearchBar(
-                controller: _textController,
-                focusNode: _focusNode,
-                hintText: 'Songs, artists, albums...',
-                leading: Icon(
-                  Icons.search_rounded,
-                  color: colorScheme.onSurfaceVariant,
+        SliverAppBar(
+          expandedHeight: 140,
+          floating: true,
+          pinned: false,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          flexibleSpace: FlexibleSpaceBar(
+            background: Column(
+              children: [
+                Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    16,
+                    MediaQuery.paddingOf(context).top + 8,
+                    16,
+                    0,
+                  ),
+                  child: Row(
+                    children: [
+                      Text(
+                        'Search',
+                        style: GoogleFonts.spaceGrotesk(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -1.0,
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.notifications_outlined),
+                        onPressed: () {},
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.settings_outlined),
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const SettingsScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
                 ),
-                trailing: [
-                  if (state.hasQuery)
-                    IconButton(
-                      icon: const Icon(Icons.close_rounded),
-                      onPressed: () {
-                        _textController.clear();
-                        context.read<SearchCubit>().clearQuery();
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: BlocBuilder<SearchCubit, SearchState>(
+                    buildWhen: (prev, curr) => prev.hasQuery != curr.hasQuery,
+                    builder: (context, state) => SearchBar(
+                      controller: _textController,
+                      focusNode: _focusNode,
+                      hintText: 'Songs, artists, albums...',
+                      leading: Icon(
+                        Icons.search_rounded,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                      trailing: [
+                        if (state.hasQuery)
+                          IconButton(
+                            icon: const Icon(Icons.close_rounded),
+                            onPressed: () {
+                              _textController.clear();
+                              context.read<SearchCubit>().clearQuery();
+                            },
+                          ),
+                      ],
+                      onChanged: (v) =>
+                          context.read<SearchCubit>().updateQuery(v),
+                      onSubmitted: (v) {
+                        if (v.isNotEmpty) {
+                          context.read<SearchCubit>().addRecentSearch(v);
+                        }
                       },
+                      elevation: const WidgetStatePropertyAll(0),
+                      backgroundColor: WidgetStatePropertyAll(
+                        colorScheme.surfaceContainerHigh,
+                      ),
                     ),
-                ],
-                onChanged: (v) => context.read<SearchCubit>().updateQuery(v),
-                onSubmitted: (v) {
-                  if (v.isNotEmpty) {
-                    context.read<SearchCubit>().addRecentSearch(v);
-                  }
-                },
-                elevation: const WidgetStatePropertyAll(0),
-                backgroundColor: WidgetStatePropertyAll(
-                  colorScheme.surfaceContainerHigh,
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
         ),
@@ -289,6 +339,8 @@ class _ResultTile extends StatelessWidget {
                 width: 50,
                 height: 50,
                 fit: BoxFit.cover,
+                cacheWidth: 150,
+                cacheHeight: 150,
                 errorBuilder: (_, __, ___) => _songArtFallback(song),
               )
             : _songArtFallback(song),
@@ -307,9 +359,7 @@ class _ResultTile extends StatelessWidget {
           PlayQueueEvent(songs: List<Song>.from(allResults), startIndex: index),
         );
         if (!Breakpoints.isDesktop(MediaQuery.sizeOf(context).width)) {
-          Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => const PlayerScreen()));
+          PlayerScreen.show(context);
         }
       },
     );

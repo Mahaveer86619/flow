@@ -31,6 +31,9 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
   final WindowsMediaSession _mediaSession;
   final SongRepository _songRepository;
 
+  bool _isChangingSource = false;
+  bool _isFetchingRadio = false;
+
   StreamSubscription<Duration>? _positionSub;
   StreamSubscription<Duration?>? _durationSub;
   StreamSubscription<Duration>? _bufferedSub;
@@ -76,6 +79,10 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     on<_InitialLoadingChangedEvent>(_onInitialLoadingChanged);
     on<_DownloadProgressUpdatedEvent>(_onDownloadProgressUpdated);
     on<_TrackCompletedEvent>(_onTrackCompleted);
+    on<_TrackChangedEvent>(_onTrackChanged);
+    on<_PlayStateChangedEvent>(_onPlayStateChanged);
+    on<_QueueUpdatedEvent>(_onQueueUpdated);
+    on<_RecentlyPlayedUpdatedEvent>(_onRecentlyPlayedUpdated);
     on<_RestoreStateEvent>(_onRestoreState);
     on<_PaletteUpdatedEvent>(_onPaletteUpdated);
 
@@ -109,8 +116,17 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
   // ── AudioPlayer subscriptions ─────────────────────────────────────────────
 
   void _subscribeToPlayer() {
+    DateTime lastPositionUpdate = DateTime.fromMillisecondsSinceEpoch(0);
+    DateTime lastBufferedUpdate = DateTime.fromMillisecondsSinceEpoch(0);
+
     _positionSub = _audioPlayer.positionStream.listen((pos) {
-      if (!isClosed) add(_PositionUpdateEvent(pos, _audioPlayer.duration));
+      if (isClosed) return;
+      final now = DateTime.now();
+      // Throttle position updates to ~5 times per second (200ms)
+      if (now.difference(lastPositionUpdate).inMilliseconds > 200) {
+        lastPositionUpdate = now;
+        add(_PositionUpdateEvent(pos, _audioPlayer.duration));
+      }
     });
 
     _durationSub = _audioPlayer.durationStream.listen((dur) {
@@ -120,7 +136,13 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     });
 
     _bufferedSub = _audioPlayer.bufferedPositionStream.listen((pos) {
-      if (!isClosed) add(_BufferedPositionChangedEvent(pos));
+      if (isClosed) return;
+      final now = DateTime.now();
+      // Throttle buffered updates to once per second
+      if (now.difference(lastBufferedUpdate).inMilliseconds > 1000) {
+        lastBufferedUpdate = now;
+        add(_BufferedPositionChangedEvent(pos));
+      }
     });
 
     _playerStateSub = _audioPlayer.playerStateStream.listen((ps) {
@@ -138,9 +160,14 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     });
 
     _currentIndexSub = _audioPlayer.currentIndexStream.listen((idx) {
-      if (isClosed || idx == null || idx >= state.queue.length) return;
+      if (isClosed ||
+          idx == null ||
+          _isChangingSource ||
+          idx >= state.queue.length) {
+        return;
+      }
       if (idx != state.queueIndex) {
-        _onAutoTrackChange(idx);
+        add(_TrackChangedEvent(idx));
       }
     });
   }
@@ -151,7 +178,10 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     });
   }
 
-  void _onAutoTrackChange(int newIndex) {
+  void _onTrackChanged(_TrackChangedEvent event, Emitter<PlayerState> emit) {
+    final newIndex = event.index;
+    if (newIndex >= state.queue.length) return;
+
     final song = state.queue[newIndex];
     AppLogger.i(_tag, 'Auto-advanced to: "${song.title}" (idx=$newIndex)');
 
@@ -171,6 +201,9 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
       _fetchMoreRadioTracks();
     }
 
+    // Prefetch next track in queue
+    _prefetchNextTrack(newIndex);
+
     emit(
       state.copyWith(
         currentSong: song,
@@ -184,6 +217,14 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     );
 
     _extractPalette(song);
+  }
+
+  void _prefetchNextTrack(int currentIndex) {
+    if (currentIndex + 1 < state.queue.length) {
+      final nextSong = state.queue[currentIndex + 1];
+      AppLogger.d(_tag, 'Prefetching next track: ${nextSong.title}');
+      _songRepository.prefetchAudio(nextSong.id);
+    }
   }
 
   // ── Restore ───────────────────────────────────────────────────────────────
@@ -225,11 +266,18 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     try {
       final songs = await _songRepository.getSongsByIds(ids);
       if (!isClosed) {
-        emit(state.copyWith(recentlyPlayed: songs));
+        add(_RecentlyPlayedUpdatedEvent(songs));
       }
     } catch (e) {
       AppLogger.w(_tag, 'Failed to hydrate recently played: $e');
     }
+  }
+
+  void _onRecentlyPlayedUpdated(
+    _RecentlyPlayedUpdatedEvent event,
+    Emitter<PlayerState> emit,
+  ) {
+    emit(state.copyWith(recentlyPlayed: event.recentlyPlayed));
   }
 
   // ── Event handlers ────────────────────────────────────────────────────────
@@ -309,7 +357,8 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
   }
 
   Future<void> _fetchMoreRadioTracks() async {
-    if (state.queue.isEmpty) return;
+    if (state.queue.isEmpty || _isFetchingRadio) return;
+    _isFetchingRadio = true;
     final anchor = state.queue.last;
     try {
       final tracks = await _songRepository.getRadioTracks(anchor.id);
@@ -325,11 +374,17 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
         for (final t in newTracks) {
           await _playlist.add(_buildAudioSource(t));
         }
-        emit(state.copyWith(queue: updatedQueue));
+        add(_QueueUpdatedEvent(updatedQueue));
       }
     } catch (e, st) {
       AppLogger.e(_tag, 'Failed to fetch radio tracks', e, st);
+    } finally {
+      _isFetchingRadio = false;
     }
+  }
+
+  void _onQueueUpdated(_QueueUpdatedEvent event, Emitter<PlayerState> emit) {
+    emit(state.copyWith(queue: event.queue));
   }
 
   Future<void> _updatePlaylist(List<Song> songs, {int initialIndex = 0}) async {
@@ -338,6 +393,7 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
         _tag,
         'Updating playlist: songs=${songs.length} index=$initialIndex',
       );
+      _isChangingSource = true;
       await _playlist.clear();
       for (final song in songs) {
         await _playlist.add(_buildAudioSource(song));
@@ -349,16 +405,38 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
         initialPosition: Duration.zero,
       );
 
+      // Allow streams to settle before accepting auto-track changes
+      await Future.delayed(const Duration(milliseconds: 500));
+      _isChangingSource = false;
+
       final current = songs[initialIndex];
       _mediaSession.updateSong(current);
       _mediaSession.setPlaybackStatus(true);
 
       AppLogger.d(_tag, 'Starting playback for: ${current.title}');
+
+      // Emit playing state BEFORE calling play to update UI immediately
+      add(const _PlayStateChangedEvent(true));
+
+      // Call play and wait a tiny bit to ensure it takes effect
       await _audioPlayer.play();
-      emit(state.copyWith(isPlaying: true));
+
+      // Double check if it's actually playing
+      if (!_audioPlayer.playing) {
+        AppLogger.w(_tag, 'Playback didn\'t start, retrying play()');
+        await Future.delayed(const Duration(milliseconds: 100));
+        await _audioPlayer.play();
+      }
     } catch (e, st) {
       AppLogger.e(_tag, 'Failed to set AudioSource or Play', e, st);
     }
+  }
+
+  void _onPlayStateChanged(
+    _PlayStateChangedEvent event,
+    Emitter<PlayerState> emit,
+  ) {
+    emit(state.copyWith(isPlaying: event.isPlaying));
   }
 
   AudioSource _buildAudioSource(Song song, {bool? isLikedOverride}) {
@@ -390,7 +468,11 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
         artUri: song.thumbnailUrl != null
             ? Uri.parse(song.thumbnailUrl!)
             : null,
-        extras: <String, dynamic>{'isLiked': isLiked},
+        rating: Rating.newHeartRating(isLiked),
+        extras: <String, dynamic>{
+          'isLiked': isLiked,
+          'androidCompactControlIndices': [0, 1, 2],
+        },
       ),
     );
   }

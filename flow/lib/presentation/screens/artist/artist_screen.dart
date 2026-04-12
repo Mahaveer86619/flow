@@ -138,11 +138,7 @@ class ArtistScreen extends StatelessWidget {
                             PlayQueueEvent(songs: artistSongs, startIndex: i),
                           );
                           if (!isDesktop) {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => const PlayerScreen(),
-                              ),
-                            );
+                            PlayerScreen.show(context);
                           }
                         },
                       );

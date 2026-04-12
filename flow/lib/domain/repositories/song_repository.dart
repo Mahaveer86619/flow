@@ -29,6 +29,9 @@ abstract class SongRepository {
   /// Get multiple songs by their IDs.
   Future<List<Song>> getSongsByIds(List<String> ids);
 
+  /// Trigger background extraction for a track.
+  Future<void> prefetchAudio(String videoId);
+
   /// Static browse categories — synchronous, never needs the network.
   List<Map<String, dynamic>> getCategories();
 }

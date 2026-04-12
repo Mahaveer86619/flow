@@ -60,11 +60,14 @@ class PlayerPanel extends StatelessWidget {
 
                     return Center(
                       child: RepaintBoundary(
-                        child: AlbumArtWidget(
-                          size: size,
-                          colorPrimary: song.colorPrimary,
-                          colorSecondary: song.colorSecondary,
-                          thumbnailUrl: song.thumbnailUrl,
+                        child: Hero(
+                          tag: 'art_${song.id}',
+                          child: AlbumArtWidget(
+                            size: size,
+                            colorPrimary: song.colorPrimary,
+                            colorSecondary: song.colorSecondary,
+                            thumbnailUrl: song.thumbnailUrl,
+                          ),
                         ),
                       ),
                     );
@@ -235,11 +238,7 @@ class PlayerPanel extends StatelessWidget {
                             color: Colors.white.withAlpha(170),
                           ),
                           tooltip: 'Queue',
-                          onPressed: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const QueueScreen(),
-                            ),
-                          ),
+                          onPressed: () => QueueScreen.show(context),
                         ),
                       ],
                     );
@@ -254,11 +253,7 @@ class PlayerPanel extends StatelessWidget {
                             size: 28,
                           ),
                           tooltip: 'Queue',
-                          onPressed: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const QueueScreen(),
-                            ),
-                          ),
+                          onPressed: () => QueueScreen.show(context),
                         ),
                       ],
                     );

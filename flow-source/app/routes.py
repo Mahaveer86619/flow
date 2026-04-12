@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import tempfile
 import urllib.parse
@@ -43,7 +44,29 @@ from .utils import (
 
 router = APIRouter()
 
+logger = logging.getLogger("uvicorn")
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="v1/auth/login")
+
+_shared_client: Optional[httpx.AsyncClient] = None
+
+
+def get_shared_client():
+    global _shared_client
+    if _shared_client is None:
+        _shared_client = httpx.AsyncClient(
+            timeout=httpx.Timeout(120.0, connect=10.0),
+            follow_redirects=True,
+            limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
+        )
+    return _shared_client
+
+
+async def close_shared_client():
+    global _shared_client
+    if _shared_client is not None:
+        await _shared_client.aclose()
+        _shared_client = None
 
 
 async def get_current_user(
@@ -136,10 +159,14 @@ async def read_users_me(current_user: User = Depends(get_current_user)):
 
 
 @router.get("/home", response_model=HomeResponse)
-async def get_home(limit: int = 5, current_user: User = Depends(get_current_user)):
+async def get_home(
+    request: Request, limit: int = 25, current_user: User = Depends(get_current_user)
+):
     try:
-        return yt_service.get_home_cached(current_user, limit)
+        proxy_base = str(request.url_for("proxy_image"))
+        return yt_service.get_home_cached(current_user, limit, proxy_base=proxy_base)
     except Exception as e:
+        logger.exception(f"Error in get_home: {e}")
         raise HTTPException(500, str(e))
 
 
@@ -175,9 +202,10 @@ async def clear_home_cache(current_user: User = Depends(get_current_user)):
 
 
 @router.get("/feed", response_model=HomeResponse)
-async def get_feed():
+async def get_feed(request: Request):
     try:
-        return yt_service.get_feed_cached()
+        proxy_base = str(request.url_for("proxy_image"))
+        return yt_service.get_feed_cached(proxy_base=proxy_base)
     except Exception as e:
         raise HTTPException(500, str(e))
 
@@ -187,15 +215,19 @@ async def get_feed():
 
 @router.get("/search/songs", response_model=List[SongResponse])
 async def search_songs(
-    q: str, limit: int = 20, current_user: User = Depends(get_current_user)
+    request: Request,
+    q: str,
+    limit: int = 20,
+    current_user: User = Depends(get_current_user),
 ):
     if not q.strip():
         raise HTTPException(400, "Query is empty")
     try:
+        proxy_base = str(request.url_for("proxy_image"))
         results = yt_service.get_client(current_user).search(
             q, filter="songs", limit=limit
         )
-        return [s for item in results if (s := normalize_song(item))]
+        return [s for item in results if (s := normalize_song(item, proxy_base))]
     except Exception as e:
         raise HTTPException(500, str(e))
 
@@ -214,21 +246,25 @@ async def get_search_suggestions(
 
 
 @router.get("/library", response_model=LibraryResponse)
-async def get_library(current_user: User = Depends(get_current_user)):
+async def get_library(request: Request, current_user: User = Depends(get_current_user)):
     _require_yt_auth(current_user)
     try:
+        proxy_base = str(request.url_for("proxy_image"))
         raw = yt_service.get_client(current_user).get_library_playlists(limit=100)
-        return LibraryResponse(playlists=[normalize_playlist(p) for p in raw])
+        return LibraryResponse(
+            playlists=[normalize_playlist(p, proxy_base) for p in raw]
+        )
     except Exception as e:
         raise HTTPException(500, str(e))
 
 
 @router.get("/history", response_model=List[SongResponse])
-async def get_history(current_user: User = Depends(get_current_user)):
+async def get_history(request: Request, current_user: User = Depends(get_current_user)):
     _require_yt_auth(current_user)
     try:
+        proxy_base = str(request.url_for("proxy_image"))
         raw = yt_service.get_client(current_user).get_history()
-        return [s for item in raw if (s := normalize_song(item))]
+        return [s for item in raw if (s := normalize_song(item, proxy_base))]
     except Exception as e:
         raise HTTPException(500, str(e))
 
@@ -238,29 +274,37 @@ async def get_history(current_user: User = Depends(get_current_user)):
 
 @router.get("/playlists/{playlist_id}/tracks", response_model=List[SongResponse])
 async def get_playlist_tracks(
-    playlist_id: str, limit: int = 100, current_user: User = Depends(get_current_user)
+    request: Request,
+    playlist_id: str,
+    limit: int = 100,
+    current_user: User = Depends(get_current_user),
 ):
     try:
+        proxy_base = str(request.url_for("proxy_image"))
         actual_limit = None if limit <= 0 else limit
         data = yt_service.get_client(current_user).get_playlist(
             playlistId=playlist_id, limit=actual_limit
         )
         tracks = data.get("tracks") or []
-        return [s for item in tracks if (s := normalize_song(item))]
+        return [s for item in tracks if (s := normalize_song(item, proxy_base))]
     except Exception as e:
         raise HTTPException(500, str(e))
 
 
 @router.get("/radio/{video_id}")
 async def get_radio(
-    video_id: str, limit: int = 25, current_user: User = Depends(get_current_user)
+    request: Request,
+    video_id: str,
+    limit: int = 25,
+    current_user: User = Depends(get_current_user),
 ):
     try:
+        proxy_base = str(request.url_for("proxy_image"))
         data = yt_service.get_client(current_user).get_watch_playlist(
             videoId=video_id, limit=limit
         )
         tracks = data.get("tracks") or []
-        return [s for item in tracks if (s := normalize_song(item))]
+        return [s for item in tracks if (s := normalize_song(item, proxy_base))]
     except Exception as e:
         raise HTTPException(500, str(e))
 
@@ -295,12 +339,15 @@ async def get_lyrics(video_id: str, current_user: User = Depends(get_current_use
 
 
 @router.get("/songs/batch", response_model=List[SongResponse])
-async def get_songs_batch(ids: str, current_user: User = Depends(get_current_user)):
+async def get_songs_batch(
+    request: Request, ids: str, current_user: User = Depends(get_current_user)
+):
     """Fetch multiple songs by a comma-separated list of IDs."""
     if not ids.strip():
         return []
     video_ids = [vid.strip() for vid in ids.split(",") if vid.strip()]
     try:
+        proxy_base = str(request.url_for("proxy_image"))
         client = yt_service.get_client(current_user)
         results = []
         for vid in video_ids:
@@ -310,16 +357,19 @@ async def get_songs_batch(ids: str, current_user: User = Depends(get_current_use
                 if data and "videoDetails" in data:
                     # Map YT Music videoDetails to our SongResponse
                     details = data["videoDetails"]
+                    raw_thumb = (
+                        details.get("thumbnail", {})
+                        .get("thumbnails", [{}])[-1]
+                        .get("url")
+                    )
                     results.append(
                         SongResponse(
                             id=details["videoId"],
                             title=details["title"],
                             artist=details["author"],
                             album="",  # Not always in videoDetails
-                            duration=int(details["lengthSeconds"]),
-                            thumbnailUrl=details.get("thumbnail", {})
-                            .get("thumbnails", [{}])[-1]
-                            .get("url"),
+                            durationMs=int(details["lengthSeconds"]) * 1000,
+                            thumbnailUrl=fix_thumbnail_url(raw_thumb, proxy_base),
                         )
                     )
             except Exception as e:
@@ -517,9 +567,16 @@ async def yt_logout(
 
 # --- Streaming & Proxy ---
 
-import logging
 
-logger = logging.getLogger("uvicorn")
+@router.get("/prefetch/{video_id}")
+async def prefetch_audio(video_id: str, current_user: User = Depends(get_current_user)):
+    """
+    Proactively trigger extraction for a video_id to warm up the cache.
+    """
+    logger.info(f"Prefetch request for {video_id}")
+    # Run extraction in the background (extract_audio_url has its own locking)
+    asyncio.create_task(extract_audio_url(video_id, user=current_user))
+    return {"status": "ok", "video_id": video_id}
 
 
 @router.get("/stream/{video_id}")
@@ -528,7 +585,7 @@ async def stream_audio(
 ):
     logger.info(f"Streaming request for {video_id} from {request.client.host}")
     try:
-        audio_url = extract_audio_url(video_id, user=current_user)
+        audio_url = await extract_audio_url(video_id, user=current_user)
     except Exception as e:
         logger.error(f"Extraction failed for {video_id}: {e}")
         raise HTTPException(
@@ -541,33 +598,29 @@ async def stream_audio(
         upstream_headers["range"] = request.headers["range"]
         logger.info(f"Range request: {request.headers['range']} for {video_id}")
 
-    client = httpx.AsyncClient(timeout=60, follow_redirects=True)
+    client = get_shared_client()
     try:
         # We use a stream context to ensure the connection is closed
-        upstream = await client.send(
-            httpx.Request("GET", audio_url, headers=upstream_headers),
-            stream=True,
-        )
+        request_to_upstream = httpx.Request("GET", audio_url, headers=upstream_headers)
+        upstream = await client.send(request_to_upstream, stream=True)
 
         passthrough = {
             k: v
             for k, v in upstream.headers.items()
-            if k.lower()
-            in ("content-type", "content-length", "content-range", "accept-ranges")
+            if k.lower() in ("content-type", "content-range", "accept-ranges")
         }
         passthrough.setdefault("accept-ranges", "bytes")
 
         async def _iter():
             try:
-                # Use a larger chunk size for smoother buffering (128KB)
-                async for chunk in upstream.aiter_bytes(131072):
+                # Use a larger chunk size for smoother buffering (512KB)
+                async for chunk in upstream.aiter_bytes(524288):
                     yield chunk
             except Exception as e:
                 # Client probably disconnected
                 logger.debug(f"Streaming interrupted for {video_id}: {e}")
             finally:
                 await upstream.aclose()
-                await client.aclose()
 
         return StreamingResponse(
             _iter(),
@@ -576,20 +629,23 @@ async def stream_audio(
             media_type=upstream.headers.get("content-type", "audio/webm"),
         )
     except Exception as e:
-        logger.error(f"Upstream connection failed for {video_id}: {e}")
-        await client.aclose()
-        raise HTTPException(status_code=502, detail="Upstream error")
+        import traceback
+
+        logger.error(
+            f"Upstream connection failed for {video_id}: {e}\n{traceback.format_exc()}"
+        )
+        raise HTTPException(status_code=502, detail=f"Upstream error: {e}")
 
 
 @router.get("/proxy-image")
 async def proxy_image(url: str):
     try:
         decoded_url = urllib.parse.unquote(url)
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(decoded_url)
-            return Response(
-                content=resp.content,
-                media_type=resp.headers.get("Content-Type", "image/jpeg"),
-            )
+        client = get_shared_client()
+        resp = await client.get(decoded_url)
+        return Response(
+            content=resp.content,
+            media_type=resp.headers.get("Content-Type", "image/jpeg"),
+        )
     except Exception as e:
         raise HTTPException(500, f"Image proxy failed: {e}")

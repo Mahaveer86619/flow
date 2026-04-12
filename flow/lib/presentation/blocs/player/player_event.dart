@@ -131,6 +131,26 @@ class _TrackCompletedEvent extends PlayerEvent {
   const _TrackCompletedEvent();
 }
 
+class _TrackChangedEvent extends PlayerEvent {
+  final int index;
+  const _TrackChangedEvent(this.index);
+}
+
+class _PlayStateChangedEvent extends PlayerEvent {
+  final bool isPlaying;
+  const _PlayStateChangedEvent(this.isPlaying);
+}
+
+class _QueueUpdatedEvent extends PlayerEvent {
+  final List<Song> queue;
+  const _QueueUpdatedEvent(this.queue);
+}
+
+class _RecentlyPlayedUpdatedEvent extends PlayerEvent {
+  final List<Song> recentlyPlayed;
+  const _RecentlyPlayedUpdatedEvent(this.recentlyPlayed);
+}
+
 class _PaletteUpdatedEvent extends PlayerEvent {
   final Color primary;
   final Color secondary;

@@ -18,9 +18,7 @@ class MiniPlayer extends StatelessWidget {
         final colorScheme = Theme.of(context).colorScheme;
 
         return GestureDetector(
-          onTap: () => Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => const PlayerScreen())),
+          onTap: () => PlayerScreen.show(context),
           child: Container(
             margin: const EdgeInsets.fromLTRB(10, 0, 10, 8),
             height: 76,
@@ -38,21 +36,26 @@ class MiniPlayer extends StatelessWidget {
             child: Row(
               children: [
                 // ── Album art ────────────────────────────────────────────────────
-                ClipRRect(
-                  borderRadius: const BorderRadius.horizontal(
-                    left: Radius.circular(18),
-                  ),
-                  child: RepaintBoundary(
-                    child: song.thumbnailUrl != null
-                        ? Image.network(
-                            song.thumbnailUrl!,
-                            width: 76,
-                            height: 76,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) =>
-                                _ArtFallback(song: song),
-                          )
-                        : _ArtFallback(song: song),
+                Hero(
+                  tag: 'art_${song.id}',
+                  child: ClipRRect(
+                    borderRadius: const BorderRadius.horizontal(
+                      left: Radius.circular(18),
+                    ),
+                    child: RepaintBoundary(
+                      child: song.thumbnailUrl != null
+                          ? Image.network(
+                              song.thumbnailUrl!,
+                              width: 76,
+                              height: 76,
+                              fit: BoxFit.cover,
+                              cacheWidth: 150,
+                              cacheHeight: 150,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  _ArtFallback(song: song),
+                            )
+                          : _ArtFallback(song: song),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),

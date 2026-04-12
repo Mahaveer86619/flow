@@ -135,11 +135,7 @@ class PlaylistScreen extends StatelessWidget {
                           PlayQueueEvent(songs: playlist.songs, startIndex: 0),
                         );
                         if (!isDesktop) {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const PlayerScreen(),
-                            ),
-                          );
+                          PlayerScreen.show(context);
                         }
                       }
                     },
@@ -206,11 +202,7 @@ class PlaylistScreen extends StatelessWidget {
                             ),
                           );
                           if (!isDesktop) {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => const PlayerScreen(),
-                              ),
-                            );
+                            PlayerScreen.show(context);
                           }
                         },
                       );

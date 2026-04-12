@@ -80,9 +80,7 @@ class ListScreen extends StatelessWidget {
                       ),
                     );
                     if (!isDesktop) {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const PlayerScreen()),
-                      );
+                      PlayerScreen.show(context);
                     }
                   },
                 );

@@ -90,9 +90,7 @@ class _SongCardState extends State<SongCard> {
       ),
     );
     if (!Breakpoints.isDesktop(MediaQuery.sizeOf(context).width)) {
-      Navigator.of(
-        context,
-      ).push(MaterialPageRoute(builder: (_) => const PlayerScreen()));
+      PlayerScreen.show(context);
     }
   }
 }
@@ -123,17 +121,22 @@ class _Artwork extends StatelessWidget {
               ),
             ],
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(14),
-            child: song.thumbnailUrl != null
-                ? Image.network(
-                    song.thumbnailUrl!,
-                    width: size,
-                    height: size,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => _fallback(),
-                  )
-                : _fallback(),
+          child: Hero(
+            tag: 'art_${song.id}',
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: song.thumbnailUrl != null
+                  ? Image.network(
+                      song.thumbnailUrl!,
+                      width: size,
+                      height: size,
+                      fit: BoxFit.cover,
+                      cacheWidth: 300,
+                      cacheHeight: 300,
+                      errorBuilder: (context, error, stackTrace) => _fallback(),
+                    )
+                  : _fallback(),
+            ),
           ),
         ),
         if (isHovered)

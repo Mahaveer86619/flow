@@ -11,15 +11,14 @@ class Settings(BaseSettings):
     PORT: int = 8000
     HOST: str = "0.0.0.0"
 
-    # Ngrok Settings
-    NGROK_AUTHTOKEN: Optional[str] = None
-
     # YT Music Auth Settings
     AUTH_FILE_PATH: str = "./data/auth.json"
     COOKIES_FILE_PATH: str = "./data/cookies.txt"
 
     # Database Settings
-    DATABASE_URL: str = "postgresql://flow_user:R3ally_Str0ng_P4ssw0rd_99@db:5432/flow_music"
+    DATABASE_URL: str = (
+        "postgresql://flow_user:R3ally_Str0ng_P4ssw0rd_99@db:5432/flow_music"
+    )
 
     # JWT Settings
     SECRET_KEY: str = "y0ur-sup3r-s3cr3t-k3y-th4t-sh0uld-b3-ch4ng3d"
@@ -28,7 +27,7 @@ class Settings(BaseSettings):
 
     # Static Files
     STATIC_DIR: str = "./static"
-    PROXIED_IMAGE_URL: str = "http://localhost:8000/v1/proxy-image"
+    PROXIED_IMAGE_URL: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

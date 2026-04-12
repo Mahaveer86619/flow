@@ -3,22 +3,30 @@ import json
 import os
 import re
 import time
+import urllib.parse
 from typing import List, Optional
 
 from .config import settings
 from .models import ArtistResponse, PlaylistResponse, SongResponse
 
 
-def fix_thumbnail_url(url: Optional[str]) -> Optional[str]:
-    """Normalise a YouTube/Google thumbnail URL to a consistent size."""
+def fix_thumbnail_url(
+    url: Optional[str], proxy_base: Optional[str] = None
+) -> Optional[str]:
+    """Normalise a YouTube/Google thumbnail URL to a consistent size and optionally wrap in proxy."""
     if not url:
         return None
     # Request 1000 px so full-screen art stays crisp
     url = re.sub(r"=w\d+-h\d+(-[^?&]*)?$", "=w1000-h1000-l90-rj", url)
+
+    if proxy_base:
+        return f"{proxy_base}?url={urllib.parse.quote(url)}"
     return url
 
 
-def normalize_song(item: dict) -> Optional[SongResponse]:
+def normalize_song(
+    item: dict, proxy_base: Optional[str] = None
+) -> Optional[SongResponse]:
     video_id = item.get("videoId")
     if not video_id:
         return None
@@ -40,7 +48,7 @@ def normalize_song(item: dict) -> Optional[SongResponse]:
         artist=artist_name,
         album=album_name,
         durationMs=int(duration_seconds) * 1000,
-        thumbnailUrl=fix_thumbnail_url(raw_url),
+        thumbnailUrl=fix_thumbnail_url(raw_url, proxy_base),
     )
 
 
@@ -53,16 +61,22 @@ def is_artist_item(item: dict) -> bool:
     )
 
 
-def normalize_artist(item: dict) -> Optional[ArtistResponse]:
+def normalize_artist(
+    item: dict, proxy_base: Optional[str] = None
+) -> Optional[ArtistResponse]:
     name = item.get("artist") or item.get("title") or item.get("name")
     if not name:
         return None
     thumbnails = item.get("thumbnails") or []
     raw_url = thumbnails[-1]["url"] if thumbnails else None
-    return ArtistResponse(name=name, thumbnailUrl=fix_thumbnail_url(raw_url))
+    return ArtistResponse(
+        name=name, thumbnailUrl=fix_thumbnail_url(raw_url, proxy_base)
+    )
 
 
-def normalize_playlist(item: dict) -> PlaylistResponse:
+def normalize_playlist(
+    item: dict, proxy_base: Optional[str] = None
+) -> PlaylistResponse:
     thumbnails = item.get("thumbnails") or []
     raw_url = thumbnails[-1]["url"] if thumbnails else None
 
@@ -77,7 +91,7 @@ def normalize_playlist(item: dict) -> PlaylistResponse:
         id=item.get("playlistId") or item.get("id", ""),
         name=item.get("title") or item.get("name") or "Unknown",
         description=description,
-        thumbnailUrl=fix_thumbnail_url(raw_url),
+        thumbnailUrl=fix_thumbnail_url(raw_url, proxy_base),
         trackCount=track_count,
     )
 
@@ -85,10 +99,12 @@ def normalize_playlist(item: dict) -> PlaylistResponse:
 def write_cookie_file(auth_data: str | dict, cookie_file: str) -> bool:
     """
     Converts ytmusicapi auth JSON or Cookie string into a Netscape cookie file for yt-dlp.
-    Uses MozillaCookieJar for robust formatting.
+    Returns True if the file was written with at least one cookie.
     """
+    import logging as _logging
+    _log = _logging.getLogger("uvicorn")
     try:
-        data = {}
+        data: dict = {}
         if isinstance(auth_data, str):
             if os.path.exists(auth_data):
                 with open(auth_data) as f:
@@ -99,50 +115,57 @@ def write_cookie_file(auth_data: str | dict, cookie_file: str) -> bool:
                 except Exception:
                     data = {"Cookie": auth_data}
         else:
-            data = auth_data
+            data = dict(auth_data)
 
-        cookie_str = data.get("Cookie") or data.get("cookie") or ""
+        # ytmusicapi auth JSON uses "Cookie" header key (case-sensitive)
+        cookie_str = (
+            data.get("Cookie")
+            or data.get("cookie")
+            or data.get("headers", {}).get("Cookie")
+            or ""
+        )
         if not cookie_str:
+            _log.warning(
+                f"write_cookie_file: no Cookie field found in auth_data "
+                f"(keys={list(data.keys())})"
+            )
             return False
 
-        cj = http.cookiejar.MozillaCookieJar(cookie_file)
-        # 1 year expiry
-        expires = int(time.time()) + 31536000
+        dir_path = os.path.dirname(cookie_file)
+        if dir_path:
+            os.makedirs(dir_path, exist_ok=True)
 
-        for pair in cookie_str.split(";"):
-            pair = pair.strip()
-            if "=" not in pair:
-                continue
-            name, value = pair.split("=", 1)
+        expiry = int(time.time()) + 31536000  # 1 year
+        count = 0
 
-            # Assign to main domains
-            for domain in [".youtube.com", ".music.youtube.com", ".google.com"]:
-                c = http.cookiejar.Cookie(
-                    version=0,
-                    name=name,
-                    value=value,
-                    port=None,
-                    port_specified=False,
-                    domain=domain,
-                    domain_specified=True,
-                    domain_initial_dot=True,
-                    path="/",
-                    path_specified=True,
-                    secure=True,
-                    expires=expires,
-                    discard=False,
-                    comment=None,
-                    comment_url=None,
-                    rest={"HttpOnly": None},
-                    rfc2109=False,
-                )
-                cj.set_cookie(c)
+        with open(cookie_file, "w", encoding="utf-8") as f:
+            f.write("# Netscape HTTP Cookie File\n\n")
 
-        os.makedirs(os.path.dirname(cookie_file), exist_ok=True)
-        cj.save(ignore_discard=True, ignore_expires=True)
-        return True
+            for pair in cookie_str.split(";"):
+                pair = pair.strip()
+                if not pair or "=" not in pair:
+                    continue
+                name, value = pair.split("=", 1)
+                name = name.strip()
+                value = value.strip()
+                if not name:
+                    continue
+
+                # __Host- cookies must be for the exact host (no leading dot)
+                if name.startswith("__Host-"):
+                    for domain in ["youtube.com", "music.youtube.com", "google.com"]:
+                        f.write(f"{domain}\tFALSE\t/\tTRUE\t{expiry}\t{name}\t{value}\n")
+                else:
+                    for domain in [".youtube.com", ".music.youtube.com", ".google.com"]:
+                        f.write(f"{domain}\tTRUE\t/\tTRUE\t{expiry}\t{name}\t{value}\n")
+                count += 1
+
+        _log.info(f"write_cookie_file: wrote {count} cookies to {cookie_file}")
+        return count > 0
+
     except Exception as e:
-        print(f"Error writing cookie file: {e}")
+        import logging as _logging2
+        _logging2.getLogger("uvicorn").error(f"write_cookie_file failed: {e}")
         return False
 
 

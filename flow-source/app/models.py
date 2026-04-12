@@ -82,6 +82,7 @@ class PlaylistResponse(BaseModel):
 class HomeResponse(BaseModel):
     shelves: List[Dict[str, Any]]
     trending: List[SongResponse] = []
+    profileUrl: Optional[str] = None
 
 
 class LibraryResponse(BaseModel):

@@ -6,8 +6,13 @@ import 'song_model.dart';
 class HomeDataModel {
   final List<Map<String, dynamic>> rawShelves;
   final List<SongModel> trending;
+  final String? profileUrl;
 
-  const HomeDataModel({required this.rawShelves, this.trending = const []});
+  const HomeDataModel({
+    required this.rawShelves,
+    this.trending = const [],
+    this.profileUrl,
+  });
 
   factory HomeDataModel.fromJson(Map<String, dynamic> json) {
     final shelves = <Map<String, dynamic>>[];
@@ -36,7 +41,11 @@ class HomeDataModel {
         .map((s) => SongModel.fromJson(s as Map<String, dynamic>))
         .toList();
 
-    return HomeDataModel(rawShelves: shelves, trending: trending);
+    return HomeDataModel(
+      rawShelves: shelves,
+      trending: trending,
+      profileUrl: json['profileUrl'] as String?,
+    );
   }
 
   HomeData toEntity() {
@@ -89,6 +98,7 @@ class HomeDataModel {
     return HomeData(
       shelves: shelves,
       trending: trending.map((m) => m.toEntity()).toList(),
+      profileUrl: profileUrl,
     );
   }
 

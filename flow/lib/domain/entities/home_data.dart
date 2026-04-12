@@ -19,17 +19,19 @@ class HomeItem {
 class HomeData {
   final List<HomeShelf> shelves;
   final List<Song> trending;
+  final String? profileUrl;
 
   const HomeData({
     this.shelves = const [],
     this.trending = const [],
+    this.profileUrl,
   });
 
   /// Deduplicated union of all songs in all shelves — used as the player queue.
   List<Song> get allSongs {
     final seen = <String>{};
     final songs = <Song>[];
-    
+
     for (final shelf in shelves) {
       for (final item in shelf.items) {
         if (item.type == HomeItemType.song && item.data is Song) {
@@ -40,13 +42,13 @@ class HomeData {
         }
       }
     }
-    
+
     for (final s in trending) {
       if (seen.add(s.id)) {
         songs.add(s);
       }
     }
-    
+
     return songs;
   }
 }

@@ -30,20 +30,25 @@ class AlbumArtWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (thumbnailUrl != null) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(borderRadius),
-        child: Image.network(
-          thumbnailUrl!,
-          width: size,
-          height: size,
-          fit: BoxFit.cover,
-          loadingBuilder: (context, child, progress) =>
-              progress == null ? child : _buildVinyl(),
-          errorBuilder: (context, error, stackTrace) => _buildVinyl(),
+      final cacheSize = (size * MediaQuery.devicePixelRatioOf(context)).round();
+      return RepaintBoundary(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(borderRadius),
+          child: Image.network(
+            thumbnailUrl!,
+            width: size,
+            height: size,
+            fit: BoxFit.cover,
+            cacheWidth: cacheSize,
+            cacheHeight: cacheSize,
+            loadingBuilder: (context, child, progress) =>
+                progress == null ? child : _buildVinyl(),
+            errorBuilder: (context, error, stackTrace) => _buildVinyl(),
+          ),
         ),
       );
     }
-    return _buildVinyl();
+    return RepaintBoundary(child: _buildVinyl());
   }
 
   Widget _buildVinyl() {

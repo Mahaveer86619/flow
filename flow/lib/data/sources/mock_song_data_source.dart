@@ -235,19 +235,31 @@ class MockSongDataSource implements SongDataSource {
     final rawShelves = [
       {
         'title': 'Quick Picks',
-        'items': _songs.sublist(0, 6).map((s) => {'type': 'song', 'data': s.toJson()}).toList(),
+        'items': _songs
+            .sublist(0, 6)
+            .map((s) => {'type': 'song', 'data': s.toJson()})
+            .toList(),
       },
       {
         'title': 'Listen Again',
-        'items': _songs.sublist(0, 6).map((s) => {'type': 'song', 'data': s.toJson()}).toList(),
+        'items': _songs
+            .sublist(0, 6)
+            .map((s) => {'type': 'song', 'data': s.toJson()})
+            .toList(),
       },
       {
         'title': 'Top Artists',
-        'items': artists.take(8).map((a) => {'type': 'artist', 'data': a}).toList(),
+        'items': artists
+            .take(8)
+            .map((a) => {'type': 'artist', 'data': a})
+            .toList(),
       },
       {
         'title': 'Chill Vibes',
-        'items': _playlists.take(4).map((p) => {'type': 'playlist', 'data': p.toJson()}).toList(),
+        'items': _playlists
+            .take(4)
+            .map((p) => {'type': 'playlist', 'data': p.toJson()})
+            .toList(),
       },
     ];
 
@@ -294,6 +306,11 @@ class MockSongDataSource implements SongDataSource {
   Future<List<SongModel>> fetchSongsByIds(List<String> ids) async {
     final set = ids.toSet();
     return _songs.where((s) => set.contains(s.id)).toList();
+  }
+
+  @override
+  Future<void> prefetchAudio(String videoId) async {
+    // No-op for mock data
   }
 
   @override

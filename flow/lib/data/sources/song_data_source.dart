@@ -33,6 +33,9 @@ abstract class SongDataSource {
   /// Get multiple songs by their IDs.
   Future<List<SongModel>> fetchSongsByIds(List<String> ids);
 
+  /// Proactively trigger background extraction.
+  Future<void> prefetchAudio(String videoId);
+
   /// Static browse categories — always synchronous, never needs the network.
   List<Map<String, dynamic>> fetchCategories();
 }

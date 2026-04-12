@@ -7,6 +7,64 @@ import '../../blocs/player/player_bloc.dart';
 import '../../cubits/library/library_cubit.dart';
 import '../../widgets/error_view.dart';
 import '../playlist/playlist_screen.dart';
+import '../settings/settings_screen.dart';
+
+class _LibraryFilterDelegate extends SliverPersistentHeaderDelegate {
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      color: Theme.of(
+        context,
+      ).scaffoldBackgroundColor.withAlpha(overlapsContent ? 255 : 0),
+      height: 60,
+      child: BlocBuilder<LibraryCubit, LibraryState>(
+        buildWhen: (prev, curr) => prev.filterIndex != curr.filterIndex,
+        builder: (context, state) => ListView.builder(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          itemCount: LibraryState.filterOptions.length,
+          itemBuilder: (context, i) {
+            final selected = state.filterIndex == i;
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: FilterChip(
+                label: Text(LibraryState.filterOptions[i]),
+                selected: selected,
+                onSelected: (_) => context.read<LibraryCubit>().setFilter(i),
+                backgroundColor: colorScheme.surfaceContainerHigh,
+                selectedColor: colorScheme.onSurface,
+                labelStyle: TextStyle(
+                  color: selected ? colorScheme.surface : colorScheme.onSurface,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  side: BorderSide.none,
+                ),
+                showCheckmark: false,
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  @override
+  double get maxExtent => 60;
+  @override
+  double get minExtent => 60;
+  @override
+  bool shouldRebuild(covariant SliverPersistentHeaderDelegate oldDelegate) =>
+      false;
+}
 
 class LibraryScreen extends StatelessWidget {
   const LibraryScreen({super.key});
@@ -15,93 +73,76 @@ class LibraryScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final screenWidth = MediaQuery.sizeOf(context).width;
-    final isSmall = Breakpoints.isMobile(screenWidth);
     final columns = screenWidth > 1200 ? 5 : (screenWidth > 800 ? 3 : 2);
 
     return CustomScrollView(
+      physics: const BouncingScrollPhysics(
+        parent: AlwaysScrollableScrollPhysics(),
+      ),
       slivers: [
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
-            child: Row(
-              children: [
-                Text(
-                  'Your Library',
-                  style: GoogleFonts.spaceGrotesk(
-                    fontSize: isSmall ? 28.0 : 32.0,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -1,
-                  ),
-                ),
-                const Spacer(),
-                IconButton.filledTonal(
-                  icon: const Icon(Icons.add_rounded),
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Create playlist coming soon!'),
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-        ),
-
-        // Filter Chips
-        SliverToBoxAdapter(
-          child: BlocBuilder<LibraryCubit, LibraryState>(
-            buildWhen: (prev, curr) => prev.filterIndex != curr.filterIndex,
-            builder: (context, state) => SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+        SliverAppBar(
+          expandedHeight: 100,
+          floating: true,
+          pinned: false,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          flexibleSpace: FlexibleSpaceBar(
+            background: Padding(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                MediaQuery.paddingOf(context).top + 8,
+                16,
+                0,
+              ),
               child: Row(
-                children: List.generate(LibraryState.filterOptions.length, (i) {
-                  final selected = state.filterIndex == i;
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: FilterChip(
-                      label: Text(LibraryState.filterOptions[i]),
-                      selected: selected,
-                      onSelected: (_) =>
-                          context.read<LibraryCubit>().setFilter(i),
-                      labelStyle: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                        color: selected
-                            ? colorScheme.onPrimary
-                            : colorScheme.onSurface,
-                      ),
-                      selectedColor: colorScheme.primary,
-                      checkmarkColor: colorScheme.onPrimary,
-                      backgroundColor: colorScheme.surfaceContainerHigh,
+                children: [
+                  Text(
+                    'Library',
+                    style: GoogleFonts.spaceGrotesk(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -1.0,
                     ),
-                  );
-                }),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.notifications_outlined),
+                    onPressed: () {},
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.settings_outlined),
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const SettingsScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                ],
               ),
             ),
           ),
         ),
 
+        // Filter Chips
+        SliverPersistentHeader(
+          pinned: true,
+          delegate: _LibraryFilterDelegate(),
+        ),
+
         BlocBuilder<LibraryCubit, LibraryState>(
           builder: (context, state) {
-            if (state.isLoading) {
-              return const SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.only(top: 100),
-                  child: Center(child: CircularProgressIndicator()),
-                ),
+            if (state.isLoading && state.playlists.isEmpty) {
+              return const SliverFillRemaining(
+                child: Center(child: CircularProgressIndicator()),
               );
             }
-            if (state.error) {
-              return SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 100),
-                  child: ErrorView(
-                    errorType: state.errorType,
-                    onRetry: () => context.read<LibraryCubit>().reload(),
-                  ),
+            if (state.error && state.playlists.isEmpty) {
+              return SliverFillRemaining(
+                child: ErrorView(
+                  errorType: state.errorType,
+                  onRetry: () => context.read<LibraryCubit>().reload(),
                 ),
               );
             }
@@ -109,7 +150,7 @@ class LibraryScreen extends StatelessWidget {
             final playlists = state.playlists;
 
             return SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
               sliver: SliverGrid(
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: columns,

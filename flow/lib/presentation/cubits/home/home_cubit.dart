@@ -20,15 +20,21 @@ class HomeCubit extends Cubit<HomeState> {
   final GetHomeDataUseCase _getHomeData;
 
   HomeCubit({required GetHomeDataUseCase getHomeData})
-      : _getHomeData = getHomeData,
-        super(const HomeState(isLoading: true)) {
+    : _getHomeData = getHomeData,
+      super(const HomeState(isLoading: true)) {
     AppLogger.i(_tag, 'Created');
     _load();
   }
 
   Future<void> reload() {
     AppLogger.i(_tag, 'reload()');
-    emit(const HomeState(isLoading: true));
+    emit(state.copyWith(isLoading: true, error: false, noSource: false));
+    return _load();
+  }
+
+  /// Pull-to-refresh: keep existing data, just reload in background.
+  Future<void> refresh() {
+    AppLogger.i(_tag, 'refresh()');
     return _load();
   }
 
@@ -49,19 +55,24 @@ class HomeCubit extends Cubit<HomeState> {
       final greeting = hour < 12
           ? 'Good morning'
           : hour < 17
-              ? 'Good afternoon'
-              : 'Good evening';
+          ? 'Good afternoon'
+          : 'Good evening';
 
-      AppLogger.i(_tag,
-          'Loaded — allSongs=${data.allSongs.length}  greeting=$greeting');
+      AppLogger.i(
+        _tag,
+        'Loaded — allSongs=${data.allSongs.length}  greeting=$greeting',
+      );
 
-      emit(HomeState(
-        isLoading: false,
-        greeting: greeting,
-        shelves: data.shelves,
-        trending: data.trending,
-        allSongs: data.allSongs,
-      ));
+      emit(
+        HomeState(
+          isLoading: false,
+          greeting: greeting,
+          shelves: data.shelves,
+          trending: data.trending,
+          allSongs: data.allSongs,
+          profileUrl: data.profileUrl,
+        ),
+      );
     } on AppException catch (e) {
       if (isClosed) return;
       AppLogger.w(_tag, 'Load failed: ${e.message}');
@@ -69,11 +80,13 @@ class HomeCubit extends Cubit<HomeState> {
     } catch (e, st) {
       if (isClosed) return;
       AppLogger.e(_tag, 'Unexpected error', e, st);
-      emit(const HomeState(
-        isLoading: false,
-        error: true,
-        errorType: AppErrorType.unknown,
-      ));
+      emit(
+        const HomeState(
+          isLoading: false,
+          error: true,
+          errorType: AppErrorType.unknown,
+        ),
+      );
     }
   }
 }

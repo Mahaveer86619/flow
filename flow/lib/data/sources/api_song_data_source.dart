@@ -176,6 +176,16 @@ class ApiSongDataSource implements SongDataSource {
   }
 
   @override
+  Future<void> prefetchAudio(String videoId) async {
+    try {
+      // Fire and forget GET request to the prefetch endpoint
+      _getJson('/v1/prefetch/$videoId');
+    } catch (e) {
+      AppLogger.w(_tag, 'Prefetch fire failed: $e');
+    }
+  }
+
+  @override
   List<Map<String, dynamic>> fetchCategories() => _staticCategories;
 
   // ── HTTP helpers ──────────────────────────────────────────────────────────────
@@ -193,7 +203,7 @@ class ApiSongDataSource implements SongDataSource {
     AppLogger.d(_tag, 'GET $uri');
 
     try {
-      final headers = <String, String>{};
+      final headers = <String, String>{'User-Agent': 'FlowMusicApp/1.0'};
       final token = LocalStorage.instance.jwtToken;
       if (token != null) {
         headers['Authorization'] = 'Bearer $token';
