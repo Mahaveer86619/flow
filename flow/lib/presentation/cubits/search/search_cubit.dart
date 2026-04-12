@@ -20,13 +20,18 @@ class SearchCubit extends Cubit<SearchState> {
     required SearchSongsUseCase searchSongs,
     required GetCategoriesUseCase getCategories,
     LocalStorage? storage,
-  })  : _searchSongs = searchSongs,
-        _storage = storage ?? LocalStorage.instance,
-        super(SearchState(
-          categories: getCategories(),
-          recentSearches: (storage ?? LocalStorage.instance).recentSearches,
-        )) {
-    AppLogger.i(_tag, 'Created — recentSearches=${state.recentSearches.length}');
+  }) : _searchSongs = searchSongs,
+       _storage = storage ?? LocalStorage.instance,
+       super(
+         SearchState(
+           categories: getCategories(),
+           recentSearches: (storage ?? LocalStorage.instance).recentSearches,
+         ),
+       ) {
+    AppLogger.i(
+      _tag,
+      'Created — recentSearches=${state.recentSearches.length}',
+    );
   }
 
   void updateQuery(String query) {
@@ -34,14 +39,34 @@ class SearchCubit extends Cubit<SearchState> {
     _debounce?.cancel();
 
     if (query.trim().isEmpty) {
-      emit(state.copyWith(
-          query: query, isLoading: false, error: false, results: []));
+      emit(
+        state.copyWith(
+          query: query,
+          isLoading: false,
+          error: false,
+          results: [],
+        ),
+      );
       return;
     }
 
-    emit(state.copyWith(
-        query: query, isLoading: true, error: false, results: []));
+    emit(
+      state.copyWith(query: query, isLoading: true, error: false, results: []),
+    );
     _debounce = Timer(const Duration(milliseconds: 400), () => _search(query));
+  }
+
+  void updateQueryWithCategory(String category) {
+    _debounce?.cancel();
+    emit(
+      state.copyWith(
+        query: category,
+        isLoading: true,
+        error: false,
+        results: [],
+      ),
+    );
+    _search(category);
   }
 
   Future<void> _search(String query) async {
@@ -55,22 +80,26 @@ class SearchCubit extends Cubit<SearchState> {
     } on AppException catch (e) {
       if (!isClosed && state.query == query) {
         AppLogger.w(_tag, 'search("$query") failed: ${e.message}');
-        emit(state.copyWith(
-          isLoading: false,
-          error: true,
-          errorType: e.errorType,
-          results: [],
-        ));
+        emit(
+          state.copyWith(
+            isLoading: false,
+            error: true,
+            errorType: e.errorType,
+            results: [],
+          ),
+        );
       }
     } catch (e, st) {
       if (!isClosed && state.query == query) {
         AppLogger.e(_tag, 'search unexpected error', e, st);
-        emit(state.copyWith(
-          isLoading: false,
-          error: true,
-          errorType: AppErrorType.unknown,
-          results: [],
-        ));
+        emit(
+          state.copyWith(
+            isLoading: false,
+            error: true,
+            errorType: AppErrorType.unknown,
+            results: [],
+          ),
+        );
       }
     }
   }
@@ -89,8 +118,7 @@ class SearchCubit extends Cubit<SearchState> {
   }
 
   void removeRecentSearch(String query) {
-    final updated =
-        state.recentSearches.where((s) => s != query).toList();
+    final updated = state.recentSearches.where((s) => s != query).toList();
     _storage.saveRecentSearches(updated);
     emit(state.copyWith(recentSearches: updated));
   }

@@ -9,6 +9,7 @@ import 'core/auth/auth_cubit.dart';
 import 'core/config/server_config.dart';
 import 'core/logger/app_logger.dart';
 import 'core/network/connectivity_service.dart';
+import 'core/network/download_service.dart';
 import 'core/network/network_cubit.dart';
 import 'core/platform/permission_service.dart';
 import 'core/storage/local_storage.dart';
@@ -56,6 +57,9 @@ void main() async {
 
   // ── 3. Local storage ──────────────────────────────────────────────────────────
   await LocalStorage.instance.init();
+
+  // ── 3c. Download service ────────────────────────────────────────────────────
+  await DownloadService.instance.init();
 
   // ── 3b. Server config (reads stored custom URL from Hive) ────────────────────
   final baseUrlFromEnv = dotenv.env['API_BASE_URL'] ?? 'http://localhost:8000';
@@ -120,12 +124,19 @@ void main() async {
             getCategories: getCategories,
           ),
         ),
-        BlocProvider(create: (_) => LibraryCubit(getPlaylists: getPlaylists)),
+        BlocProvider(
+          create: (_) => LibraryCubit(
+            getPlaylists: getPlaylists,
+            songRepository: repository,
+          ),
+        ),
       ],
       child: const FlowApp(),
     ),
   );
 }
+
+final navigatorKey = GlobalKey<NavigatorState>();
 
 class FlowApp extends StatelessWidget {
   const FlowApp({super.key});
@@ -137,11 +148,32 @@ class FlowApp extends StatelessWidget {
     );
     return MaterialApp(
       title: 'flow',
+      navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       themeMode: themeMode,
       theme: _buildTheme(Brightness.light),
       darkTheme: _buildTheme(Brightness.dark),
       home: const SplashScreen(),
+      builder: (context, child) {
+        return BlocListener<AuthCubit, AuthState>(
+          listenWhen: (prev, curr) =>
+              prev.isAuthenticated != curr.isAuthenticated ||
+              prev.isLoading != curr.isLoading,
+          listener: (context, state) {
+            if (!state.isAuthenticated && !state.isLoading) {
+              AppLogger.i(
+                'FlowApp',
+                'User unauthenticated, redirecting to Login',
+              );
+              navigatorKey.currentState?.pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
+                (route) => false,
+              );
+            }
+          },
+          child: child!,
+        );
+      },
     );
   }
 

@@ -7,6 +7,7 @@ class LibraryState {
   final AppErrorType errorType;
   final int filterIndex;
   final List<Playlist> playlists;
+  final List<Song> downloadedSongs;
 
   static const filterOptions = ['Playlists', 'Albums', 'Artists', 'Downloads'];
 
@@ -16,6 +17,7 @@ class LibraryState {
     this.errorType = AppErrorType.unknown,
     this.filterIndex = 0,
     required this.playlists,
+    this.downloadedSongs = const [],
   });
 
   LibraryState copyWith({
@@ -23,12 +25,14 @@ class LibraryState {
     bool? error,
     AppErrorType? errorType,
     int? filterIndex,
-  }) =>
-      LibraryState(
-        isLoading: isLoading ?? this.isLoading,
-        error: error ?? this.error,
-        errorType: errorType ?? this.errorType,
-        filterIndex: filterIndex ?? this.filterIndex,
-        playlists: playlists,
-      );
+    List<Playlist>? playlists,
+    List<Song>? downloadedSongs,
+  }) => LibraryState(
+    isLoading: isLoading ?? this.isLoading,
+    error: error ?? this.error,
+    errorType: errorType ?? this.errorType,
+    filterIndex: filterIndex ?? this.filterIndex,
+    playlists: playlists ?? this.playlists,
+    downloadedSongs: downloadedSongs ?? this.downloadedSongs,
+  );
 }

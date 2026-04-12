@@ -35,10 +35,18 @@ class PermissionService {
 
   /// Use for downloading if user wants to save to generic downloads folder later.
   /// Currently using app-specific storage which doesn't need this.
+  /// For external directories on Android 11+ (API 30+), users may need
+  /// MANAGE_EXTERNAL_STORAGE or SAF (handled by file_picker).
   Future<bool> requestStoragePermission() async {
     if (Platform.isAndroid) {
-      final status = await Permission.storage.request();
-      return status.isGranted;
+      // In some cases Permission.storage always returns denied on Android 13+
+      // but file_picker works fine. We'll try to request but return true
+      // anyway to let the picker attempt to open.
+      try {
+        await Permission.storage.request();
+      } catch (e) {
+        AppLogger.w(_tag, 'Permission request failed: $e');
+      }
     }
     return true;
   }

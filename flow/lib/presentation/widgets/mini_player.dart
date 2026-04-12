@@ -45,18 +45,19 @@ class MiniPlayer extends StatelessWidget {
                   Hero(
                     tag: 'art_${song.id}',
                     child: RepaintBoundary(
-                      child: song.thumbnailUrl != null
-                          ? Image.network(
-                              song.thumbnailUrl!,
-                              width: 68,
-                              height: 68,
-                              fit: BoxFit.cover,
-                              cacheWidth: 150,
-                              cacheHeight: 150,
-                              errorBuilder: (context, error, stackTrace) =>
-                                  _ArtFallback(song: song),
-                            )
-                          : _ArtFallback(song: song),
+                      child: AspectRatio(
+                        aspectRatio: 16 / 9,
+                        child: song.thumbnailUrl != null
+                            ? Image.network(
+                                song.thumbnailUrl!,
+                                fit: BoxFit.cover,
+                                cacheWidth: 320,
+                                cacheHeight: 180,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    _ArtFallback(song: song),
+                              )
+                            : _ArtFallback(song: song),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -152,8 +153,6 @@ class _ArtFallback extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 68,
-      height: 68,
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,

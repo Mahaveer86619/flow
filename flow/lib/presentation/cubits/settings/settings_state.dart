@@ -17,11 +17,11 @@ class SettingsState {
     ThemeMode? themeMode,
     String? eqPreset,
     String? downloadQuality,
-    String? downloadPath,
+    String? Function()? downloadPath,
   }) => SettingsState(
     themeMode: themeMode ?? this.themeMode,
     eqPreset: eqPreset ?? this.eqPreset,
     downloadQuality: downloadQuality ?? this.downloadQuality,
-    downloadPath: downloadPath ?? this.downloadPath,
+    downloadPath: downloadPath != null ? downloadPath() : this.downloadPath,
   );
 }

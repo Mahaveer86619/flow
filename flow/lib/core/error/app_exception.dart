@@ -25,10 +25,17 @@ class NetworkException extends AppException {
 class ServerException extends AppException {
   final int? statusCode;
   const ServerException({required String message, this.statusCode})
-      : super(message);
+    : super(message);
 
   @override
   String toString() => 'ServerException($statusCode): $message';
+}
+
+/// Thrown when the server returns a 401 Unauthorized response.
+class UnauthorizedException extends AppException {
+  const UnauthorizedException([
+    super.message = 'Session expired. Please sign in again.',
+  ]);
 }
 
 /// Thrown when the server is unreachable (connection refused / timeout).
@@ -54,17 +61,19 @@ class CacheException extends AppException {
 // ─────────────────────────────────────────────────────────────────────────────
 
 enum AppErrorType {
-  network,       // offline
-  serverDown,    // server unreachable
-  serverError,   // server returned an error response
-  parse,         // bad data
-  unknown,       // catch-all
+  network, // offline
+  serverDown, // server unreachable
+  serverError, // server returned an error response
+  unauthorized, // 401
+  parse, // bad data
+  unknown, // catch-all
 }
 
 extension AppExceptionExt on AppException {
   AppErrorType get errorType {
     if (this is NetworkException) return AppErrorType.network;
     if (this is ServerUnreachableException) return AppErrorType.serverDown;
+    if (this is UnauthorizedException) return AppErrorType.unauthorized;
     if (this is ServerException) return AppErrorType.serverError;
     if (this is ParseException) return AppErrorType.parse;
     return AppErrorType.unknown;

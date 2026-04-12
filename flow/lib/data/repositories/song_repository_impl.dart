@@ -1,8 +1,11 @@
 import '../../core/error/app_exception.dart';
 import '../../core/logger/app_logger.dart';
+import '../../core/network/download_service.dart';
+import '../../core/storage/local_storage.dart';
 import '../../domain/entities/home_data.dart';
 import '../../domain/entities/song.dart';
 import '../../domain/repositories/song_repository.dart';
+import '../models/song_model.dart';
 import '../sources/song_data_source.dart';
 
 // ── Repository Implementation ─────────────────────────────────────────────────
@@ -128,10 +131,38 @@ class SongRepositoryImpl implements SongRepository {
   Future<List<Song>> getSongsByIds(List<String> ids) async {
     AppLogger.i(_tag, 'getSongsByIds(${ids.length} ids)');
     try {
-      final models = await _source.fetchSongsByIds(ids);
-      final songs = models.map((m) => m.toEntity()).toList();
-      AppLogger.d(_tag, 'getSongsByIds: ${songs.length} songs');
-      return songs;
+      final songs = <Song>[];
+      final missingIds = <String>[];
+
+      for (final id in ids) {
+        final localMetadata = LocalStorage.instance.getDownloadMetadata(id);
+        if (localMetadata != null) {
+          songs.add(SongModel.fromJson(localMetadata).toEntity());
+        } else {
+          missingIds.add(id);
+        }
+      }
+
+      if (missingIds.isNotEmpty) {
+        try {
+          final models = await _source.fetchSongsByIds(missingIds);
+          for (final m in models) {
+            songs.add(m.toEntity());
+            // Heal local metadata if it was missing but song is downloaded
+            if (DownloadService.instance.isDownloadedSync(m.id)) {
+              LocalStorage.instance.saveDownloadMetadata(m.id, m.toJson());
+            }
+          }
+        } catch (e) {
+          // If we have some songs (from local), don't fail completely
+          if (songs.isEmpty) rethrow;
+          AppLogger.w(_tag, 'Failed to fetch missing songs from API: $e');
+        }
+      }
+
+      // Maintain original order if possible
+      final idToSong = {for (var s in songs) s.id: s};
+      return ids.map((id) => idToSong[id]).whereType<Song>().toList();
     } on AppException {
       rethrow;
     } catch (e, st) {

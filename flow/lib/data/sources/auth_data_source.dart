@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../../core/auth/auth_event_bus.dart';
 import '../../core/config/server_config.dart';
 import '../../core/error/app_exception.dart';
 import '../../core/logger/app_logger.dart';
@@ -80,6 +81,12 @@ class AuthDataSource {
 
   void _assertOk(http.Response resp) {
     if (resp.statusCode >= 200 && resp.statusCode < 300) return;
+
+    if (resp.statusCode == 401) {
+      AuthEventBus.notifyUnauthorized();
+      throw const UnauthorizedException();
+    }
+
     String detail = 'Request failed (${resp.statusCode})';
     try {
       final json = jsonDecode(resp.body) as Map<String, dynamic>;

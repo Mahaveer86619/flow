@@ -5,6 +5,7 @@ class SquigglyProgressBar extends StatefulWidget {
   final double progress;
   final double bufferProgress;
   final bool isInitialLoading;
+  final bool isBuffering;
   final ValueChanged<double>? onSeek;
 
   const SquigglyProgressBar({
@@ -12,6 +13,7 @@ class SquigglyProgressBar extends StatefulWidget {
     required this.progress,
     this.bufferProgress = 0.0,
     this.isInitialLoading = false,
+    this.isBuffering = false,
     this.onSeek,
   });
 
@@ -24,6 +26,8 @@ class _SquigglyProgressBarState extends State<SquigglyProgressBar>
   late final AnimationController _phaseController;
   late final AnimationController _loadingController;
   late final AnimationController _transitionController;
+
+  bool get _isLoading => widget.isInitialLoading || widget.isBuffering;
 
   @override
   void initState() {
@@ -41,10 +45,10 @@ class _SquigglyProgressBarState extends State<SquigglyProgressBar>
     _transitionController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 400),
-      value: widget.isInitialLoading ? 1.0 : 0.0,
+      value: _isLoading ? 1.0 : 0.0,
     );
 
-    if (widget.isInitialLoading) {
+    if (_isLoading) {
       _loadingController.repeat();
     }
   }
@@ -52,14 +56,19 @@ class _SquigglyProgressBarState extends State<SquigglyProgressBar>
   @override
   void didUpdateWidget(SquigglyProgressBar oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.isInitialLoading != oldWidget.isInitialLoading) {
-      if (widget.isInitialLoading) {
+    final wasLoading = oldWidget.isInitialLoading || oldWidget.isBuffering;
+    final isNowLoading = widget.isInitialLoading || widget.isBuffering;
+
+    if (isNowLoading != wasLoading) {
+      if (isNowLoading) {
         _loadingController.repeat();
         _transitionController.forward();
       } else {
         _transitionController.reverse().then((_) {
-          _loadingController.stop();
-          _loadingController.reset();
+          if (mounted && !widget.isInitialLoading && !widget.isBuffering) {
+            _loadingController.stop();
+            _loadingController.reset();
+          }
         });
       }
     }
@@ -73,51 +82,51 @@ class _SquigglyProgressBarState extends State<SquigglyProgressBar>
     super.dispose();
   }
 
-  void _handleSeek(Offset localPosition, BoxConstraints constraints) {
-    if (widget.isInitialLoading) return;
-    final fraction = (localPosition.dx / constraints.maxWidth).clamp(0.0, 1.0);
+  void _handleSeek(Offset localPosition) {
+    if (_isLoading) return;
+    final RenderBox renderBox = context.findRenderObject() as RenderBox;
+    final width = renderBox.size.width;
+    final fraction = (localPosition.dx / width).clamp(0.0, 1.0);
     widget.onSeek?.call(fraction);
   }
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return GestureDetector(
-          onTapDown: (d) => _handleSeek(d.localPosition, constraints),
-          onHorizontalDragUpdate: (d) =>
-              _handleSeek(d.localPosition, constraints),
-          child: RepaintBoundary(
-            child: AnimatedBuilder(
-              animation: Listenable.merge([
-                _phaseController,
-                _loadingController,
-                _transitionController,
-              ]),
-              builder: (context, _) {
-                return SizedBox(
-                  height: 18,
-                  width: double.infinity,
-                  child: CustomPaint(
-                    painter: _SquigglyPainter(
-                      progress: widget.progress,
-                      bufferProgress: widget.bufferProgress,
-                      isInitialLoading: widget.isInitialLoading,
-                      loadingValue: _loadingController.value,
-                      transitionValue: _transitionController.value,
-                      phase: _phaseController.value * 2 * math.pi,
-                      playedColor: colorScheme.primary,
-                      bufferedColor: const Color(0xFF808080),
-                      unplayedColor: colorScheme.surfaceContainerHighest,
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        );
-      },
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: (d) => _handleSeek(d.localPosition),
+      onHorizontalDragUpdate: (d) => _handleSeek(d.localPosition),
+      onHorizontalDragStart: (d) => _handleSeek(d.localPosition),
+      child: RepaintBoundary(
+        child: AnimatedBuilder(
+          animation: Listenable.merge([
+            _phaseController,
+            _loadingController,
+            _transitionController,
+          ]),
+          builder: (context, _) {
+            return SizedBox(
+              height: 18,
+              width: double.infinity,
+              child: CustomPaint(
+                painter: _SquigglyPainter(
+                  progress: widget.progress,
+                  bufferProgress: widget.bufferProgress,
+                  isInitialLoading: widget.isInitialLoading,
+                  isBuffering: widget.isBuffering,
+                  loadingValue: _loadingController.value,
+                  transitionValue: _transitionController.value,
+                  phase: _phaseController.value * 2 * math.pi,
+                  playedColor: colorScheme.primary,
+                  bufferedColor: const Color(0xFF808080),
+                  unplayedColor: colorScheme.surfaceContainerHighest,
+                ),
+              ),
+            );
+          },
+        ),
+      ),
     );
   }
 }
@@ -126,6 +135,7 @@ class _SquigglyPainter extends CustomPainter {
   final double progress;
   final double bufferProgress;
   final bool isInitialLoading;
+  final bool isBuffering;
   final double loadingValue;
   final double transitionValue;
   final double phase;
@@ -137,6 +147,7 @@ class _SquigglyPainter extends CustomPainter {
     required this.progress,
     required this.bufferProgress,
     required this.isInitialLoading,
+    required this.isBuffering,
     required this.loadingValue,
     required this.transitionValue,
     required this.phase,
@@ -150,9 +161,10 @@ class _SquigglyPainter extends CustomPainter {
     double startX = 0,
     double endX = 1.0,
     double? customPhase,
+    double? customAmplitude,
   }) {
     const waveCount = 5.0;
-    final amplitude = size.height * 0.18;
+    final amplitude = customAmplitude ?? size.height * 0.18;
     final midY = size.height / 2;
     final angularFreq = (2 * math.pi * waveCount) / size.width;
     final p = customPhase ?? phase;
@@ -174,81 +186,96 @@ class _SquigglyPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final fullPath = _buildPath(size);
+    final progressX = size.width * progress;
+    final bufferX = size.width * bufferProgress;
+
+    // 1. Base Unplayed Path (Constant)
     final basePaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
 
+    final path = _buildPath(size);
+
+    // Draw the full background track (unplayed)
+    canvas.drawPath(
+      path,
+      basePaint
+        ..color = unplayedColor.withOpacity(1.0)
+        ..strokeWidth = 2.5,
+    );
+
+    // 2. Loading Animation (Sliding overlay)
     if (transitionValue > 0) {
-      // Draw loading state (M3 style sliding segment)
-      final paint = Paint()
-        ..color = unplayedColor.withOpacity(transitionValue)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.5
-        ..strokeCap = StrokeCap.round;
-
-      canvas.drawPath(fullPath, paint);
-
-      final segmentWidth = size.width * 0.3;
+      final segmentWidth = size.width * 0.4;
       final start = (loadingValue * (size.width + segmentWidth)) - segmentWidth;
 
+      final paint = Paint()
+        ..color = playedColor.withOpacity(transitionValue)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 4.0
+        ..strokeCap = StrokeCap.round;
+
       canvas.save();
-      canvas.clipRect(
-        Rect.fromLTWH(start.clamp(0, size.width), 0, segmentWidth, size.height),
+      canvas.clipRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(
+            start.clamp(-segmentWidth, size.width),
+            0,
+            segmentWidth,
+            size.height,
+          ),
+          const Radius.circular(8),
+        ),
       );
-      canvas.drawPath(
-        fullPath,
-        paint
-          ..color = playedColor.withOpacity(transitionValue)
-          ..strokeWidth = 3.5,
-      );
+
+      // Draw the SAME path but with the played color/width
+      canvas.drawPath(path, paint);
       canvas.restore();
     }
 
+    // 3. Played & Buffered portions (only when NOT fully initial loading)
     if (transitionValue < 1.0) {
-      // Draw normal state with inverse opacity
-      final opacity = 1.0 - transitionValue;
-      final progressX = size.width * progress;
-      final bufferX = size.width * bufferProgress;
+      final normalOpacity = 1.0 - transitionValue;
 
-      // 1. Unplayed
-      canvas.drawPath(
-        fullPath,
-        basePaint
-          ..color = unplayedColor.withOpacity(opacity)
-          ..strokeWidth = 2.5,
-      );
-
-      // 2. Buffered portion
+      // Buffered portion
       if (bufferProgress > progress) {
         canvas.save();
-        canvas.clipRect(
-          Rect.fromLTWH(progressX, 0, bufferX - progressX, size.height),
+        canvas.clipRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromLTWH(progressX, 0, bufferX - progressX, size.height),
+            const Radius.circular(8),
+          ),
         );
         canvas.drawPath(
-          fullPath,
+          path,
           basePaint
-            ..color = bufferedColor.withOpacity(opacity)
+            ..color = bufferedColor.withOpacity(normalOpacity)
             ..strokeWidth = 3.0,
         );
         canvas.restore();
       }
 
-      // 3. Played portion
+      // Played portion
       if (progress > 0) {
         canvas.save();
-        canvas.clipRect(Rect.fromLTWH(0, 0, progressX, size.height));
+        canvas.clipRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromLTWH(-10, 0, progressX + 10, size.height),
+            const Radius.circular(8),
+          ),
+        );
         canvas.drawPath(
-          fullPath,
+          path,
           basePaint
-            ..color = playedColor.withOpacity(opacity)
-            ..strokeWidth = 3.5,
+            ..color = playedColor.withOpacity(normalOpacity)
+            ..strokeWidth = 4.5,
         );
         canvas.restore();
 
+        // 4. Playhead Dot
         const waveCount = 5.0;
-        final amplitude = size.height * 0.28;
+        final amplitude = size.height * 0.18;
         final midY = size.height / 2;
         final angularFreq = (2 * math.pi * waveCount) / size.width;
         final dotY =
@@ -258,13 +285,13 @@ class _SquigglyPainter extends CustomPainter {
           Offset(progressX, dotY),
           8,
           Paint()
-            ..color = playedColor.withAlpha((60 * opacity).toInt())
+            ..color = playedColor.withAlpha((60 * normalOpacity).toInt())
             ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
         );
         canvas.drawCircle(
           Offset(progressX, dotY),
           4,
-          Paint()..color = playedColor.withOpacity(opacity),
+          Paint()..color = playedColor.withOpacity(normalOpacity),
         );
       }
     }
@@ -275,6 +302,7 @@ class _SquigglyPainter extends CustomPainter {
       old.progress != progress ||
       old.bufferProgress != bufferProgress ||
       old.isInitialLoading != isInitialLoading ||
+      old.isBuffering != isBuffering ||
       old.loadingValue != loadingValue ||
       old.transitionValue != transitionValue ||
       old.phase != phase;

@@ -19,6 +19,8 @@ class LocalStorage {
   late final Box _search;
   late final Box _settings;
   late final Box _auth;
+  late final Box _downloads;
+  late final Box _metadata;
 
   Future<void> init() async {
     await Hive.initFlutter();
@@ -26,6 +28,8 @@ class LocalStorage {
     _search = await Hive.openBox(HiveKeys.searchBox);
     _settings = await Hive.openBox(HiveKeys.settingsBox);
     _auth = await Hive.openBox(HiveKeys.authBox);
+    _downloads = await Hive.openBox(HiveKeys.downloadsBox);
+    _metadata = await Hive.openBox(HiveKeys.metadataBox);
     AppLogger.i(
       'LocalStorage',
       'Hive initialised. '
@@ -34,6 +38,8 @@ class LocalStorage {
           'Shuffle=$isShuffle  '
           'Repeat=$isRepeat  '
           'Searches=${recentSearches.length}  '
+          'Downloads=${_downloads.length}  '
+          'Metadata=${_metadata.length}  '
           'Auth=${jwtToken != null ? "token present" : "no token"}',
     );
   }
@@ -101,6 +107,7 @@ class LocalStorage {
   String? get downloadPath => _settings.get(HiveKeys.downloadPath) as String?;
   void saveDownloadPath(String path) =>
       _settings.put(HiveKeys.downloadPath, path);
+  void clearDownloadPath() => _settings.delete(HiveKeys.downloadPath);
 
   // ── Auth ─────────────────────────────────────────────────────────────────────
 
@@ -131,5 +138,29 @@ class LocalStorage {
     _auth.delete(HiveKeys.cachedEmail);
     _auth.delete(HiveKeys.cachedHasYtAuth);
     AppLogger.d('LocalStorage', 'Auth cleared');
+  }
+
+  // ── Downloads ────────────────────────────────────────────────────────────────
+
+  Map<String, String> get downloadedPaths =>
+      _downloads.toMap().cast<String, String>();
+
+  String? getDownloadedPath(String songId) => _downloads.get(songId) as String?;
+
+  void saveDownloadMapping(String songId, String path) =>
+      _downloads.put(songId, path);
+
+  void saveDownloadMetadata(String songId, Map<String, dynamic> metadata) =>
+      _metadata.put(songId, metadata);
+
+  Map<String, dynamic>? getDownloadMetadata(String songId) {
+    final data = _metadata.get(songId);
+    if (data == null) return null;
+    return Map<String, dynamic>.from(data as Map);
+  }
+
+  void removeDownloadMapping(String songId) {
+    _downloads.delete(songId);
+    _metadata.delete(songId);
   }
 }

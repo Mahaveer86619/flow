@@ -462,7 +462,7 @@ class _HomePlaylistCardState extends State<_HomePlaylistCard> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               AspectRatio(
-                aspectRatio: 1,
+                aspectRatio: 16 / 9,
                 child: AnimatedScale(
                   scale: _isHovered ? 1.04 : 1.0,
                   duration: const Duration(milliseconds: 200),
@@ -486,8 +486,8 @@ class _HomePlaylistCardState extends State<_HomePlaylistCard> {
                             child: Image.network(
                               widget.playlist.thumbnailUrl!,
                               fit: BoxFit.cover,
-                              cacheWidth: 300,
-                              cacheHeight: 300,
+                              cacheWidth: 600,
+                              cacheHeight: 338,
                               errorBuilder: (_, __, ___) => const Icon(
                                 Icons.queue_music_rounded,
                                 color: Colors.white,

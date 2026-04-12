@@ -45,6 +45,11 @@ class SettingsCubit extends Cubit<SettingsState> {
   void setDownloadPath(String? path) {
     if (path == null) return;
     LocalStorage.instance.saveDownloadPath(path);
-    emit(state.copyWith(downloadPath: path));
+    emit(state.copyWith(downloadPath: () => path));
+  }
+
+  void clearDownloadPath() {
+    LocalStorage.instance.clearDownloadPath();
+    emit(state.copyWith(downloadPath: () => null));
   }
 }

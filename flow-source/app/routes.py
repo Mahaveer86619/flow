@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os
@@ -353,14 +354,19 @@ async def get_songs_batch(
         return []
     video_ids = [vid.strip() for vid in ids.split(",") if vid.strip()]
     try:
-        proxy_base = str(request.url_for("proxy_image"))
+        try:
+            proxy_base = str(request.url_for("proxy_image"))
+        except Exception as e:
+            logger.warning(f"Could not generate proxy_image URL: {e}")
+            proxy_base = None
+
         client = yt_service.get_client(current_user)
         results = []
         for vid in video_ids:
             try:
                 # get_song returns a dict with basic info
                 data = client.get_song(vid)
-                if data and "videoDetails" in data:
+                if data and isinstance(data, dict) and "videoDetails" in data:
                     # Map YT Music videoDetails to our SongResponse
                     details = data["videoDetails"]
                     raw_thumb = (

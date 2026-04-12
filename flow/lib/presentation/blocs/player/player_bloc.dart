@@ -6,7 +6,12 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:just_audio/just_audio.dart' as ja;
 import 'package:palette_generator/palette_generator.dart';
 import 'package:just_audio/just_audio.dart'
-    show AudioPlayer, ConcatenatingAudioSource, AudioSource, LoopMode;
+    show
+        AudioPlayer,
+        ConcatenatingAudioSource,
+        AudioSource,
+        LoopMode,
+        LockCachingAudioSource;
 import '../../../core/config/server_config.dart';
 import '../../../core/logger/app_logger.dart';
 import '../../../core/platform/windows_media_session.dart';
@@ -153,6 +158,13 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
         final buffering =
             ps.processingState == ja.ProcessingState.loading ||
             ps.processingState == ja.ProcessingState.buffering;
+
+        // Safety: ensure isInitialLoading is cleared once we are ready or playing
+        if (state.isInitialLoading &&
+            (ps.processingState == ja.ProcessingState.ready || ps.playing)) {
+          add(const _InitialLoadingChangedEvent(false));
+        }
+
         add(
           _BufferingChangedEvent(isBuffering: buffering, isPlaying: ps.playing),
         );
@@ -201,8 +213,8 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
       _fetchMoreRadioTracks();
     }
 
-    // Prefetch next track in queue
-    _prefetchNextTrack(newIndex);
+    // Prefetch surrounding tracks
+    _prefetchSurroundingTracks(newIndex);
 
     emit(
       state.copyWith(
@@ -219,11 +231,32 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     _extractPalette(song);
   }
 
-  void _prefetchNextTrack(int currentIndex) {
-    if (currentIndex + 1 < state.queue.length) {
-      final nextSong = state.queue[currentIndex + 1];
-      AppLogger.d(_tag, 'Prefetching next track: ${nextSong.title}');
-      _songRepository.prefetchAudio(nextSong.id);
+  void _prefetchSurroundingTracks(int currentIndex) {
+    if (state.queue.isEmpty) return;
+
+    final List<int> indicesToPrefetch = [];
+
+    // Always prefetch current if not already ready (though it's playing)
+    indicesToPrefetch.add(currentIndex);
+
+    if (currentIndex == 0) {
+      // First song: prefetch next two
+      if (state.queue.length > 1) indicesToPrefetch.add(1);
+      if (state.queue.length > 2) indicesToPrefetch.add(2);
+    } else {
+      // Has previous: prefetch previous and next
+      indicesToPrefetch.add(currentIndex - 1);
+      if (currentIndex + 1 < state.queue.length) {
+        indicesToPrefetch.add(currentIndex + 1);
+      }
+    }
+
+    for (final idx in indicesToPrefetch.toSet()) {
+      if (idx >= 0 && idx < state.queue.length) {
+        final song = state.queue[idx];
+        AppLogger.d(_tag, 'Prefetching track at index $idx: ${song.title}');
+        _songRepository.prefetchAudio(song.id);
+      }
     }
   }
 
@@ -308,7 +341,6 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
 
     _extractPalette(event.songs[idx]);
     await _updatePlaylist(event.songs, initialIndex: idx);
-    add(const _InitialLoadingChangedEvent(false));
   }
 
   Future<void> _onPlaySingle(
@@ -333,7 +365,6 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
 
     _extractPalette(event.song);
     await _updatePlaylist([event.song]);
-    add(const _InitialLoadingChangedEvent(false));
   }
 
   Future<void> _onPlayRadio(
@@ -351,7 +382,6 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     );
     _extractPalette(event.song);
     await _updatePlaylist([event.song]);
-    add(const _InitialLoadingChangedEvent(false));
 
     _fetchMoreRadioTracks();
   }
@@ -372,7 +402,8 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
       if (newTracks.isNotEmpty) {
         final updatedQueue = [...state.queue, ...newTracks];
         for (final t in newTracks) {
-          await _playlist.add(_buildAudioSource(t));
+          final source = await _buildAudioSource(t);
+          await _playlist.add(source);
         }
         add(_QueueUpdatedEvent(updatedQueue));
       }
@@ -394,41 +425,49 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
         'Updating playlist: songs=${songs.length} index=$initialIndex',
       );
       _isChangingSource = true;
-      await _playlist.clear();
-      for (final song in songs) {
-        await _playlist.add(_buildAudioSource(song));
-      }
 
+      // 1. Clear and batch-add for efficiency
+      await _playlist.clear();
+      final sources = await Future.wait(songs.map((s) => _buildAudioSource(s)));
+      await _playlist.addAll(sources);
+
+      // 2. Set source with initial state
       await _audioPlayer.setAudioSource(
         _playlist,
         initialIndex: initialIndex,
         initialPosition: Duration.zero,
       );
 
-      // Allow streams to settle before accepting auto-track changes
-      await Future.delayed(const Duration(milliseconds: 500));
-      _isChangingSource = false;
-
+      // 3. Update metadata & SMTC
       final current = songs[initialIndex];
       _mediaSession.updateSong(current);
       _mediaSession.setPlaybackStatus(true);
 
+      // Safety: ensure 3 tracks are ready (previous, current, next)
+      _prefetchSurroundingTracks(initialIndex);
+
+      // We are essentially "done" with the initial source change here
+      add(const _InitialLoadingChangedEvent(false));
+
+      // Allow streams to settle
+      await Future.delayed(const Duration(milliseconds: 300));
+      _isChangingSource = false;
+
       AppLogger.d(_tag, 'Starting playback for: ${current.title}');
 
-      // Emit playing state BEFORE calling play to update UI immediately
-      add(const _PlayStateChangedEvent(true));
-
-      // Call play and wait a tiny bit to ensure it takes effect
+      // 4. Start playback - AudioPlayer stream will handle isPlaying state update
       await _audioPlayer.play();
 
-      // Double check if it's actually playing
-      if (!_audioPlayer.playing) {
-        AppLogger.w(_tag, 'Playback didn\'t start, retrying play()');
-        await Future.delayed(const Duration(milliseconds: 100));
+      // Double check - on some platforms (like Windows/Linux) just_audio
+      // sometimes needs a nudge if the first attempt didn't transition to playing
+      if (!_audioPlayer.playing && !isClosed) {
+        AppLogger.w(_tag, 'Playback didn\'t start, retrying play() in 200ms');
+        await Future.delayed(const Duration(milliseconds: 200));
         await _audioPlayer.play();
       }
     } catch (e, st) {
       AppLogger.e(_tag, 'Failed to set AudioSource or Play', e, st);
+      _isChangingSource = false;
     }
   }
 
@@ -439,42 +478,64 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     emit(state.copyWith(isPlaying: event.isPlaying));
   }
 
-  AudioSource _buildAudioSource(Song song, {bool? isLikedOverride}) {
+  Future<AudioSource> _buildAudioSource(
+    Song song, {
+    bool? isLikedOverride,
+  }) async {
     final token = _storage.jwtToken;
     final isLiked = isLikedOverride ?? state.likedSongIds.contains(song.id);
 
-    // Layout foundation: Use local file if downloaded
-    // In a real app, this should be reactive, but for now we check at creation time.
-    final localFile = File(
-      '${Directory.systemTemp.path}/downloads/${song.id}.mp3',
-    ); // Placeholder path check logic
+    // 1. Check if downloaded (Quick sync check first)
+    final isDownloadedSync = DownloadService.instance.isDownloadedSync(song.id);
+    bool useLocal = false;
+    File? localFile;
 
-    // We'll use a more robust check in _updatePlaylist or similar for production
-    // For now, assume it's streaming unless we explicitly handle offline mode.
-    final streamUrl = '${ServerConfig.instance.baseUrl}/v1/stream/${song.id}';
+    if (isDownloadedSync) {
+      localFile = await DownloadService.instance.getLocalFile(song.id);
+      if (localFile != null && await localFile.exists()) {
+        useLocal = true;
+      }
+    }
 
-    return AudioSource.uri(
-      Uri.parse(streamUrl),
-      headers: {
+    final mediaItem = MediaItem(
+      id: song.id,
+      title: song.title,
+      artist: song.artist,
+      album: song.album.isNotEmpty ? song.album : song.artist,
+      duration: song.duration,
+      artUri: song.thumbnailUrl != null ? Uri.parse(song.thumbnailUrl!) : null,
+      rating: Rating.newHeartRating(isLiked),
+      extras: <String, dynamic>{
+        'isLiked': isLiked,
+        'isLocal': useLocal,
+        'androidCompactControlIndices': [0, 1, 2],
+      },
+    );
+
+    if (useLocal && localFile != null) {
+      AppLogger.i(_tag, 'Building local AudioSource for: ${song.title}');
+      return AudioSource.file(localFile.path, tag: mediaItem);
+    } else {
+      final streamUrl = '${ServerConfig.instance.baseUrl}/v1/stream/${song.id}';
+      final uri = Uri.parse(streamUrl);
+      final headers = {
         if (token != null) 'Authorization': 'Bearer $token',
         'User-Agent': 'FlowMusicApp/1.0',
-      },
-      tag: MediaItem(
-        id: song.id,
-        title: song.title,
-        artist: song.artist,
-        album: song.album.isNotEmpty ? song.album : song.artist,
-        duration: song.duration,
-        artUri: song.thumbnailUrl != null
-            ? Uri.parse(song.thumbnailUrl!)
-            : null,
-        rating: Rating.newHeartRating(isLiked),
-        extras: <String, dynamic>{
-          'isLiked': isLiked,
-          'androidCompactControlIndices': [0, 1, 2],
-        },
-      ),
-    );
+      };
+
+      // LockCachingAudioSource has known file-locking and proxy issues on Windows.
+      // We'll skip caching on Windows to ensure playback works correctly.
+      if (Platform.isWindows) {
+        AppLogger.i(
+          _tag,
+          'Building standard URI source for Windows: ${song.title}',
+        );
+        return AudioSource.uri(uri, headers: headers, tag: mediaItem);
+      }
+
+      // Use LockCachingAudioSource to enable caching for repeats and seeking back on other platforms
+      return LockCachingAudioSource(uri, headers: headers, tag: mediaItem);
+    }
   }
 
   void _onTogglePlayPause(
@@ -521,6 +582,15 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     }
   }
 
+  void _onRewind(RewindEvent event, Emitter<PlayerState> emit) {
+    final target = _audioPlayer.position - const Duration(seconds: 10);
+    if (target > Duration.zero) {
+      _audioPlayer.seek(target);
+    } else {
+      _audioPlayer.seek(Duration.zero);
+    }
+  }
+
   void _onFastForward(FastForwardEvent event, Emitter<PlayerState> emit) {
     final target = _audioPlayer.position + const Duration(seconds: 10);
     final total = _audioPlayer.duration ?? Duration.zero;
@@ -528,15 +598,6 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
       _audioPlayer.seek(target);
     } else {
       _audioPlayer.seekToNext();
-    }
-  }
-
-  void _onRewind(RewindEvent event, Emitter<PlayerState> emit) {
-    final target = _audioPlayer.position - const Duration(seconds: 10);
-    if (target > Duration.zero) {
-      _audioPlayer.seek(target);
-    } else {
-      _audioPlayer.seek(Duration.zero);
     }
   }
 
@@ -578,12 +639,14 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     // Update the tag in the playlist if it's currently in the queue
     final idx = state.queue.indexWhere((s) => s.id == event.song.id);
     if (idx != -1) {
-      final newSource = _buildAudioSource(
-        event.song,
-        isLikedOverride: isNowLiked,
-      );
-      _playlist.removeAt(idx);
-      _playlist.insert(idx, newSource);
+      _buildAudioSource(event.song, isLikedOverride: isNowLiked).then((
+        newSource,
+      ) {
+        if (!isClosed) {
+          _playlist.removeAt(idx);
+          _playlist.insert(idx, newSource);
+        }
+      });
     }
 
     emit(state.copyWith(likedSongIds: liked));
@@ -638,8 +701,16 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     _PositionUpdateEvent event,
     Emitter<PlayerState> emit,
   ) {
+    // If the song is already fully cached/downloaded, ensure bufferedPosition is at max
+    final isFullyCached =
+        _audioPlayer.bufferedPosition >= (event.duration ?? Duration.zero);
+
     emit(
-      state.copyWith(position: event.position, actualDuration: event.duration),
+      state.copyWith(
+        position: event.position,
+        actualDuration: event.duration,
+        bufferedPosition: isFullyCached ? event.duration : null,
+      ),
     );
     if (event.duration != null && event.position.inSeconds % 2 == 0) {
       _mediaSession.updateTimeline(event.position, event.duration!);

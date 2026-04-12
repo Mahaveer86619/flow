@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import '../../core/auth/auth_event_bus.dart';
 import '../../core/config/server_config.dart';
 import '../../core/error/app_exception.dart';
 import '../../core/logger/app_logger.dart';
@@ -216,6 +217,11 @@ class ApiSongDataSource implements SongDataSource {
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return jsonDecode(response.body);
+      }
+
+      if (response.statusCode == 401) {
+        AuthEventBus.notifyUnauthorized();
+        throw const UnauthorizedException();
       }
 
       AppLogger.w(_tag, 'HTTP ${response.statusCode} ← $uri\n${response.body}');

@@ -33,4 +33,8 @@ class HiveKeys {
   static const String cachedUsername = 'cached_username';
   static const String cachedEmail = 'cached_email';
   static const String cachedHasYtAuth = 'cached_has_yt_auth';
+
+  // ── downloads box ────────────────────────────────────────────────────────────
+  static const String downloadsBox = 'flow_downloads';
+  static const String metadataBox = 'flow_metadata';
 }

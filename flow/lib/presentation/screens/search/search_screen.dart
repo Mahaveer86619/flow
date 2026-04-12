@@ -16,6 +16,7 @@ import '../../../domain/entities/song.dart';
 import '../../blocs/player/player_bloc.dart';
 import '../../cubits/search/search_cubit.dart';
 import '../../widgets/error_view.dart';
+import '../../widgets/section_header.dart';
 import '../player/player_screen.dart';
 import '../settings/settings_screen.dart';
 
@@ -57,7 +58,7 @@ class _SearchScreenState extends State<SearchScreen> {
       ),
       slivers: [
         SliverAppBar(
-          expandedHeight: 150,
+          expandedHeight: 140,
           floating: true,
           pinned: false,
           backgroundColor: Colors.transparent,
@@ -97,16 +98,25 @@ class _SearchScreenState extends State<SearchScreen> {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                   child: BlocBuilder<SearchCubit, SearchState>(
                     buildWhen: (prev, curr) => prev.hasQuery != curr.hasQuery,
                     builder: (context, state) => SearchBar(
                       controller: _textController,
                       focusNode: _focusNode,
                       hintText: 'Songs, artists, albums...',
-                      leading: Icon(
-                        Icons.search_rounded,
-                        color: colorScheme.onSurfaceVariant,
+                      hintStyle: WidgetStatePropertyAll(
+                        TextStyle(
+                          color: colorScheme.onSurface.withAlpha(100),
+                          fontSize: 15,
+                        ),
+                      ),
+                      leading: Padding(
+                        padding: const EdgeInsets.only(left: 8.0),
+                        child: Icon(
+                          Icons.search_rounded,
+                          color: colorScheme.primary,
+                        ),
                       ),
                       trailing: [
                         if (state.hasQuery)
@@ -127,7 +137,12 @@ class _SearchScreenState extends State<SearchScreen> {
                       },
                       elevation: const WidgetStatePropertyAll(0),
                       backgroundColor: WidgetStatePropertyAll(
-                        colorScheme.surfaceContainerHigh,
+                        colorScheme.surfaceContainerHigh.withAlpha(180),
+                      ),
+                      shape: WidgetStatePropertyAll(
+                        RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
                   ),
@@ -256,17 +271,8 @@ class _SearchScreenState extends State<SearchScreen> {
             } else {
               return SliverMainAxisGroup(
                 slivers: [
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-                      child: Text(
-                        'Browse Categories',
-                        style: GoogleFonts.spaceGrotesk(
-                          fontSize: isSmall ? 15.0 : 18.0,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
+                  const SliverToBoxAdapter(
+                    child: SectionHeader(title: 'Browse Categories'),
                   ),
                   SliverPadding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -274,15 +280,23 @@ class _SearchScreenState extends State<SearchScreen> {
                       gridDelegate:
                           const SliverGridDelegateWithFixedCrossAxisCount(
                             crossAxisCount: 2,
-                            mainAxisSpacing: 10,
-                            crossAxisSpacing: 10,
-                            childAspectRatio: 1.85,
+                            mainAxisSpacing: 12,
+                            crossAxisSpacing: 12,
+                            childAspectRatio: 1.7,
                           ),
                       delegate: SliverChildBuilderDelegate(
                         (context, i) => RepaintBoundary(
                           child: _CategoryTile(
                             name: state.categories[i]['name'] as String,
                             color: state.categories[i]['color'] as Color,
+                            onTap: () {
+                              final name =
+                                  state.categories[i]['name'] as String;
+                              _textController.text = name;
+                              context
+                                  .read<SearchCubit>()
+                                  .updateQueryWithCategory(name);
+                            },
                           ),
                         ),
                         childCount: state.categories.length,
@@ -315,40 +329,74 @@ class _ResultTile extends StatelessWidget {
     required this.index,
   });
 
-  Widget _songArtFallback(Song s) => Container(
-    width: 50,
-    height: 50,
-    decoration: BoxDecoration(
-      gradient: LinearGradient(colors: [s.colorPrimary, s.colorSecondary]),
+  Widget _songArtFallback(Song s) => AspectRatio(
+    aspectRatio: 16 / 9,
+    child: Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: [s.colorPrimary, s.colorSecondary]),
+      ),
+      child: const Icon(
+        Icons.music_note_rounded,
+        color: Colors.white,
+        size: 22,
+      ),
     ),
-    child: const Icon(Icons.music_note_rounded, color: Colors.white, size: 22),
   );
 
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      leading: ClipRRect(
-        borderRadius: BorderRadius.circular(10),
-        child: song.thumbnailUrl != null
-            ? Image.network(
-                song.thumbnailUrl!,
-                width: 50,
-                height: 50,
-                fit: BoxFit.cover,
-                cacheWidth: 150,
-                cacheHeight: 150,
-                errorBuilder: (_, __, ___) => _songArtFallback(song),
-              )
-            : _songArtFallback(song),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      leading: SizedBox(
+        width: 100, // 16:9 ratio
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: song.thumbnailUrl != null
+              ? AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: Image.network(
+                    song.thumbnailUrl!,
+                    fit: BoxFit.cover,
+                    cacheWidth: 320,
+                    cacheHeight: 180,
+                    errorBuilder: (_, __, ___) => _songArtFallback(song),
+                  ),
+                )
+              : _songArtFallback(song),
+        ),
       ),
       title: Text(
         song.title,
-        style: const TextStyle(fontWeight: FontWeight.w600),
+        style: GoogleFonts.outfit(fontWeight: FontWeight.w600, fontSize: 15),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
       ),
-      subtitle: Text('${song.artist} • ${song.album}'),
-      trailing: Icon(
-        Icons.play_circle_outline_rounded,
-        color: Theme.of(context).colorScheme.primary,
+      subtitle: Text(
+        '${song.artist} • ${song.album}',
+        style: GoogleFonts.outfit(
+          fontSize: 13,
+          color: Theme.of(context).colorScheme.onSurface.withAlpha(140),
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      trailing: IconButton(
+        icon: Icon(
+          Icons.play_circle_outline_rounded,
+          color: Theme.of(context).colorScheme.primary,
+          size: 28,
+        ),
+        onPressed: () {
+          context.read<PlayerBloc>().add(
+            PlayQueueEvent(
+              songs: List<Song>.from(allResults),
+              startIndex: index,
+            ),
+          );
+          if (!Breakpoints.isDesktop(MediaQuery.sizeOf(context).width)) {
+            PlayerScreen.show(context);
+          }
+        },
       ),
       onTap: () {
         context.read<PlayerBloc>().add(
@@ -369,37 +417,60 @@ class _ResultTile extends StatelessWidget {
 class _CategoryTile extends StatelessWidget {
   final String name;
   final Color color;
-  const _CategoryTile({required this.name, required this.color});
+  final VoidCallback onTap;
+  const _CategoryTile({
+    required this.name,
+    required this.color,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      padding: const EdgeInsets.all(14),
-      clipBehavior: Clip.antiAlias,
-      child: Stack(
-        children: [
-          Positioned(
-            right: -12,
-            bottom: -12,
-            child: Icon(
-              Icons.music_note_rounded,
-              size: 64,
-              color: Colors.white.withAlpha(35),
-            ),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [color, color.withAlpha(180)],
           ),
-          Text(
-            name,
-            style: GoogleFonts.outfit(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: color.withAlpha(40),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
             ),
-          ),
-        ],
+          ],
+        ),
+        padding: const EdgeInsets.all(16),
+        clipBehavior: Clip.antiAlias,
+        child: Stack(
+          children: [
+            Positioned(
+              right: -15,
+              bottom: -15,
+              child: Transform.rotate(
+                angle: 0.2,
+                child: Icon(
+                  Icons.music_note_rounded,
+                  size: 72,
+                  color: Colors.white.withAlpha(30),
+                ),
+              ),
+            ),
+            Text(
+              name,
+              style: GoogleFonts.spaceGrotesk(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+                letterSpacing: -0.5,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

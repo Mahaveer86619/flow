@@ -50,10 +50,13 @@ class _SongCardState extends State<SongCard> {
                 scale: _isHovered ? 1.04 : 1.0,
                 duration: const Duration(milliseconds: 200),
                 curve: Curves.easeOutCubic,
-                child: _Artwork(
-                  song: widget.song,
-                  size: widget.cardWidth,
-                  isHovered: _isHovered,
+                child: AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: _Artwork(
+                    song: widget.song,
+                    size: widget.cardWidth,
+                    isHovered: _isHovered,
+                  ),
                 ),
               ),
               const SizedBox(height: 10),
@@ -129,10 +132,10 @@ class _Artwork extends StatelessWidget {
                   ? Image.network(
                       song.thumbnailUrl!,
                       width: size,
-                      height: size,
+                      height: size * 9 / 16,
                       fit: BoxFit.cover,
-                      cacheWidth: 300,
-                      cacheHeight: 300,
+                      cacheWidth: 640,
+                      cacheHeight: 360,
                       errorBuilder: (context, error, stackTrace) => _fallback(),
                     )
                   : _fallback(),
@@ -162,7 +165,7 @@ class _Artwork extends StatelessWidget {
   Widget _fallback() {
     return Container(
       width: size,
-      height: size,
+      height: size * 9 / 16,
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -172,7 +175,7 @@ class _Artwork extends StatelessWidget {
       ),
       child: Icon(
         Icons.music_note_rounded,
-        size: size * 0.33,
+        size: size * 0.25,
         color: Colors.white.withAlpha(45),
       ),
     );
@@ -193,12 +196,14 @@ class SkeletonSongCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: cardWidth,
-            height: cardWidth,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(14),
+          AspectRatio(
+            aspectRatio: 16 / 9,
+            child: Container(
+              width: cardWidth,
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(14),
+              ),
             ),
           ),
           const SizedBox(height: 8),

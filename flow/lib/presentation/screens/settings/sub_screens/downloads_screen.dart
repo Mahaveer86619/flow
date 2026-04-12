@@ -59,24 +59,59 @@ class DownloadsScreen extends StatelessWidget {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
             ),
-            child: ListTile(
-              contentPadding: const EdgeInsets.fromLTRB(16, 8, 12, 8),
-              title: Text(
-                currentPath ?? 'Default (App Internal)',
-                style: const TextStyle(fontWeight: FontWeight.w500),
-              ),
-              subtitle: Text(
-                currentPath == null ? 'Internal storage' : 'Custom location',
-                style: TextStyle(color: cs.onSurface.withAlpha(120)),
-              ),
-              trailing: IconButton(
-                icon: const Icon(Icons.folder_open_rounded),
-                onPressed: () => _pickDirectory(context),
-              ),
-              onTap: () => _pickDirectory(context),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
+            child: Column(
+              children: [
+                ListTile(
+                  contentPadding: const EdgeInsets.fromLTRB(16, 8, 12, 8),
+                  leading: Icon(
+                    currentPath == null
+                        ? Icons.smartphone_rounded
+                        : Icons.sd_card_rounded,
+                    color: currentPath == null ? cs.primary : cs.secondary,
+                  ),
+                  title: Text(
+                    currentPath ?? 'Default (App Internal)',
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  subtitle: Text(
+                    currentPath == null
+                        ? 'Internal storage'
+                        : 'Custom location',
+                    style: TextStyle(color: cs.onSurface.withAlpha(120)),
+                  ),
+                  trailing: Icon(
+                    Icons.chevron_right_rounded,
+                    color: cs.outline,
+                  ),
+                  onTap: () => _pickDirectory(context),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                if (currentPath != null) ...[
+                  const Divider(height: 1, indent: 16, endIndent: 16),
+                  ListTile(
+                    dense: true,
+                    title: const Text(
+                      'Reset to Default',
+                      style: TextStyle(color: Colors.redAccent),
+                    ),
+                    leading: const Icon(
+                      Icons.settings_backup_restore_rounded,
+                      color: Colors.redAccent,
+                      size: 20,
+                    ),
+                    onTap: () => cubit.clearDownloadPath(),
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: BorderRadius.vertical(
+                        bottom: Radius.circular(14),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
           const SizedBox(height: 24),

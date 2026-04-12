@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../error/app_exception.dart';
 import '../logger/app_logger.dart';
 import '../storage/local_storage.dart';
 import '../../data/sources/auth_data_source.dart';
+import 'auth_event_bus.dart';
 import 'auth_state.dart';
 
 export 'auth_state.dart';
@@ -10,11 +12,22 @@ export 'auth_state.dart';
 class AuthCubit extends Cubit<AuthState> {
   static const _tag = 'AuthCubit';
   final AuthDataSource _authSource;
+  StreamSubscription? _unauthorizedSub;
 
   AuthCubit({AuthDataSource? authSource})
-      : _authSource = authSource ?? AuthDataSource(),
-        super(const AuthState(isLoading: true)) {
+    : _authSource = authSource ?? AuthDataSource(),
+      super(const AuthState(isLoading: true)) {
     _init();
+    _unauthorizedSub = AuthEventBus.unauthorized.listen((_) {
+      AppLogger.w(_tag, 'Received global unauthorized event, logging out');
+      logout();
+    });
+  }
+
+  @override
+  Future<void> close() {
+    _unauthorizedSub?.cancel();
+    return super.close();
   }
 
   Future<void> _init() async {
@@ -23,13 +36,15 @@ class AuthCubit extends Cubit<AuthState> {
       emit(const AuthState());
       return;
     }
-    emit(AuthState(
-      isAuthenticated: true,
-      token: token,
-      username: LocalStorage.instance.cachedUsername,
-      email: LocalStorage.instance.cachedEmail,
-      hasYtAuth: LocalStorage.instance.cachedHasYtAuth,
-    ));
+    emit(
+      AuthState(
+        isAuthenticated: true,
+        token: token,
+        username: LocalStorage.instance.cachedUsername,
+        email: LocalStorage.instance.cachedEmail,
+        hasYtAuth: LocalStorage.instance.cachedHasYtAuth,
+      ),
+    );
     _validateToken(token);
   }
 
@@ -90,13 +105,15 @@ class AuthCubit extends Cubit<AuthState> {
       hasYtAuth: (user['has_yt_auth'] as bool?) ?? false,
     );
     if (!isClosed) {
-      emit(AuthState(
-        isAuthenticated: true,
-        token: token,
-        username: user['username'] as String,
-        email: user['email'] as String,
-        hasYtAuth: (user['has_yt_auth'] as bool?) ?? false,
-      ));
+      emit(
+        AuthState(
+          isAuthenticated: true,
+          token: token,
+          username: user['username'] as String,
+          email: user['email'] as String,
+          hasYtAuth: (user['has_yt_auth'] as bool?) ?? false,
+        ),
+      );
     }
   }
 }

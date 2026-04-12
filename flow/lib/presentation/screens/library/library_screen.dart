@@ -6,6 +6,7 @@ import '../../../domain/entities/song.dart';
 import '../../blocs/player/player_bloc.dart';
 import '../../cubits/library/library_cubit.dart';
 import '../../widgets/error_view.dart';
+import '../../widgets/song_card.dart';
 import '../playlist/playlist_screen.dart';
 import '../settings/settings_screen.dart';
 
@@ -129,13 +130,16 @@ class LibraryScreen extends StatelessWidget {
 
         BlocBuilder<LibraryCubit, LibraryState>(
           builder: (context, state) {
-            if (state.isLoading && state.playlists.isEmpty) {
+            final isDownloads = state.filterIndex == 3;
+            final items = isDownloads ? state.downloadedSongs : state.playlists;
+
+            if (state.isLoading && items.isEmpty) {
               return const SliverFillRemaining(
                 child: Center(child: CircularProgressIndicator()),
               );
             }
 
-            if (state.error && state.playlists.isEmpty) {
+            if (state.error && items.isEmpty) {
               return SliverFillRemaining(
                 child: ErrorView(
                   errorType: state.errorType,
@@ -144,7 +148,7 @@ class LibraryScreen extends StatelessWidget {
               );
             }
 
-            if (state.playlists.isEmpty) {
+            if (items.isEmpty) {
               return const SliverFillRemaining(
                 child: Center(child: Text('Nothing here yet')),
               );
@@ -157,9 +161,18 @@ class LibraryScreen extends StatelessWidget {
                   crossAxisCount: columns,
                   mainAxisSpacing: 16,
                   crossAxisSpacing: 16,
-                  childAspectRatio: 0.8,
+                  childAspectRatio: isDownloads ? 0.7 : 0.8,
                 ),
                 delegate: SliverChildBuilderDelegate((context, i) {
+                  if (isDownloads) {
+                    final song = state.downloadedSongs[i];
+                    return SongCard(
+                      song: song,
+                      queue: state.downloadedSongs,
+                      index: i,
+                    );
+                  }
+
                   final pl = state.playlists[i];
                   return _LibraryPlaylistCard(
                     title: pl.name,
@@ -172,7 +185,7 @@ class LibraryScreen extends StatelessWidget {
                       ),
                     ),
                   );
-                }, childCount: state.playlists.length),
+                }, childCount: items.length),
               ),
             );
           },

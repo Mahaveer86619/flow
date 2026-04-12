@@ -278,6 +278,8 @@ class _MainPlayerSection extends StatelessWidget {
           SquigglyProgressBar(
             progress: state.progress,
             bufferProgress: state.bufferProgress,
+            isInitialLoading: state.isInitialLoading,
+            isBuffering: state.isBuffering,
             onSeek: (fraction) =>
                 context.read<PlayerBloc>().add(SeekToEvent(fraction)),
           ),
