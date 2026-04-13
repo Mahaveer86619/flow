@@ -61,7 +61,7 @@ class PlayerPanel extends StatelessWidget {
                     return Center(
                       child: RepaintBoundary(
                         child: Hero(
-                          tag: 'art_${song.id}',
+                          tag: 'active_art_${song.id}',
                           child: AlbumArtWidget(
                             size: size,
                             colorPrimary: song.colorPrimary,

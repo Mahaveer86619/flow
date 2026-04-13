@@ -14,6 +14,7 @@ class SongCard extends StatefulWidget {
   final List<Song> queue;
   final int index;
   final double cardWidth;
+  final String? heroTag;
 
   const SongCard({
     super.key,
@@ -21,6 +22,7 @@ class SongCard extends StatefulWidget {
     required this.queue,
     required this.index,
     this.cardWidth = 135,
+    this.heroTag,
   });
 
   @override
@@ -56,6 +58,7 @@ class _SongCardState extends State<SongCard> {
                     song: widget.song,
                     size: widget.cardWidth,
                     isHovered: _isHovered,
+                    heroTag: widget.heroTag,
                   ),
                 ),
               ),
@@ -102,11 +105,13 @@ class _Artwork extends StatelessWidget {
   final Song song;
   final double size;
   final bool isHovered;
+  final String? heroTag;
 
   const _Artwork({
     required this.song,
     required this.size,
     required this.isHovered,
+    this.heroTag,
   });
 
   @override
@@ -125,7 +130,7 @@ class _Artwork extends StatelessWidget {
             ],
           ),
           child: Hero(
-            tag: 'art_${song.id}',
+            tag: heroTag ?? 'card_art_${song.id}_${song.hashCode}',
             child: ClipRRect(
               borderRadius: BorderRadius.circular(14),
               child: song.thumbnailUrl != null

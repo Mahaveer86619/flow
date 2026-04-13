@@ -376,6 +376,7 @@ class _HomeShelfRenderer extends StatelessWidget {
                     song: song,
                     queue: allSongs,
                     index: songIndexMap[song.id] ?? 0,
+                    heroTag: 'card_art_${song.id}_${shelf.title}_$i',
                   );
                 }
                 final playlist = item.data as Playlist;
@@ -422,6 +423,7 @@ class _HomeShelfRenderer extends StatelessWidget {
                 song: songs[i],
                 queue: allSongs,
                 index: songIndexMap[songs[i].id] ?? 0,
+                heroTag: 'card_art_${songs[i].id}_${shelf.title}_$i',
               ),
             ),
           ),
@@ -700,7 +702,7 @@ class _QuickAccessLargeCardState extends State<_QuickAccessLargeCard> {
               AspectRatio(
                 aspectRatio: 16 / 9,
                 child: Hero(
-                  tag: 'art_${widget.song.id}',
+                  tag: 'quick_art_${widget.song.id}',
                   child: Container(
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(16),

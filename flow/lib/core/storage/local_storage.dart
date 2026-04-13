@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../logger/app_logger.dart';
 import 'hive_keys.dart';
@@ -104,10 +105,39 @@ class LocalStorage {
   void saveDownloadQuality(String q) =>
       _settings.put(HiveKeys.downloadQuality, q);
 
-  String? get downloadPath => _settings.get(HiveKeys.downloadPath) as String?;
+  String get _platformDownloadPathKey {
+    if (Platform.isWindows) return '${HiveKeys.downloadPath}_windows';
+    if (Platform.isAndroid) return '${HiveKeys.downloadPath}_android';
+    if (Platform.isIOS) return '${HiveKeys.downloadPath}_ios';
+    if (Platform.isMacOS) return '${HiveKeys.downloadPath}_macos';
+    if (Platform.isLinux) return '${HiveKeys.downloadPath}_linux';
+    return HiveKeys.downloadPath;
+  }
+
+  String? get downloadPath =>
+      _settings.get(_platformDownloadPathKey) as String?;
   void saveDownloadPath(String path) =>
-      _settings.put(HiveKeys.downloadPath, path);
-  void clearDownloadPath() => _settings.delete(HiveKeys.downloadPath);
+      _settings.put(_platformDownloadPathKey, path);
+  void clearDownloadPath() => _settings.delete(_platformDownloadPathKey);
+
+  Map<String, String> get allPlatformDownloadPaths {
+    final Map<String, String> paths = {};
+    final platforms = ['windows', 'android', 'ios', 'macos', 'linux'];
+    for (final p in platforms) {
+      final key = '${HiveKeys.downloadPath}_$p';
+      final val = _settings.get(key) as String?;
+      if (val != null) paths[p] = val;
+    }
+    return paths;
+  }
+
+  void saveAllDownloadPaths(Map<String, dynamic> paths) {
+    paths.forEach((key, value) {
+      if (value is String) {
+        _settings.put('${HiveKeys.downloadPath}_$key', value);
+      }
+    });
+  }
 
   // ── Auth ─────────────────────────────────────────────────────────────────────
 

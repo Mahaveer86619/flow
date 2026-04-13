@@ -26,6 +26,7 @@ import 'presentation/blocs/player/player_bloc.dart';
 import 'presentation/cubits/home/home_cubit.dart';
 import 'presentation/cubits/library/library_cubit.dart';
 import 'presentation/cubits/search/search_cubit.dart';
+import 'presentation/screens/auth/login_screen.dart';
 import 'presentation/screens/splash/splash_screen.dart';
 
 void main() async {
@@ -116,7 +117,10 @@ void main() async {
         BlocProvider(create: (_) => AuthCubit()),
         BlocProvider(create: (_) => NetworkCubit(ConnectivityService.instance)),
         BlocProvider(create: (_) => PlayerBloc(songRepository: repository)),
-        BlocProvider(create: (_) => SettingsCubit()),
+        BlocProvider(
+          create: (context) =>
+              SettingsCubit(authCubit: context.read<AuthCubit>()),
+        ),
         BlocProvider(create: (_) => HomeCubit(getHomeData: getHomeData)),
         BlocProvider(
           create: (_) => SearchCubit(

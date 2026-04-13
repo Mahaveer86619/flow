@@ -32,6 +32,7 @@ from .models import (
     UserCreate,
     UserLogin,
     UserResponse,
+    UserSettingsUpdate,
     YTCookiesPayload,
 )
 from .services import auth_service, extract_audio_url, yt_service
@@ -131,6 +132,8 @@ async def signup(user_in: UserCreate, db: Session = Depends(get_db)):
 
     response = UserResponse.from_orm(new_user)
     response.has_yt_auth = bool(new_user.yt_auth_json)
+    if new_user.settings_json:
+        response.settings = json.loads(new_user.settings_json)
     return response
 
 
@@ -159,6 +162,25 @@ async def login(
 async def read_users_me(current_user: User = Depends(get_current_user)):
     response = UserResponse.from_orm(current_user)
     response.has_yt_auth = bool(current_user.yt_auth_json)
+    if current_user.settings_json:
+        response.settings = json.loads(current_user.settings_json)
+    return response
+
+
+@router.patch("/auth/settings", response_model=UserResponse)
+async def update_settings(
+    req: UserSettingsUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    current_user.settings_json = json.dumps(req.settings)
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
+
+    response = UserResponse.from_orm(current_user)
+    response.has_yt_auth = bool(current_user.yt_auth_json)
+    response.settings = req.settings
     return response
 
 

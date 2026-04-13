@@ -55,6 +55,23 @@ class AuthDataSource {
     return jsonDecode(resp.body) as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> updateSettings(
+    String token,
+    Map<String, dynamic> settings,
+  ) async {
+    AppLogger.i(_tag, 'updateSettings()');
+    final resp = await http
+        .patch(
+          Uri.parse('$_base/v1/auth/settings'),
+          headers: _headers(token)
+            ..addAll({'Content-Type': 'application/json'}),
+          body: jsonEncode({'settings': settings}),
+        )
+        .timeout(_timeout);
+    _assertOk(resp);
+    return jsonDecode(resp.body) as Map<String, dynamic>;
+  }
+
   Future<void> connectYTCookies(
     String token,
     Map<String, String> cookies,

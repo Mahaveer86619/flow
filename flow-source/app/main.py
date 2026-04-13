@@ -39,6 +39,20 @@ def create_app() -> FastAPI:
         # Ensure database tables are created
         Base.metadata.create_all(bind=engine)
 
+        # Manually ensure settings_json column exists (PostgreSQL)
+        try:
+            from sqlalchemy import text
+
+            with engine.connect() as conn:
+                conn.execute(
+                    text(
+                        "ALTER TABLE users ADD COLUMN IF NOT EXISTS settings_json TEXT;"
+                    )
+                )
+                conn.commit()
+        except Exception as e:
+            print(f"Schema update notice: {e}")
+
         # Ensure global cookie file is written if the master auth.json exists
         if write_cookie_file(settings.AUTH_FILE_PATH, settings.COOKIES_FILE_PATH):
             print(f"Global cookies initialized at {settings.COOKIES_FILE_PATH}")

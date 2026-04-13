@@ -226,8 +226,7 @@ _Spec _spec(AppErrorType type, ColorScheme cs) {
         icon: Icons.wifi_off_rounded,
         color: const Color(0xFF6366F1),
         title: 'No internet connection',
-        subtitle:
-            'Check your Wi-Fi or mobile data and try again.',
+        subtitle: 'Check your Wi-Fi or mobile data and try again.',
       );
     case AppErrorType.serverDown:
       return _Spec(
@@ -242,7 +241,8 @@ _Spec _spec(AppErrorType type, ColorScheme cs) {
         icon: Icons.dns_rounded,
         color: const Color(0xFFEF4444),
         title: 'Server error',
-        subtitle: 'The server returned an unexpected response. Try again shortly.',
+        subtitle:
+            'The server returned an unexpected response. Try again shortly.',
       );
     case AppErrorType.parse:
       return _Spec(
@@ -250,6 +250,13 @@ _Spec _spec(AppErrorType type, ColorScheme cs) {
         color: const Color(0xFFEC4899),
         title: 'Bad data',
         subtitle: 'Received unexpected data from the server.',
+      );
+    case AppErrorType.unauthorized:
+      return _Spec(
+        icon: Icons.lock_person_rounded,
+        color: const Color(0xFF8B5CF6),
+        title: 'Session expired',
+        subtitle: 'Please sign in again to continue.',
       );
     case AppErrorType.unknown:
       return _Spec(

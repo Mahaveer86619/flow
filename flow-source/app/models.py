@@ -21,6 +21,9 @@ class User(Base):
     # Store YT Music auth as a JSON string
     yt_auth_json = Column(Text, nullable=True)
 
+    # Store user settings as a JSON string
+    settings_json = Column(Text, nullable=True)
+
 
 # --- Pydantic Models ---
 
@@ -39,10 +42,15 @@ class UserLogin(BaseModel):
     password: str
 
 
+class UserSettingsUpdate(BaseModel):
+    settings: Dict[str, Any]
+
+
 class UserResponse(UserBase):
     id: int
     is_active: bool
     has_yt_auth: bool = False
+    settings: Optional[Dict[str, Any]] = None
 
     class Config:
         from_attributes = True

@@ -53,6 +53,11 @@ class AuthCubit extends Cubit<AuthState> {
       final user = await _authSource.getMe(token);
       final hasYt = (user['has_yt_auth'] as bool?) ?? false;
       LocalStorage.instance.saveHasYtAuth(hasYt);
+      if (user['settings'] != null) {
+        AuthEventBus.notifySettingsLoaded(
+          user['settings'] as Map<String, dynamic>,
+        );
+      }
       if (!isClosed) emit(state.copyWith(hasYtAuth: hasYt));
     } on ServerException catch (e) {
       if (e.statusCode == 401) {
@@ -104,6 +109,11 @@ class AuthCubit extends Cubit<AuthState> {
       email: user['email'] as String,
       hasYtAuth: (user['has_yt_auth'] as bool?) ?? false,
     );
+    if (user['settings'] != null) {
+      AuthEventBus.notifySettingsLoaded(
+        user['settings'] as Map<String, dynamic>,
+      );
+    }
     if (!isClosed) {
       emit(
         AuthState(

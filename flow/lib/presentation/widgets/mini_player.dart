@@ -43,7 +43,7 @@ class MiniPlayer extends StatelessWidget {
                 children: [
                   // ── Album art ────────────────────────────────────────────────────
                   Hero(
-                    tag: 'art_${song.id}',
+                    tag: 'active_art_${song.id}',
                     child: RepaintBoundary(
                       child: AspectRatio(
                         aspectRatio: 16 / 9,

@@ -204,7 +204,7 @@ class _MainPlayerSection extends StatelessWidget {
                     : constraints.maxWidth;
                 return Center(
                   child: Hero(
-                    tag: 'art_${song.id}',
+                    tag: 'active_art_${song.id}',
                     child: AlbumArtWidget(
                       size: size,
                       colorPrimary: song.colorPrimary,
