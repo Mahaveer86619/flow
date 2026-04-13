@@ -18,6 +18,9 @@ class DownloadService {
   final _progressController = StreamController<Map<String, double>>.broadcast();
   Stream<Map<String, double>> get progressStream => _progressController.stream;
 
+  final _downloadEventController = StreamController<String>.broadcast();
+  Stream<String> get downloadEventStream => _downloadEventController.stream;
+
   // Cache of current downloads to prevent duplicates
   final Map<String, double> _activeDownloads = {};
 
@@ -26,22 +29,74 @@ class DownloadService {
 
   Future<void> init() async {
     _downloadedIds.clear();
+    // 1. Load from Hive
     _downloadedIds.addAll(LocalStorage.instance.downloadedPaths.keys);
+
+    // 2. Scan physical directory for "lost" downloads (e.g. after reinstall)
+    await scanDownloads();
+
     AppLogger.i(
       _tag,
       'Initialised with ${_downloadedIds.length} downloaded songs',
     );
   }
 
+  Future<void> scanDownloads() async {
+    try {
+      final dirPath = await _localPath;
+      final downloadsDir = Directory('$dirPath/downloads');
+      if (!await downloadsDir.exists()) return;
+
+      final files = await downloadsDir.list().toList();
+      int restored = 0;
+
+      for (final entity in files) {
+        if (entity is File && entity.path.endsWith('.mp3')) {
+          final fileName = entity.path.split(Platform.pathSeparator).last;
+          // Format: Title_ID.mp3
+          final parts = fileName.replaceAll('.mp3', '').split('_');
+          if (parts.length >= 2) {
+            final id = parts.last;
+            if (!_downloadedIds.contains(id)) {
+              _downloadedIds.add(id);
+              // Store the path in Hive so we don't have to scan every time
+              LocalStorage.instance.saveDownloadMapping(id, entity.path);
+              restored++;
+            }
+          }
+        }
+      }
+      if (restored > 0) {
+        AppLogger.i(_tag, 'Restored $restored downloads from disk scan');
+      }
+    } catch (e) {
+      AppLogger.e(_tag, 'Failed to scan downloads', e);
+    }
+  }
+
   List<String> getDownloadedIds() => _downloadedIds.toList();
 
   Future<String> get _localPath async {
+    String basePath;
     final customPath = LocalStorage.instance.downloadPath;
+
     if (customPath != null && await Directory(customPath).exists()) {
-      return customPath;
+      basePath = customPath;
+    } else if (Platform.isAndroid) {
+      final directory = await getExternalStorageDirectory();
+      basePath =
+          directory?.path ?? (await getApplicationDocumentsDirectory()).path;
+    } else {
+      basePath = (await getApplicationDocumentsDirectory()).path;
     }
-    final directory = await getApplicationDocumentsDirectory();
-    return directory.path;
+
+    // Always append 'flow' to the base path
+    final flowPath = '$basePath${Platform.pathSeparator}flow';
+    final dir = Directory(flowPath);
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
+    }
+    return flowPath;
   }
 
   Future<File?> getLocalFile(String songId) async {
@@ -141,6 +196,7 @@ class DownloadService {
       LocalStorage.instance.saveDownloadMetadata(song.id, model.toJson());
 
       _downloadedIds.add(song.id);
+      _downloadEventController.add(song.id);
 
       _activeDownloads.remove(song.id);
       _progressController.add(Map.from(_activeDownloads));
@@ -194,6 +250,7 @@ class DownloadService {
 
     LocalStorage.instance.removeDownloadMapping(songId);
     _downloadedIds.remove(songId);
+    _downloadEventController.add(songId);
     AppLogger.i(_tag, 'Deleted download: $songId');
   }
 }

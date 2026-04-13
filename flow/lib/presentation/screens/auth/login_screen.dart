@@ -39,12 +39,12 @@ class _LoginScreenState extends State<LoginScreen> {
     });
     try {
       await context.read<AuthCubit>().login(
-            _usernameCtrl.text.trim(),
-            _passwordCtrl.text,
-          );
+        _usernameCtrl.text.trim(),
+        _passwordCtrl.text,
+      );
       if (!mounted) return;
       context.read<HomeCubit>().reload();
-      Navigator.of(context).pushReplacement(
+      Navigator.of(context).pushAndRemoveUntil(
         PageRouteBuilder(
           pageBuilder: (_, __, ___) => ResponsiveLayout(
             mobile: (_) => const MainScreen(),
@@ -54,6 +54,7 @@ class _LoginScreenState extends State<LoginScreen> {
               FadeTransition(opacity: anim, child: child),
           transitionDuration: const Duration(milliseconds: 400),
         ),
+        (route) => false,
       );
     } on ServerException catch (e) {
       setState(() {
@@ -126,11 +127,12 @@ class _LoginScreenState extends State<LoginScreen> {
                         prefixIcon: const Icon(Icons.lock_outline_rounded),
                         border: const OutlineInputBorder(),
                         suffixIcon: IconButton(
-                          icon: Icon(_obscure
-                              ? Icons.visibility_outlined
-                              : Icons.visibility_off_outlined),
-                          onPressed: () =>
-                              setState(() => _obscure = !_obscure),
+                          icon: Icon(
+                            _obscure
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                          ),
+                          onPressed: () => setState(() => _obscure = !_obscure),
                         ),
                       ),
                       onFieldSubmitted: (_) => _submit(),
@@ -164,8 +166,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       children: [
                         Text(
                           "Don't have an account? ",
-                          style: TextStyle(
-                              color: cs.onSurface.withAlpha(140)),
+                          style: TextStyle(color: cs.onSurface.withAlpha(140)),
                         ),
                         TextButton(
                           onPressed: () => Navigator.of(context).push(

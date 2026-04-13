@@ -1,74 +1,90 @@
-# Flow (Mobile & Desktop)
+# Flow App — The Premium Music Client 💎
 
-A cross-platform music streaming client built with Flutter. It provides a seamless experience for browsing and playing music from YouTube Music, with a focus on high-quality audio and a polished user interface.
+Flow App is a high-performance, cross-platform music streaming client built with Flutter. It provides an immersive experience with deep integration into your Flow Source backend.
 
-## Key Features
+---
 
-- **Personalized Home Feed:** Quick Access, Listening Again, Forgotten Favorites, and curated music for you.
-- **Advanced Search:** Real-time search for songs, artists, and albums with history and category browsing.
-- **Full Library Management:** Access and manage your YouTube Music playlists directly in the app.
-- **Immersive Player:** Features a unique squiggly progress bar, dynamic color palette extraction from album art, and cross-platform playback.
-- **Desktop Excellence:** Integrated Windows System Media Transport Controls (SMTC) for media key support and a persistent sidebar layout for larger screens.
-- **Cross-Platform:** Responsive layouts for Mobile (Android/iOS) and Desktop (Windows/macOS/Linux).
-- **Security:** JWT-based user authentication and secure per-user account linking.
+## ✨ Features That Shine
 
-## Tech Stack
+- **🎨 Dynamic Material 3 UI:** Automatically extracts colors from album art for a truly personal interface.
+- **〰️ Squiggly Progress Bar:** A unique, playful player UI for a more expressive experience.
+- **🎼 Full Media Controls:** Support for background playback and system media keys (SMTC on Windows).
+- **🚀 Instant Playback:** Optimized for fast starting and seamless track transitions.
+- **📱 Responsive Layout:** Perfectly adapted for mobile, tablet, and desktop screens.
+- **🔄 Smart Sync:** Seamlessly integrates with your YouTube Music account through your private backend.
 
-- **Framework:** Flutter (Dart SDK ^3.11.4)
-- **State Management:** `flutter_bloc` (BLoC + Cubit)
-- **Audio Engine:** `just_audio` with background playback support.
-- **Storage:** `hive_flutter` for high-performance persistent local data.
-- **Networking:** `http` for RESTful communication with the backend.
-- **Design:** Material 3 with customized typography (Outfit & Space Grotesk).
+---
 
-## Getting Started
+## 🏗️ Technical Stack
+
+- **Flutter & Dart:** For cross-platform high-performance rendering.
+- **BLoC & Cubit:** Predictable state management for a smooth UX.
+- **just_audio:** A powerful audio engine for background playback and streaming.
+- **Hive:** Blazing-fast local storage for user preferences and playback history.
+- **flutter_dotenv:** Flexible environment-based configuration.
+
+---
+
+## 🚀 Getting Started
 
 ### 1. Prerequisites
-- Flutter SDK ≥ 3.11.4
-- A running instance of the [Flow Backend](../flow-source/)
 
-### 2. Installation
+Ensure you have the following installed:
+- **Flutter SDK:** (Check your current version with `flutter --version`)
+- **A running Flow Source backend:** See the [Backend Guide](../flow-source/)
+
+### 2. Configure Your Environment
+
+The app connects to your private server via a `.env` file.
+
+1.  Navigate to the `flow` directory: `cd flow`
+2.  Create a `.env` file and set your backend URL:
+    ```env
+    # For Local Development (Desktop/Simulator):
+    API_BASE_URL=http://localhost:8000
+
+    # For Real Devices (Using the Cloudflare Tunnel):
+    # Get this from your 'docker-compose logs -f tunnel'
+    API_BASE_URL=https://your-tunnel-url.trycloudflare.com
+
+    # Debug Options:
+    USE_MOCK=false
+    DEBUG=true
+    ```
+
+### 3. Build and Run
+
+#### 🖥️ Desktop (Windows / macOS / Linux)
 ```bash
-cd flow
 flutter pub get
+flutter run -d windows  # or 'macos', 'linux'
 ```
 
-### 3. Environment Configuration
-Create a `flow/.env` file:
-```env
-# URL of your running backend (e.g., http://localhost:8000)
-API_BASE_URL=http://localhost:8000
-
-# Optional: Set to true to use static mock data instead of the API
-USE_MOCK=false
-
-# Optional: Enable verbose logging
-DEBUG=true
-```
-
-### 4. Run the App
+#### 📱 Mobile (Android / iOS)
 ```bash
+flutter pub get
 flutter run
 ```
 
-## Architecture
+---
 
-The app follows a clean architecture pattern with a clear separation of concerns:
+## 🏗️ Architecture
 
-- `lib/core/`: Foundation logic including authentication, network monitoring, and local storage.
-- `lib/domain/`: Pure business logic, entities, and repository interfaces.
-- `lib/data/`: Data source implementations (API/Mock) and model serialization.
-- `lib/presentation/`: UI components, screens, and state management (BLoCs/Cubits).
+Flow App follows a clean architecture pattern with a clear separation of concerns:
 
-## Backend Integration
+- `lib/core/`: Foundation logic, auth, networking, and storage.
+- `lib/domain/`: Business logic, entities, and repository interfaces.
+- `lib/data/`: API and Mock data sources, repository implementations.
+- `lib/presentation/`: Screens, widgets, and state management (BLoCs/Cubits).
 
-The app connects to the Flow API via the following core endpoints:
-- **Authentication:** `/v1/auth/*`
-- **Browsing:** `/v1/home`, `/v1/feed`
-- **Library:** `/v1/library`, `/v1/playlists/*`
-- **Playback:** `/v1/stream/{id}` (Audio proxy), `/v1/proxy-image` (Image proxy)
+---
 
-## Supported Platforms
-- **Android / iOS:** Full mobile experience with mini-player and full-screen player.
-- **Windows:** Supports media keys and system tray integration via SMTC.
-- **macOS / Linux / Web:** Fully responsive layout support.
+## 🛡️ Key Configurations
+
+- **Playback:** Uses `just_audio_background` for background audio support (Android/iOS/macOS).
+- **SMTC:** Windows-specific integration for system media controls and media keys.
+- **Hive Boxes:** Data is stored securely in encrypted boxes for sensitive user information.
+
+---
+
+<p align="center">Pure sound, pure flow. 🎵</p>

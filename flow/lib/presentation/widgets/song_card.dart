@@ -36,6 +36,9 @@ class _SongCardState extends State<SongCard> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final isDesktop = Breakpoints.isDesktop(MediaQuery.sizeOf(context).width);
+    final isLiked = context.select<PlayerBloc, bool>(
+      (bloc) => bloc.state.isLiked(widget.song),
+    );
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
@@ -73,13 +76,28 @@ class _SongCardState extends State<SongCard> {
                 overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 2),
-              Text(
-                widget.song.artist,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: colorScheme.onSurface.withAlpha(140),
-                ),
-                overflow: TextOverflow.ellipsis,
+              Row(
+                children: [
+                  if (isLiked)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: Icon(
+                        Icons.favorite_rounded,
+                        size: 12,
+                        color: const Color(0xFFEC4899),
+                      ),
+                    ),
+                  Expanded(
+                    child: Text(
+                      widget.song.artist,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colorScheme.onSurface.withAlpha(140),
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

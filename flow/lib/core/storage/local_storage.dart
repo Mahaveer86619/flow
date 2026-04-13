@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../logger/app_logger.dart';
@@ -22,6 +23,9 @@ class LocalStorage {
   late final Box _auth;
   late final Box _downloads;
   late final Box _metadata;
+
+  final _likedSongsController = StreamController<List<String>>.broadcast();
+  Stream<List<String>> get likedSongsStream => _likedSongsController.stream;
 
   Future<void> init() async {
     await Hive.initFlutter();
@@ -51,7 +55,9 @@ class LocalStorage {
       (_player.get(HiveKeys.likedSongIds) as List?)?.cast<String>() ?? [];
 
   void saveLikedSongIds(List<String> ids) {
-    _player.put(HiveKeys.likedSongIds, ids);
+    final listToSave = List<String>.from(ids);
+    _player.put(HiveKeys.likedSongIds, listToSave);
+    _likedSongsController.add(listToSave);
     AppLogger.d('LocalStorage', 'Persisted ${ids.length} liked IDs');
   }
 

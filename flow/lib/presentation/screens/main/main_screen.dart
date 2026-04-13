@@ -80,6 +80,7 @@ class _MainScreenState extends State<MainScreen> {
               ),
               NavigationDestination(
                 icon: Icon(Icons.search_rounded),
+                selectedIcon: Icon(Icons.search_rounded),
                 label: 'Search',
               ),
               NavigationDestination(
@@ -94,17 +95,6 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  void _showNotifications(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (context) => const _NotificationsPanel(),
-    );
-  }
-
   void _showRecentlyPlayed(BuildContext context) {
     // Navigate to a dedicated screen or show modal
   }
@@ -113,17 +103,5 @@ class _MainScreenState extends State<MainScreen> {
     Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
-  }
-}
-
-class _NotificationsPanel extends StatelessWidget {
-  const _NotificationsPanel();
-
-  @override
-  Widget build(BuildContext context) {
-    return const SizedBox(
-      height: 400,
-      child: Center(child: Text('No new notifications')),
-    );
   }
 }

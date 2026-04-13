@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../domain/entities/song.dart';
 import '../../blocs/player/player_bloc.dart';
 import '../../widgets/album_art_widget.dart';
+import '../../widgets/like_button.dart';
 import '../../widgets/squiggly_progress_bar.dart';
 import '../queue/queue_screen.dart';
 
@@ -246,23 +247,9 @@ class _MainPlayerSection extends StatelessWidget {
                   ],
                 ),
               ),
-              IconButton(
-                icon: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 300),
-                  transitionBuilder: (child, animation) =>
-                      ScaleTransition(scale: animation, child: child),
-                  child: Icon(
-                    state.isLiked(song)
-                        ? Icons.favorite_rounded
-                        : Icons.favorite_border_rounded,
-                    key: ValueKey(state.isLiked(song)),
-                    size: 28,
-                    color: state.isLiked(song)
-                        ? const Color(0xFFEC4899)
-                        : Colors.white.withAlpha(140),
-                  ),
-                ),
-                onPressed: () =>
+              LikeButton(
+                isLiked: state.isLiked(song),
+                onTap: () =>
                     context.read<PlayerBloc>().add(ToggleLikeEvent(song)),
               ),
               IconButton(
@@ -424,6 +411,8 @@ class _DownloadIcon extends StatelessWidget {
     return BlocSelector<PlayerBloc, PlayerState, double>(
       selector: (state) => state.getDownloadProgress(song.id),
       builder: (context, progress) {
+        final isDownloaded = DownloadService.instance.isDownloadedSync(song.id);
+
         if (progress >= 0 && progress < 1.0) {
           return Stack(
             alignment: Alignment.center,
@@ -447,11 +436,11 @@ class _DownloadIcon extends StatelessWidget {
           );
         }
         return Icon(
-          song.isDownloaded
+          isDownloaded
               ? Icons.download_done_rounded
               : Icons.download_for_offline_outlined,
           size: 26,
-          color: song.isDownloaded
+          color: isDownloaded
               ? Colors.greenAccent
               : Colors.white.withAlpha(140),
         );

@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/player/player_bloc.dart';
 import '../screens/player/player_screen.dart';
 import '../../domain/entities/song.dart';
+import 'like_button.dart';
 
 class MiniPlayer extends StatelessWidget {
   const MiniPlayer({super.key});
@@ -110,6 +111,23 @@ class MiniPlayer extends StatelessWidget {
                         ),
                       ],
                     ),
+                  ),
+                  const SizedBox(width: 4),
+
+                  // ── Like button ──────────────────────────────────────────────────
+                  BlocBuilder<PlayerBloc, PlayerState>(
+                    buildWhen: (prev, curr) =>
+                        prev.likedSongIds.length != curr.likedSongIds.length ||
+                        prev.currentSong?.id != curr.currentSong?.id,
+                    builder: (context, state) {
+                      return LikeButton(
+                        isLiked: state.isLiked(song),
+                        size: 22,
+                        onTap: () => context.read<PlayerBloc>().add(
+                          ToggleLikeEvent(song),
+                        ),
+                      );
+                    },
                   ),
                   const SizedBox(width: 4),
 

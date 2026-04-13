@@ -1,4 +1,4 @@
-package com.example.flow
+package com.se7en.flow
 
 import com.ryanheise.audioservice.AudioServiceActivity
 

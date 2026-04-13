@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../core/responsive/breakpoints.dart';
 import '../../../domain/entities/song.dart';
 import '../../blocs/player/player_bloc.dart';
+import '../../widgets/song_tile.dart';
 import '../player/player_screen.dart';
 
 class PlaylistScreen extends StatelessWidget {
@@ -192,19 +193,10 @@ class PlaylistScreen extends StatelessWidget {
                   sliver: SliverList(
                     delegate: SliverChildBuilderDelegate((context, i) {
                       final song = playlist.songs[i];
-                      return _SongTile(
+                      return SongTile(
                         song: song,
-                        onTap: () {
-                          context.read<PlayerBloc>().add(
-                            PlayQueueEvent(
-                              songs: playlist.songs,
-                              startIndex: i,
-                            ),
-                          );
-                          if (!isDesktop) {
-                            PlayerScreen.show(context);
-                          }
-                        },
+                        queue: playlist.songs,
+                        index: i,
                       );
                     }, childCount: playlist.songs.length),
                   ),
@@ -242,108 +234,6 @@ class _EndlessRadioToggle extends StatelessWidget {
             : colorScheme.onSurfaceVariant,
       ),
       tooltip: 'Endless Radio',
-    );
-  }
-}
-
-class _SongTile extends StatelessWidget {
-  final Song song;
-  final VoidCallback onTap;
-
-  const _SongTile({required this.song, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return ListTile(
-      onTap: onTap,
-      contentPadding: const EdgeInsets.symmetric(vertical: 4),
-      leading: Container(
-        width: 48,
-        height: 48,
-        decoration: BoxDecoration(borderRadius: BorderRadius.circular(8)),
-        clipBehavior: Clip.antiAlias,
-        child: song.thumbnailUrl != null
-            ? Image.network(
-                song.thumbnailUrl!,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _fallback(),
-              )
-            : _fallback(),
-      ),
-      title: Text(
-        song.title,
-        style: GoogleFonts.outfit(fontWeight: FontWeight.w600, fontSize: 15),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-      subtitle: Text(
-        song.artist,
-        style: GoogleFonts.outfit(
-          fontSize: 13,
-          color: colorScheme.onSurface.withAlpha(140),
-        ),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-      trailing: IconButton(
-        icon: const Icon(Icons.more_vert_rounded),
-        onPressed: () {
-          _showSongOptions(context);
-        },
-        iconSize: 20,
-      ),
-    );
-  }
-
-  void _showSongOptions(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 20),
-            ListTile(
-              leading: const Icon(Icons.favorite_border_rounded),
-              title: const Text('Add to Favorites'),
-              onTap: () => Navigator.pop(context),
-            ),
-            ListTile(
-              leading: const Icon(Icons.playlist_add_rounded),
-              title: const Text('Add to another Playlist'),
-              onTap: () => Navigator.pop(context),
-            ),
-            ListTile(
-              leading: const Icon(Icons.share_rounded),
-              title: const Text('Share Song'),
-              onTap: () => Navigator.pop(context),
-            ),
-            const SizedBox(height: 24),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _fallback() {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [song.colorPrimary, song.colorSecondary],
-        ),
-      ),
-      child: const Icon(
-        Icons.music_note_rounded,
-        color: Colors.white,
-        size: 20,
-      ),
     );
   }
 }

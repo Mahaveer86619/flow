@@ -25,6 +25,11 @@ class PlayRadioEvent extends PlayerEvent {
   const PlayRadioEvent(this.song);
 }
 
+/// Play a shuffle of all downloaded tracks.
+class PlayDownloadedRadioEvent extends PlayerEvent {
+  const PlayDownloadedRadioEvent();
+}
+
 /// Toggle between playing and paused.
 class TogglePlayPauseEvent extends PlayerEvent {
   const TogglePlayPauseEvent();

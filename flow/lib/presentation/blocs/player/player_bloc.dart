@@ -75,6 +75,7 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     on<ToggleShuffleEvent>(_onToggleShuffle);
     on<ToggleRepeatEvent>(_onToggleRepeat);
     on<ToggleEndlessRadioEvent>(_onToggleEndlessRadio);
+    on<PlayDownloadedRadioEvent>(_onPlayDownloadedRadio);
     on<ToggleLikeEvent>(_onToggleLike);
     on<ToggleDownloadEvent>(_onToggleDownload);
     on<SetVolumeEvent>(_onSetVolume);
@@ -626,6 +627,43 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     }
   }
 
+  Future<void> _onPlayDownloadedRadio(
+    PlayDownloadedRadioEvent event,
+    Emitter<PlayerState> emit,
+  ) async {
+    final ids = DownloadService.instance.getDownloadedIds();
+    if (ids.isEmpty) return;
+
+    emit(state.copyWith(isInitialLoading: true));
+
+    try {
+      final songs = await _songRepository.getSongsByIds(ids);
+      if (songs.isEmpty) {
+        emit(state.copyWith(isInitialLoading: false));
+        return;
+      }
+
+      final shuffled = List<Song>.from(songs)..shuffle();
+
+      emit(
+        state.copyWith(
+          queue: shuffled,
+          queueIndex: 0,
+          currentSong: shuffled[0],
+          isInitialLoading: true,
+          isEndlessRadio: false, // Don't fetch remote tracks in offline mode
+          clearCustomColors: true,
+        ),
+      );
+
+      _extractPalette(shuffled[0]);
+      await _updatePlaylist(shuffled);
+    } catch (e) {
+      AppLogger.e(_tag, 'Failed to start downloaded radio', e);
+      emit(state.copyWith(isInitialLoading: false));
+    }
+  }
+
   void _onToggleLike(ToggleLikeEvent event, Emitter<PlayerState> emit) {
     final liked = List<String>.from(state.likedSongIds);
     final isNowLiked = !liked.contains(event.song.id);
@@ -643,8 +681,12 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
         newSource,
       ) {
         if (!isClosed) {
-          _playlist.removeAt(idx);
-          _playlist.insert(idx, newSource);
+          final currentIndex = _audioPlayer.currentIndex;
+          // Only replace if it's NOT the current playing song to avoid skipping
+          if (idx != currentIndex) {
+            _playlist.removeAt(idx);
+            _playlist.insert(idx, newSource);
+          }
         }
       });
     }

@@ -71,6 +71,7 @@ class PlayerState {
 
   /// 0.0–1.0 fractional buffer progress.
   double get bufferProgress {
+    if (currentSong?.isDownloaded ?? false) return 1.0;
     final dur = actualDuration ?? currentSong?.duration;
     if (dur == null || dur.inMilliseconds <= 0) return 0.0;
     return (bufferedPosition.inMilliseconds / dur.inMilliseconds).clamp(

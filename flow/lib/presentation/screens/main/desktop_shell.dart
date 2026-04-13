@@ -19,6 +19,7 @@ import '../../widgets/offline_banner.dart';
 import '../../widgets/player_panel.dart';
 import '../home/home_screen.dart';
 import '../library/library_screen.dart';
+import '../notifications/notifications_screen.dart';
 import '../search/search_screen.dart';
 import '../settings/settings_screen.dart';
 
@@ -203,10 +204,11 @@ class _DesktopNavRail extends StatelessWidget {
               children: [
                 _SidebarIconButton(
                   icon: Icons.notifications_outlined,
-                  onPressed: () => _showDialog(
+                  onPressed: () => Navigator.push(
                     context,
-                    title: 'Notifications',
-                    body: 'No new notifications.',
+                    MaterialPageRoute(
+                      builder: (_) => const NotificationsScreen(),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -242,29 +244,6 @@ class _DesktopNavRail extends StatelessWidget {
           label: Text('Library'),
         ),
       ],
-    );
-  }
-
-  void _showDialog(
-    BuildContext context, {
-    required String title,
-    required String body,
-  }) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text(
-          title,
-          style: GoogleFonts.spaceGrotesk(fontWeight: FontWeight.w700),
-        ),
-        content: Text(body),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
     );
   }
 

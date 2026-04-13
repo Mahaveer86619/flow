@@ -14,7 +14,7 @@ import '../../widgets/song_card.dart';
 import '../artist/artist_screen.dart';
 import '../player/player_screen.dart';
 import '../playlist/playlist_screen.dart';
-
+import '../notifications/notifications_screen.dart';
 import '../settings/settings_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -35,7 +35,8 @@ class _HomeScreenContent extends StatelessWidget {
 
     return BlocBuilder<HomeCubit, HomeState>(
       builder: (context, state) {
-        final cs = Theme.of(context).colorScheme;
+        final theme = Theme.of(context);
+        final cs = theme.colorScheme;
         // Pre-compute index map for performance (O(N) once instead of O(N^2) total)
         final Map<String, int> songIndexMap = {
           for (int i = 0; i < state.allSongs.length; i++)
@@ -55,12 +56,14 @@ class _HomeScreenContent extends StatelessWidget {
             slivers: [
               // ── Custom immersive AppBar (Always Visible) ─────────────────────────
               SliverAppBar(
-                expandedHeight: 100,
+                expandedHeight: 110,
                 floating: true,
-                pinned: false,
-                backgroundColor: Colors.transparent,
+                pinned: true,
+                backgroundColor: theme.scaffoldBackgroundColor,
                 elevation: 0,
+                surfaceTintColor: Colors.transparent,
                 flexibleSpace: FlexibleSpaceBar(
+                  expandedTitleScale: 1.0,
                   background: Padding(
                     padding: EdgeInsets.fromLTRB(
                       16,
@@ -73,18 +76,37 @@ class _HomeScreenContent extends StatelessWidget {
                       children: [
                         Row(
                           children: [
-                            Text(
-                              'Flow',
-                              style: GoogleFonts.spaceGrotesk(
-                                fontSize: 32,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: -1.2,
-                              ),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Flow',
+                                  style: GoogleFonts.spaceGrotesk(
+                                    fontSize: 32,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: -1.2,
+                                  ),
+                                ),
+                                Text(
+                                  state.greeting,
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                    color: colorScheme.onSurface.withAlpha(140),
+                                  ),
+                                ),
+                              ],
                             ),
                             const Spacer(),
                             IconButton(
-                              icon: const Icon(Icons.history_rounded),
-                              onPressed: () {},
+                              icon: const Icon(Icons.notifications_outlined),
+                              onPressed: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => const NotificationsScreen(),
+                                  ),
+                                );
+                              },
                             ),
                             IconButton(
                               icon: const Icon(Icons.settings_outlined),
@@ -98,41 +120,10 @@ class _HomeScreenContent extends StatelessWidget {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 2),
-                        Row(
-                          children: [
-                            Text(
-                              state.greeting,
-                              style: GoogleFonts.outfit(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                                color: colorScheme.onSurface.withAlpha(140),
-                              ),
-                            ),
-                            if (state.isLoading && state.shelves.isNotEmpty)
-                              const Padding(
-                                padding: EdgeInsets.only(left: 12),
-                                child: SizedBox(
-                                  width: 12,
-                                  height: 12,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white24,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
                       ],
                     ),
                   ),
                 ),
-              ),
-
-              // ── Filter Chips ───────────────────────────────────────────────────
-              SliverPersistentHeader(
-                pinned: true,
-                delegate: _FilterChipsDelegate(),
               ),
 
               // ── Body Logic (Error / Loading / Content) ──────────────────────────
@@ -167,61 +158,6 @@ class _HomeScreenContent extends StatelessWidget {
   }
 }
 
-class _FilterChipsDelegate extends SliverPersistentHeaderDelegate {
-  @override
-  Widget build(
-    BuildContext context,
-    double shrinkOffset,
-    bool overlapsContent,
-  ) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final tags = ['All', 'Relax', 'Sleep', 'Energize', 'Sadhana', 'Focus'];
-
-    return Container(
-      color: Theme.of(
-        context,
-      ).scaffoldBackgroundColor.withAlpha(overlapsContent ? 255 : 0),
-      height: 60,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        itemCount: tags.length,
-        itemBuilder: (context, i) {
-          final isFirst = i == 0;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: FilterChip(
-              label: Text(tags[i]),
-              selected: isFirst,
-              onSelected: (_) {},
-              backgroundColor: colorScheme.surfaceContainerHigh,
-              selectedColor: colorScheme.onSurface,
-              labelStyle: TextStyle(
-                color: isFirst ? colorScheme.surface : colorScheme.onSurface,
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-                side: BorderSide.none,
-              ),
-              showCheckmark: false,
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  @override
-  double get maxExtent => 60;
-  @override
-  double get minExtent => 60;
-  @override
-  bool shouldRebuild(covariant SliverPersistentHeaderDelegate oldDelegate) =>
-      false;
-}
-
 class _HomeShelfRenderer extends StatelessWidget {
   final HomeShelf shelf;
   final List<Song> allSongs;
@@ -238,31 +174,24 @@ class _HomeShelfRenderer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final title = shelf.title.toLowerCase();
-    String? shelfSubtitle;
-    String? shelfProfileUrl;
-
-    if (title.contains('listen again')) {
-      shelfSubtitle = 'MAHAVEER PANIGRAHI'; // Placeholder name as per ref image
-      shelfProfileUrl = profileUrl; // Use dynamic profile URL
-    }
 
     // Determine layout based on title or content
     if (title.contains('quick pick') || title.contains('top pick')) {
-      return _buildQuickAccessGrid(context, shelfSubtitle, shelfProfileUrl);
+      return _buildQuickAccessGrid(context, null, null);
     }
 
     final itemTypes = shelf.items.map((e) => e.type).toSet();
 
     if (itemTypes.contains(HomeItemType.artist) && shelf.items.length > 2) {
-      return _buildArtistRow(context, shelfSubtitle, shelfProfileUrl);
+      return _buildArtistRow(context, null, null);
     }
 
     if (itemTypes.contains(HomeItemType.album) ||
         itemTypes.contains(HomeItemType.playlist)) {
-      return _buildPlaylistRow(context, shelfSubtitle, shelfProfileUrl);
+      return _buildPlaylistRow(context, null, null);
     }
 
-    return _buildStandardRow(context, shelfSubtitle, shelfProfileUrl);
+    return _buildStandardRow(context, null, null);
   }
 
   Widget _buildQuickAccessGrid(
@@ -676,6 +605,9 @@ class _QuickAccessLargeCardState extends State<_QuickAccessLargeCard> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final isDesktop = Breakpoints.isDesktop(MediaQuery.sizeOf(context).width);
+    final isLiked = context.select<PlayerBloc, bool>(
+      (bloc) => bloc.state.isLiked(widget.song),
+    );
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
@@ -739,14 +671,29 @@ class _QuickAccessLargeCardState extends State<_QuickAccessLargeCard> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              Text(
-                widget.song.artist,
-                style: GoogleFonts.outfit(
-                  fontSize: 13,
-                  color: colorScheme.onSurface.withAlpha(140),
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+              Row(
+                children: [
+                  if (isLiked)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: Icon(
+                        Icons.favorite_rounded,
+                        size: 12,
+                        color: const Color(0xFFEC4899),
+                      ),
+                    ),
+                  Expanded(
+                    child: Text(
+                      widget.song.artist,
+                      style: GoogleFonts.outfit(
+                        fontSize: 13,
+                        color: colorScheme.onSurface.withAlpha(140),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

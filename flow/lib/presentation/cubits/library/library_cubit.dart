@@ -1,7 +1,10 @@
+import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/error/app_exception.dart';
 import '../../../core/logger/app_logger.dart';
 import '../../../core/network/download_service.dart';
+import '../../../core/storage/local_storage.dart';
+import '../../../domain/entities/song.dart';
 import '../../../domain/repositories/song_repository.dart';
 import '../../../domain/usecases/get_playlists_usecase.dart';
 import 'library_state.dart';
@@ -14,6 +17,11 @@ class LibraryCubit extends Cubit<LibraryState> {
   final GetPlaylistsUseCase _getPlaylists;
   final SongRepository _songRepository;
 
+  StreamSubscription? _likedSongsSub;
+  StreamSubscription? _downloadSub;
+
+  bool _isInitialLoading = false;
+
   LibraryCubit({
     required GetPlaylistsUseCase getPlaylists,
     required SongRepository songRepository,
@@ -21,65 +29,92 @@ class LibraryCubit extends Cubit<LibraryState> {
        _songRepository = songRepository,
        super(const LibraryState(isLoading: true, playlists: [])) {
     AppLogger.i(_tag, 'Created');
-    _load();
+    _loadAll();
+
+    _likedSongsSub = LocalStorage.instance.likedSongsStream.listen((ids) async {
+      AppLogger.d(_tag, 'Liked songs stream event: ${ids.length} ids');
+      final songs = await _fetchLikedSongs();
+      if (!isClosed) {
+        emit(state.copyWith(likedSongs: songs));
+      }
+    });
+
+    _downloadSub = DownloadService.instance.downloadEventStream.listen((
+      _,
+    ) async {
+      AppLogger.d(_tag, 'Download event stream event');
+      final songs = await _fetchDownloadedSongs();
+      if (!isClosed) {
+        emit(state.copyWith(downloadedSongs: songs));
+      }
+    });
+  }
+
+  @override
+  Future<void> close() {
+    _likedSongsSub?.cancel();
+    _downloadSub?.cancel();
+    return super.close();
   }
 
   Future<void> reload() {
     AppLogger.i(_tag, 'reload()');
-    emit(state.copyWith(isLoading: true));
-    if (state.filterIndex == 3) {
-      return _loadDownloads();
-    }
-    return _load();
+    return _loadAll();
   }
 
-  Future<void> _load() async {
+  Future<void> _loadAll() async {
+    if (_isInitialLoading) return;
+    _isInitialLoading = true;
+
+    emit(state.copyWith(isLoading: true));
     try {
-      AppLogger.d(_tag, 'Fetching playlists...');
-      final playlists = await _getPlaylists();
+      // Fetch playlists and remote likes (these don't have streams yet)
+      final results = await Future.wait([
+        _getPlaylists(),
+        _fetchRemoteLikedSongs(),
+        _fetchLikedSongs(),
+        _fetchDownloadedSongs(),
+      ]);
+
       if (isClosed) return;
-      AppLogger.i(_tag, 'Loaded ${playlists.length} playlists');
-      emit(state.copyWith(isLoading: false, playlists: playlists));
-    } on AppException catch (e) {
-      if (isClosed) return;
-      AppLogger.w(_tag, 'Load failed: ${e.message}');
-      emit(
-        state.copyWith(isLoading: false, error: true, errorType: e.errorType),
-      );
-    } catch (e, st) {
-      if (isClosed) return;
-      AppLogger.e(_tag, 'Unexpected error', e, st);
+
       emit(
         state.copyWith(
           isLoading: false,
-          error: true,
-          errorType: AppErrorType.unknown,
+          playlists: results[0] as List<Playlist>,
+          remoteLikedSongs: results[1] as List<Song>,
+          likedSongs: results[2] as List<Song>,
+          downloadedSongs: results[3] as List<Song>,
         ),
       );
-    }
-  }
-
-  Future<void> _loadDownloads() async {
-    try {
-      emit(state.copyWith(isLoading: true));
-      final ids = DownloadService.instance.getDownloadedIds();
-      if (ids.isEmpty) {
-        emit(state.copyWith(isLoading: false, downloadedSongs: []));
-        return;
-      }
-      final songs = await _songRepository.getSongsByIds(ids);
+    } catch (e, st) {
       if (isClosed) return;
-      emit(state.copyWith(isLoading: false, downloadedSongs: songs));
-    } catch (e) {
+      AppLogger.e(_tag, 'Failed to load library', e, st);
       emit(state.copyWith(isLoading: false, error: true));
+    } finally {
+      _isInitialLoading = false;
     }
   }
 
-  void setFilter(int index) {
-    if (state.filterIndex == index) return;
-    emit(state.copyWith(filterIndex: index));
-    if (index == 3) {
-      _loadDownloads();
+  Future<List<Song>> _fetchLikedSongs() async {
+    final ids = LocalStorage.instance.likedSongIds;
+    if (ids.isEmpty) return [];
+    return _songRepository.getSongsByIds(ids);
+  }
+
+  Future<List<Song>> _fetchDownloadedSongs() async {
+    final ids = DownloadService.instance.getDownloadedIds();
+    if (ids.isEmpty) return [];
+    return _songRepository.getSongsByIds(ids);
+  }
+
+  Future<List<Song>> _fetchRemoteLikedSongs() async {
+    try {
+      // "LM" is the YT Music "Your Likes" playlist ID
+      return await _songRepository.getPlaylistTracks('LM');
+    } catch (e) {
+      AppLogger.w(_tag, 'Failed to fetch remote liked songs: $e');
+      return [];
     }
   }
 }

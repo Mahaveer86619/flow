@@ -1,65 +1,104 @@
-# Flow Music API (Backend)
+# Flow Source — The Powerhouse Backend ⚙️
 
-Production-ready YouTube Music API server for the Flow app, built with FastAPI and PostgreSQL.
+Flow Source is the high-performance engine that powers the Flow ecosystem. Built with FastAPI and PostgreSQL, it provides a secure, self-hosted platform for streaming your favorite music with zero tracking and full control.
 
-## Features
+---
 
-- **Standardized Endpoints:** Clean `/v1` routes for home feed, search, and library management.
-- **User Management:** JWT-based authentication with signup and login endpoints.
-- **Per-User Integration:** Each user can link their own YouTube Music account; credentials are stored securely in the database.
-- **Streaming:** Proxied audio streaming using `yt-dlp` and `httpx` with range-request support.
-- **Caching:** Server-side caching for personalized home shelves to optimize performance.
-- **Image Proxy:** Built-in proxy to bypass CORS/referer issues for album art thumbnails.
-- **Playlist Management:** Complete CRUD operations for YouTube Music playlists.
-- **Infrastructure:** Containerized setup with Docker and Docker Compose.
+## 🛠️ Key Features
 
-## Setup
+- **🚀 Instant Streaming:** A high-performance audio proxy using `yt-dlp` and `httpx` with support for HTTP Range requests for instant seeking.
+- **🔐 Secure Authentication:** JWT-based user management for secure access.
+- **🎵 Deep YT Music Integration:** Custom account linking to fetch your personalized library, playlists, and history.
+- **🖼️ Image Proxying:** Built-in image proxy to bypass cross-origin restrictions for high-quality album art.
+- **📦 Containerized Ready:** Full Docker support with Docker Compose for one-click deployments.
+- **🚇 Seamless Access:** Integrated Cloudflare Tunnel for secure, remote access without complex networking.
 
-### 1. Prerequisites
-- Python 3.12+
-- PostgreSQL (or use the provided Docker setup)
-- ffmpeg (required by `yt-dlp`)
+---
 
-### 2. Installation
-```bash
-# Clone the repository and navigate to flow-source
-pip install -r requirements.txt
-```
+## 🏗️ Architecture Overview
 
-### 3. Configuration
-Copy the `.env.example` (if provided) or create a `.env` file with the following:
-```env
-DEBUG=True
-FLAVOR=local
-DATABASE_URL=postgresql://flow_user:password@localhost:5432/flow_music
-SECRET_KEY=your-secret-key-here
-```
+The backend is structured for scalability and clarity:
 
-### 4. Database Initialization
-```bash
-python manage.py create
-python manage.py seed   # Optional: seeds initial roles and an admin user
-```
+- `app/main.py`: The entry point for the FastAPI application.
+- `app/routes.py`: RESTful endpoints for Auth, Home, Library, Search, and Playback.
+- `app/services.py`: Business logic, including `yt-dlp` streaming and account linking.
+- `app/models.py`: Database schemas for Users, Account credentials, and Metadata.
+- `app/database.py`: SQLAlchemy engine and session management.
 
-### 5. Running the Server
-```bash
-python run.py
-```
-The server will start at `http://localhost:8000`.
+---
 
-## API Documentation
+## 🚀 Deployment Guide
 
-For a comprehensive list of endpoints, request bodies, and authentication headers, refer to the included Postman collection:
+### Option 1: Docker Compose (Recommended)
+
+The easiest way to run Flow Source is using Docker. This ensures all dependencies (PostgreSQL, Python 3.12, ffmpeg) are correctly configured.
+
+1.  **Clone and Configure:**
+    ```bash
+    cd flow-source
+    # Ensure your .env file is set up with a strong SECRET_KEY
+    ```
+
+2.  **Launch the Services:**
+    ```bash
+    docker-compose up -d
+    ```
+
+3.  **Find your Remote URL:**
+    Flow Source automatically starts a **Cloudflare Tunnel**. To find the public URL:
+    ```bash
+    docker-compose logs -f tunnel
+    ```
+    Wait for a line like: `https://[random-subdomain].trycloudflare.com`. Use this URL in your app's `.env` configuration.
+
+### Option 2: Manual Setup
+
+If you prefer to run manually for development:
+
+1.  **Install Dependencies:**
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+2.  **Initialize the Database:**
+    ```bash
+    python manage.py create
+    python manage.py seed
+    ```
+
+3.  **Run the Server:**
+    ```bash
+    python run.py
+    ```
+
+---
+
+## 📋 Common Management Commands
+
+Use `manage.py` for common database and administrative tasks:
+
+- `python manage.py create`: Initialize the PostgreSQL database schema.
+- `python manage.py seed`: Populate the database with initial roles and an admin user.
+- `python manage.py drop`: (Caution) Drop all database tables.
+
+---
+
+## 🌍 API Documentation
+
+Once the server is running, you can access the interactive Swagger documentation at:
+`http://localhost:8000/docs`
+
+For a pre-configured testing environment, import the Postman collection:
 `Flow_v1_Postman_Collection.json`
 
-### Core Endpoints Preview
-- **Auth:** `POST /v1/auth/signup`, `POST /v1/auth/login`
-- **Home:** `GET /v1/home` (Personalized shelves)
-- **Search:** `GET /v1/search/songs?q=query`
-- **Library:** `GET /v1/library`
-- **Streaming:** `GET /v1/stream/{video_id}`
-- **Account Linking:** `POST /v1/yt-auth` (Submit browser headers or cURL)
+---
 
-## Data Storage
-- `data/`: Temporary storage for user-specific cookies and session data.
-- `static/`: Served static files (if any).
+## 🛡️ Security Considerations
+
+- **SECRET_KEY:** Always change the `SECRET_KEY` in your `.env` file for production.
+- **HTTPS:** When using the Cloudflare Tunnel, your connection is end-to-end encrypted.
+- **Data Privacy:** Your YouTube Music credentials are stored in your private database and are never shared.
+
+---
+
+<p align="center">Empower your listening. 🎧</p>

@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../core/responsive/breakpoints.dart';
 import '../../../domain/entities/song.dart';
 import '../../blocs/player/player_bloc.dart';
+import '../../widgets/song_tile.dart';
 import '../player/player_screen.dart';
 
 class ArtistScreen extends StatelessWidget {
@@ -98,50 +99,7 @@ class ArtistScreen extends StatelessWidget {
                     itemCount: artistSongs.length,
                     itemBuilder: (context, i) {
                       final song = artistSongs[i];
-                      return ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Container(
-                            width: 50,
-                            height: 50,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  song.colorPrimary,
-                                  song.colorSecondary,
-                                ],
-                              ),
-                            ),
-                            child: song.thumbnailUrl != null
-                                ? Image.network(
-                                    song.thumbnailUrl!,
-                                    fit: BoxFit.cover,
-                                    errorBuilder:
-                                        (context, error, stackTrace) =>
-                                            _songFallback(),
-                                  )
-                                : _songFallback(),
-                          ),
-                        ),
-                        title: Text(
-                          song.title,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        subtitle: Text(song.album),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.more_vert_rounded),
-                          onPressed: () {},
-                        ),
-                        onTap: () {
-                          context.read<PlayerBloc>().add(
-                            PlayQueueEvent(songs: artistSongs, startIndex: i),
-                          );
-                          if (!isDesktop) {
-                            PlayerScreen.show(context);
-                          }
-                        },
-                      );
+                      return SongTile(song: song, queue: artistSongs, index: i);
                     },
                   ),
           ),
@@ -158,12 +116,6 @@ class ArtistScreen extends StatelessWidget {
         fontWeight: FontWeight.w800,
         color: Colors.white,
       ),
-    );
-  }
-
-  Widget _songFallback() {
-    return const Center(
-      child: Icon(Icons.music_note_rounded, color: Colors.white, size: 20),
     );
   }
 }
