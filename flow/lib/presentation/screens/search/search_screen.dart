@@ -229,11 +229,21 @@ class _SearchScreenState extends State<SearchScreen> {
               } else if (state.hasQuery && state.results.isNotEmpty) {
                 return SliverList(
                   delegate: SliverChildBuilderDelegate(
-                    (context, i) => SongTile(
-                      song: state.results[i],
-                      queue: state.results,
-                      index: i,
-                    ),
+                    (context, i) {
+                      final song = state.results[i];
+                      return SongTile(
+                        song: song,
+                        queue: state.results,
+                        index: i,
+                        onTap: () {
+                          context.read<PlayerBloc>().add(PlayRadioEvent(song));
+                          if (!Breakpoints.isDesktop(
+                              MediaQuery.sizeOf(context).width)) {
+                            PlayerScreen.show(context);
+                          }
+                        },
+                      );
+                    },
                     childCount: state.results.length,
                   ),
                 );

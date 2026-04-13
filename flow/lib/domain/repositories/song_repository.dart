@@ -1,5 +1,6 @@
 import '../entities/home_data.dart';
 import '../entities/song.dart';
+import '../entities/history_data.dart';
 
 // ── Repository Interface ──────────────────────────────────────────────────────
 //
@@ -31,6 +32,12 @@ abstract class SongRepository {
 
   /// Trigger background extraction for a track.
   Future<void> prefetchAudio(String videoId);
+
+  /// Record a song play in persistent history.
+  Future<void> recordPlay(Song song);
+
+  /// Fetch persistent play history with date segmentation.
+  Future<HistoryData> getPersistentHistory();
 
   /// Static browse categories — synchronous, never needs the network.
   List<Map<String, dynamic>> getCategories();

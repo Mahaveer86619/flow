@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -16,6 +17,7 @@ import '../player/player_screen.dart';
 import '../playlist/playlist_screen.dart';
 import '../notifications/notifications_screen.dart';
 import '../settings/settings_screen.dart';
+import '../history/recently_played_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -59,69 +61,113 @@ class _HomeScreenContent extends StatelessWidget {
                 expandedHeight: 110,
                 floating: true,
                 pinned: true,
-                backgroundColor: theme.scaffoldBackgroundColor,
+                backgroundColor: Colors.transparent, // Translucent with blur
                 elevation: 0,
                 surfaceTintColor: Colors.transparent,
                 flexibleSpace: FlexibleSpaceBar(
                   expandedTitleScale: 1.0,
-                  background: Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      16,
-                      MediaQuery.paddingOf(context).top + 12,
-                      16,
-                      0,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
+                  background: Stack(
+                    children: [
+                      // Gradient Blur Background (fades in from bottom up)
+                      Positioned.fill(
+                        child: ShaderMask(
+                          shaderCallback: (rect) {
+                            return const LinearGradient(
+                              begin: Alignment.bottomCenter,
+                              end: Alignment.topCenter,
+                              colors: [Colors.transparent, Colors.black],
+                              stops: [0.0, 1.0],
+                            ).createShader(rect);
+                          },
+                          blendMode: BlendMode.dstIn,
+                          child: ClipRect(
+                            child: BackdropFilter(
+                              filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                              child: Container(
+                                color: theme.scaffoldBackgroundColor
+                                    .withOpacity(0.3),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Existing content
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          16,
+                          MediaQuery.paddingOf(context).top + 12,
+                          16,
+                          0,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                            Row(
                               children: [
-                                Text(
-                                  'Flow',
-                                  style: GoogleFonts.spaceGrotesk(
-                                    fontSize: 32,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: -1.2,
-                                  ),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Flow',
+                                      style: GoogleFonts.spaceGrotesk(
+                                        fontSize: 32,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: -1.2,
+                                      ),
+                                    ),
+                                    Text(
+                                      state.greeting,
+                                      style: GoogleFonts.outfit(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500,
+                                        color: colorScheme.onSurface.withAlpha(
+                                          140,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                Text(
-                                  state.greeting,
-                                  style: GoogleFonts.outfit(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w500,
-                                    color: colorScheme.onSurface.withAlpha(140),
+                                const Spacer(),
+                                IconButton(
+                                  icon: const Icon(Icons.history_rounded),
+                                  onPressed: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            const RecentlyPlayedScreen(),
+                                      ),
+                                    );
+                                  },
+                                ),
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.notifications_outlined,
                                   ),
+                                  onPressed: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            const NotificationsScreen(),
+                                      ),
+                                    );
+                                  },
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.settings_outlined),
+                                  onPressed: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => const SettingsScreen(),
+                                      ),
+                                    );
+                                  },
                                 ),
                               ],
                             ),
-                            const Spacer(),
-                            IconButton(
-                              icon: const Icon(Icons.notifications_outlined),
-                              onPressed: () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) => const NotificationsScreen(),
-                                  ),
-                                );
-                              },
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.settings_outlined),
-                              onPressed: () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) => const SettingsScreen(),
-                                  ),
-                                );
-                              },
-                            ),
                           ],
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -139,6 +185,42 @@ class _HomeScreenContent extends StatelessWidget {
                   ),
                 )
               else ...[
+                // ── Recently Played Section ──────────────────────────────────────────
+                if (state.recentlyPlayed.isNotEmpty)
+                  SliverMainAxisGroup(
+                    slivers: [
+                      SliverToBoxAdapter(
+                        child: SectionHeader(
+                          title: 'Recently Played',
+                          onSeeAll: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const RecentlyPlayedScreen(),
+                            ),
+                          ),
+                        ),
+                      ),
+                      SliverToBoxAdapter(
+                        child: SizedBox(
+                          height: 195,
+                          child: ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            itemCount: state.recentlyPlayed.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(width: 14),
+                            itemBuilder: (context, i) => SongCard(
+                              song: state.recentlyPlayed[i],
+                              queue: state.recentlyPlayed,
+                              index: i,
+                              heroTag:
+                                  'recent_art_${state.recentlyPlayed[i].id}_$i',
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
                 // Dynamic Shelves
                 ...state.shelves.map(
                   (shelf) => _HomeShelfRenderer(
@@ -173,25 +255,85 @@ class _HomeShelfRenderer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final title = shelf.title.toLowerCase();
+    final section = shelf.section;
 
-    // Determine layout based on title or content
-    if (title.contains('quick pick') || title.contains('top pick')) {
-      return _buildQuickAccessGrid(context, null, null);
+    switch (section) {
+      case 'quickPicks':
+        return _buildQuickAccessGrid(context, null, null);
+      case 'listeningAgain':
+        return _buildListenAgainShelf(context);
+      case 'freshFinds':
+      case 'pickedForYou':
+      case 'forgottenFavorites':
+        return _buildStandardRow(context, null, null);
+      case 'albumsForYou':
+        return _buildPlaylistRow(context, null, null);
+      case 'moodsAndGenres':
+        return _buildStandardRow(context, null, null);
+      default:
+        // Fallback logic
+        final itemTypes = shelf.items.map((e) => e.type).toSet();
+        if (itemTypes.contains(HomeItemType.artist) && shelf.items.length > 2) {
+          return _buildArtistRow(context, null, null);
+        }
+        if (itemTypes.contains(HomeItemType.album) ||
+            itemTypes.contains(HomeItemType.playlist)) {
+          return _buildPlaylistRow(context, null, null);
+        }
+        return _buildStandardRow(context, null, null);
+    }
+  }
+
+  Widget _buildListenAgainShelf(BuildContext context) {
+    final songs = shelf.items
+        .where((i) => i.type == HomeItemType.song)
+        .map((i) => i.data as Song)
+        .toList();
+
+    if (songs.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
+
+    // Group songs into columns of 4
+    final List<List<Song>> columns = [];
+    for (var i = 0; i < songs.length; i += 4) {
+      final end = (i + 4 < songs.length) ? i + 4 : songs.length;
+      columns.add(songs.sublist(i, end));
     }
 
-    final itemTypes = shelf.items.map((e) => e.type).toSet();
-
-    if (itemTypes.contains(HomeItemType.artist) && shelf.items.length > 2) {
-      return _buildArtistRow(context, null, null);
-    }
-
-    if (itemTypes.contains(HomeItemType.album) ||
-        itemTypes.contains(HomeItemType.playlist)) {
-      return _buildPlaylistRow(context, null, null);
-    }
-
-    return _buildStandardRow(context, null, null);
+    return SliverMainAxisGroup(
+      slivers: [
+        SliverToBoxAdapter(
+          child: SectionHeader(title: shelf.title),
+        ),
+        SliverToBoxAdapter(
+          child: SizedBox(
+            height: 260, // Height for 4 items (~64 each)
+            child: PageView.builder(
+              scrollDirection: Axis.horizontal,
+              controller: PageController(viewportFraction: 0.9),
+              padEnds: false,
+              itemCount: columns.length,
+              itemBuilder: (context, colIndex) {
+                final columnSongs = columns[colIndex];
+                return Padding(
+                  padding: const EdgeInsets.only(left: 16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: columnSongs.map((song) {
+                      final globalIndex = songIndexMap[song.id] ?? 0;
+                      return _ListenAgainItem(
+                        song: song,
+                        allSongs: allSongs,
+                        index: globalIndex,
+                      );
+                    }).toList(),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildQuickAccessGrid(
@@ -278,8 +420,9 @@ class _HomeShelfRenderer extends StatelessWidget {
   Widget _buildPlaylistRow(
     BuildContext context,
     String? subtitle,
-    String? profileUrl,
-  ) {
+    String? profileUrl, {
+    bool isAlbum = false,
+  }) {
     return SliverMainAxisGroup(
       slivers: [
         SliverToBoxAdapter(
@@ -309,7 +452,10 @@ class _HomeShelfRenderer extends StatelessWidget {
                   );
                 }
                 final playlist = item.data as Playlist;
-                return _HomePlaylistCard(playlist: playlist);
+                return _HomePlaylistCard(
+                  playlist: playlist,
+                  isAlbum: item.type == HomeItemType.album || isAlbum,
+                );
               },
             ),
           ),
@@ -362,9 +508,90 @@ class _HomeShelfRenderer extends StatelessWidget {
   }
 }
 
+class _ListenAgainItem extends StatelessWidget {
+  final Song song;
+  final List<Song> allSongs;
+  final int index;
+
+  const _ListenAgainItem({
+    required this.song,
+    required this.allSongs,
+    required this.index,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDesktop = Breakpoints.isDesktop(MediaQuery.sizeOf(context).width);
+
+    return InkWell(
+      onTap: () {
+        context.read<PlayerBloc>().add(
+          PlayQueueEvent(songs: List<Song>.from(allSongs), startIndex: index),
+        );
+        if (!isDesktop) {
+          PlayerScreen.show(context);
+        }
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                gradient: LinearGradient(
+                  colors: [song.colorPrimary, song.colorSecondary],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child:
+                  song.thumbnailUrl != null
+                      ? Image.network(song.thumbnailUrl!, fit: BoxFit.cover)
+                      : const Icon(Icons.music_note, color: Colors.white),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    song.title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    song.artist,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: colorScheme.onSurface.withAlpha(140),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _HomePlaylistCard extends StatefulWidget {
   final Playlist playlist;
-  const _HomePlaylistCard({required this.playlist});
+  final bool isAlbum;
+  const _HomePlaylistCard({required this.playlist, this.isAlbum = false});
 
   @override
   State<_HomePlaylistCard> createState() => _HomePlaylistCardState();
@@ -384,7 +611,10 @@ class _HomePlaylistCardState extends State<_HomePlaylistCard> {
       child: GestureDetector(
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (_) => PlaylistScreen(playlist: widget.playlist),
+            builder: (_) => PlaylistScreen(
+              playlist: widget.playlist,
+              isAlbum: widget.isAlbum,
+            ),
           ),
         ),
         child: SizedBox(

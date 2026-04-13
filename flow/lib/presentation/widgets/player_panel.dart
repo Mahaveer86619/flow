@@ -343,22 +343,87 @@ class _TopBar extends StatelessWidget {
             letterSpacing: 0.8,
           ),
         ),
-        IconButton(
-          icon: Icon(
-            Icons.more_vert_rounded,
-            color: Colors.white.withAlpha(200),
+        _MoreOptionsButton(showBackButton: showBackButton, song: song),
+      ],
+    );
+  }
+}
+
+class _MoreOptionsButton extends StatelessWidget {
+  final bool showBackButton;
+  final Song? song;
+
+  const _MoreOptionsButton({required this.showBackButton, this.song});
+
+  @override
+  Widget build(BuildContext context) {
+    // If showBackButton is true, we are in a mobile modal context.
+    // If false, we are in the desktop sidebar.
+    if (showBackButton) {
+      return IconButton(
+        icon: Icon(Icons.more_vert_rounded, color: Colors.white.withAlpha(200)),
+        onPressed: () {
+          if (song != null) {
+            _showMobileOptions(context, song!);
+          }
+        },
+      );
+    }
+
+    return PopupMenuButton<String>(
+      icon: Icon(Icons.more_vert_rounded, color: Colors.white.withAlpha(200)),
+      onSelected: (value) {
+        if (song == null) return;
+        if (value == 'radio') {
+          context.read<PlayerBloc>().add(PlayRadioEvent(song!));
+        }
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: 'radio',
+          child: Row(
+            children: [
+              const Icon(Icons.radio_rounded, size: 20),
+              const SizedBox(width: 12),
+              const Text('Start radio'),
+            ],
           ),
-          onPressed: () {
-            if (song != null) {
-              _showSongOptions(context, song);
-            }
-          },
+        ),
+        PopupMenuItem(
+          value: 'playlist',
+          child: Row(
+            children: [
+              const Icon(Icons.playlist_add_rounded, size: 20),
+              const SizedBox(width: 12),
+              const Text('Add to playlist'),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'share',
+          child: Row(
+            children: [
+              const Icon(Icons.share_outlined, size: 20),
+              const SizedBox(width: 12),
+              const Text('Share'),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'artist',
+          child: Row(
+            children: [
+              const Icon(Icons.person_outline_rounded, size: 20),
+              const SizedBox(width: 12),
+              const Text('View artist'),
+            ],
+          ),
         ),
       ],
     );
   }
 
-  void _showSongOptions(BuildContext context, Song song) {
+  void _showMobileOptions(BuildContext context, Song song) {
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF1A1A24),
@@ -379,6 +444,17 @@ class _TopBar extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
+            ListTile(
+              leading: const Icon(Icons.radio_rounded, color: Colors.white),
+              title: const Text(
+                'Start radio',
+                style: TextStyle(color: Colors.white),
+              ),
+              onTap: () {
+                context.read<PlayerBloc>().add(PlayRadioEvent(song));
+                Navigator.pop(ctx);
+              },
+            ),
             ListTile(
               leading: const Icon(
                 Icons.playlist_add_rounded,

@@ -198,6 +198,9 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     final song = state.queue[newIndex];
     AppLogger.i(_tag, 'Auto-advanced to: "${song.title}" (idx=$newIndex)');
 
+    // Record play in persistent history
+    _songRepository.recordPlay(song);
+
     final recent = [
       song,
       ...state.recentlyPlayed.where((s) => s.id != song.id),
@@ -323,6 +326,9 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     if (event.songs.isEmpty) return;
     final idx = event.startIndex.clamp(0, event.songs.length - 1);
 
+    final song = event.songs[idx];
+    _songRepository.recordPlay(song);
+
     // Stop and reset before setting new source to avoid threading issues on Windows
     await _audioPlayer.stop();
 
@@ -330,7 +336,7 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
       state.copyWith(
         queue: List.from(event.songs),
         queueIndex: idx,
-        currentSong: event.songs[idx],
+        currentSong: song,
         isPlaying: false,
         isInitialLoading: true,
         position: Duration.zero,
@@ -340,7 +346,7 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
       ),
     );
 
-    _extractPalette(event.songs[idx]);
+    _extractPalette(song);
     await _updatePlaylist(event.songs, initialIndex: idx);
   }
 
@@ -348,6 +354,7 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     PlaySingleEvent event,
     Emitter<PlayerState> emit,
   ) async {
+    _songRepository.recordPlay(event.song);
     await _audioPlayer.stop();
 
     emit(
@@ -372,6 +379,7 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     PlayRadioEvent event,
     Emitter<PlayerState> emit,
   ) async {
+    _songRepository.recordPlay(event.song);
     emit(
       state.copyWith(
         queue: [event.song],

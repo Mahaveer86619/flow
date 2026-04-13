@@ -14,6 +14,7 @@ import 'core/network/network_cubit.dart';
 import 'core/platform/permission_service.dart';
 import 'core/storage/local_storage.dart';
 import 'presentation/cubits/settings/settings_cubit.dart';
+import 'domain/repositories/song_repository.dart';
 import 'data/repositories/song_repository_impl.dart';
 import 'data/sources/api_song_data_source.dart';
 import 'data/sources/mock_song_data_source.dart';
@@ -58,6 +59,21 @@ void main() async {
 
   // ── 3. Local storage ──────────────────────────────────────────────────────────
   await LocalStorage.instance.init();
+
+  // ── 3b. Version Check ────────────────────────────────────────────────────────
+  final currentVersion = dotenv.env['APP_VERSION'] ?? '1.0.0';
+  final storedVersion = LocalStorage.instance.appVersion;
+
+  if (storedVersion != currentVersion) {
+    AppLogger.w(
+      'main',
+      'Version changed ($storedVersion -> $currentVersion). Cleaning cache...',
+    );
+    await LocalStorage.instance.clearCache();
+    LocalStorage.instance.saveAppVersion(currentVersion);
+  } else {
+    AppLogger.i('main', 'Version match: $currentVersion');
+  }
 
   // ── 3c. Download service ────────────────────────────────────────────────────
   await DownloadService.instance.init();
@@ -112,30 +128,40 @@ void main() async {
   AppLogger.i('main', 'DI graph built — launching app');
 
   runApp(
-    MultiBlocProvider(
+    MultiRepositoryProvider(
       providers: [
-        BlocProvider(create: (_) => AuthCubit()),
-        BlocProvider(create: (_) => NetworkCubit(ConnectivityService.instance)),
-        BlocProvider(create: (_) => PlayerBloc(songRepository: repository)),
-        BlocProvider(
-          create: (context) =>
-              SettingsCubit(authCubit: context.read<AuthCubit>()),
-        ),
-        BlocProvider(create: (_) => HomeCubit(getHomeData: getHomeData)),
-        BlocProvider(
-          create: (_) => SearchCubit(
-            searchSongs: searchSongs,
-            getCategories: getCategories,
-          ),
-        ),
-        BlocProvider(
-          create: (_) => LibraryCubit(
-            getPlaylists: getPlaylists,
-            songRepository: repository,
-          ),
-        ),
+        RepositoryProvider<SongRepository>(create: (_) => repository),
       ],
-      child: const FlowApp(),
+      child: MultiBlocProvider(
+        providers: [
+          BlocProvider(create: (_) => AuthCubit()),
+          BlocProvider(create: (_) => NetworkCubit(ConnectivityService.instance)),
+          BlocProvider(create: (_) => PlayerBloc(songRepository: repository)),
+          BlocProvider(
+            create: (context) =>
+                SettingsCubit(authCubit: context.read<AuthCubit>()),
+          ),
+          BlocProvider(
+            create: (_) => HomeCubit(
+              getHomeData: getHomeData,
+              songRepository: repository,
+            ),
+          ),
+          BlocProvider(
+            create: (_) => SearchCubit(
+              searchSongs: searchSongs,
+              getCategories: getCategories,
+            ),
+          ),
+          BlocProvider(
+            create: (_) => LibraryCubit(
+              getPlaylists: getPlaylists,
+              songRepository: repository,
+            ),
+          ),
+        ],
+        child: const FlowApp(),
+      ),
     ),
   );
 }

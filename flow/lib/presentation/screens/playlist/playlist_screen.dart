@@ -3,13 +3,71 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/responsive/breakpoints.dart';
 import '../../../domain/entities/song.dart';
+import '../../../domain/repositories/song_repository.dart';
 import '../../blocs/player/player_bloc.dart';
 import '../../widgets/song_tile.dart';
 import '../player/player_screen.dart';
 
-class PlaylistScreen extends StatelessWidget {
+class PlaylistScreen extends StatefulWidget {
   final Playlist playlist;
-  const PlaylistScreen({super.key, required this.playlist});
+  final bool isAlbum;
+  const PlaylistScreen({super.key, required this.playlist, this.isAlbum = false});
+
+  @override
+  State<PlaylistScreen> createState() => _PlaylistScreenState();
+}
+
+class _PlaylistScreenState extends State<PlaylistScreen> {
+  late Playlist _playlist;
+  bool _isLoading = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _playlist = widget.playlist;
+    if (_playlist.songs.isEmpty) {
+      _fetchTracks();
+    }
+  }
+
+  Future<void> _fetchTracks() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final repo = context.read<SongRepository>();
+      final List<Song> tracks;
+      if (widget.isAlbum) {
+        tracks = await repo.getAlbumTracks(_playlist.id);
+      } else {
+        tracks = await repo.getPlaylistTracks(_playlist.id);
+      }
+
+      if (mounted) {
+        setState(() {
+          _playlist = Playlist(
+            id: _playlist.id,
+            name: _playlist.name,
+            description: _playlist.description,
+            color: _playlist.color,
+            thumbnailUrl: _playlist.thumbnailUrl,
+            songs: tracks,
+          );
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,7 +84,7 @@ class PlaylistScreen extends StatelessWidget {
             expandedHeight: isSmall ? 300 : 350,
             pinned: true,
             stretch: true,
-            backgroundColor: playlist.color,
+            backgroundColor: _playlist.color,
             flexibleSpace: FlexibleSpaceBar(
               stretchModes: const [
                 StretchMode.zoomBackground,
@@ -41,7 +99,7 @@ class PlaylistScreen extends StatelessWidget {
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
-                        colors: [playlist.color, colorScheme.surface],
+                        colors: [_playlist.color, colorScheme.surface],
                       ),
                     ),
                   ),
@@ -53,7 +111,7 @@ class PlaylistScreen extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Hero(
-                          tag: 'playlist_${playlist.id}',
+                          tag: 'playlist_${_playlist.id}',
                           child: Container(
                             width: isSmall ? 160.0 : 200.0,
                             height: isSmall ? 160.0 : 200.0,
@@ -68,9 +126,9 @@ class PlaylistScreen extends StatelessWidget {
                               ],
                             ),
                             clipBehavior: Clip.antiAlias,
-                            child: playlist.thumbnailUrl != null
+                            child: _playlist.thumbnailUrl != null
                                 ? Image.network(
-                                    playlist.thumbnailUrl!,
+                                    _playlist.thumbnailUrl!,
                                     fit: BoxFit.cover,
                                     errorBuilder: (_, __, ___) => _fallback(),
                                   )
@@ -79,7 +137,8 @@ class PlaylistScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 20),
                         Text(
-                          playlist.name,
+                          _playlist.name,
+                          textAlign: TextAlign.center,
                           style: GoogleFonts.spaceGrotesk(
                             fontSize: isSmall ? 24.0 : 32.0,
                             fontWeight: FontWeight.w800,
@@ -87,14 +146,14 @@ class PlaylistScreen extends StatelessWidget {
                             letterSpacing: -0.5,
                           ),
                         ),
-                        if (playlist.description.isNotEmpty)
+                        if (_playlist.description.isNotEmpty)
                           Padding(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 32,
                               vertical: 8,
                             ),
                             child: Text(
-                              playlist.description,
+                              _playlist.description,
                               textAlign: TextAlign.center,
                               style: GoogleFonts.outfit(
                                 fontSize: 14,
@@ -131,9 +190,9 @@ class PlaylistScreen extends StatelessWidget {
                 children: [
                   FilledButton.icon(
                     onPressed: () {
-                      if (playlist.songs.isNotEmpty) {
+                      if (_playlist.songs.isNotEmpty) {
                         context.read<PlayerBloc>().add(
-                          PlayQueueEvent(songs: playlist.songs, startIndex: 0),
+                          PlayQueueEvent(songs: _playlist.songs, startIndex: 0),
                         );
                         if (!isDesktop) {
                           PlayerScreen.show(context);
@@ -158,7 +217,7 @@ class PlaylistScreen extends StatelessWidget {
                   _EndlessRadioToggle(),
                   const Spacer(),
                   Text(
-                    '${playlist.songs.length} tracks',
+                    '${_playlist.songs.length} tracks',
                     style: GoogleFonts.outfit(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -171,7 +230,25 @@ class PlaylistScreen extends StatelessWidget {
           ),
 
           // Songs List
-          playlist.songs.isEmpty
+          if (_isLoading)
+            const SliverFillRemaining(
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (_error != null)
+            SliverFillRemaining(
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.error_outline_rounded, size: 48, color: Colors.red),
+                    const SizedBox(height: 16),
+                    Text('Error: $_error'),
+                    TextButton(onPressed: _fetchTracks, child: const Text('Retry')),
+                  ],
+                ),
+              ),
+            )
+          else _playlist.songs.isEmpty
               ? SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.only(top: 60),
@@ -192,13 +269,13 @@ class PlaylistScreen extends StatelessWidget {
                   ),
                   sliver: SliverList(
                     delegate: SliverChildBuilderDelegate((context, i) {
-                      final song = playlist.songs[i];
+                      final song = _playlist.songs[i];
                       return SongTile(
                         song: song,
-                        queue: playlist.songs,
+                        queue: _playlist.songs,
                         index: i,
                       );
-                    }, childCount: playlist.songs.length),
+                    }, childCount: _playlist.songs.length),
                   ),
                 ),
 
@@ -210,7 +287,7 @@ class PlaylistScreen extends StatelessWidget {
 
   Widget _fallback() {
     return Container(
-      color: playlist.color,
+      color: _playlist.color,
       child: const Center(
         child: Icon(Icons.queue_music_rounded, color: Colors.white, size: 80),
       ),

@@ -1,0 +1,91 @@
+import 'package:bloc_test/bloc_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:just_audio/just_audio.dart' hide PlayerState;
+import 'package:flow/core/storage/local_storage.dart';
+import 'package:flow/core/platform/windows_media_session.dart';
+import 'package:flow/domain/repositories/song_repository.dart';
+import 'package:flow/domain/entities/song.dart';
+import 'package:flow/domain/entities/history_data.dart';
+import 'package:flutter/material.dart';
+import 'package:flow/presentation/blocs/player/player_bloc.dart';
+import 'package:flow/presentation/cubits/search/search_cubit.dart';
+import 'package:flow/core/network/download_service.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flow/core/logger/app_logger.dart';
+import 'package:flow/core/config/server_config.dart';
+
+class MockAudioPlayer extends Mock implements AudioPlayer {
+  @override
+  Future<void> dispose() async {}
+}
+class MockLocalStorage extends Mock implements LocalStorage {}
+class MockWindowsMediaSession extends Mock implements WindowsMediaSession {
+  @override
+  Future<void> dispose() async {}
+}
+class MockSongRepository extends Mock implements SongRepository {
+  @override
+  Future<void> recordPlay(Song song) async {}
+
+  @override
+  Future<HistoryData> getPersistentHistory() async {
+    return const HistoryData(
+      today: [],
+      thisWeek: [],
+      thisMonth: [],
+      byMonth: {},
+    );
+  }
+}
+class MockConcatenatingAudioSource extends Mock implements ConcatenatingAudioSource {}
+class MockDownloadService extends Mock implements DownloadService {}
+
+class MockPlayerBloc extends MockBloc<PlayerEvent, PlayerState> implements PlayerBloc {}
+class MockSearchCubit extends MockCubit<SearchState> implements SearchCubit {}
+
+class FakePlayerState extends Fake implements PlayerState {}
+class FakePlayerEvent extends Fake implements PlayerEvent {}
+class FakeSong extends Fake implements Song {}
+class FakeAudioSource extends Fake implements AudioSource {}
+
+void setupMocks() {
+  try {
+    dotenv.testLoad(fileInput: 'DEBUG=true');
+    AppLogger.init();
+  } catch (_) {}
+
+  // We can't easily mock the singleton instance field itself if it's 'static final'.
+  // However, ServerConfig.init reads LocalStorage.instance.serverUrl.
+  // In a real test environment, we might use a dependency injection container.
+  // For now, let's try to bypass the LateInitializationError by ensuring it's only called once
+  // and catching errors.
+  try {
+    ServerConfig.instance.init('http://test.com');
+  } catch (_) {}
+
+  registerFallbackValue(FakePlayerState());
+  registerFallbackValue(FakePlayerEvent());
+  registerFallbackValue(FakeSong());
+  registerFallbackValue(FakeAudioSource());
+  registerFallbackValue(Duration.zero);
+}
+
+final testSong = Song(
+  id: 'test_id',
+  title: 'Test Song',
+  artist: 'Test Artist',
+  album: 'Test Album',
+  duration: const Duration(minutes: 3),
+  colorPrimary: Colors.blue,
+  colorSecondary: Colors.red,
+);
+
+final testSong2 = Song(
+  id: 'test_id_2',
+  title: 'Test Song 2',
+  artist: 'Test Artist 2',
+  album: 'Test Album 2',
+  duration: const Duration(minutes: 4),
+  colorPrimary: Colors.green,
+  colorSecondary: Colors.yellow,
+);

@@ -26,6 +26,9 @@ class Song {
 
   final bool isDownloaded;
 
+  /// Timestamp when the song was last played (for history).
+  final DateTime? playedAt;
+
   const Song({
     required this.id,
     required this.title,
@@ -36,9 +39,10 @@ class Song {
     required this.colorPrimary,
     required this.colorSecondary,
     this.isDownloaded = false,
+    this.playedAt,
   });
 
-  Song copyWith({bool? isDownloaded}) {
+  Song copyWith({bool? isDownloaded, DateTime? playedAt}) {
     return Song(
       id: id,
       title: title,
@@ -49,6 +53,7 @@ class Song {
       colorPrimary: colorPrimary,
       colorSecondary: colorSecondary,
       isDownloaded: isDownloaded ?? this.isDownloaded,
+      playedAt: playedAt ?? this.playedAt,
     );
   }
 

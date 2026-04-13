@@ -22,8 +22,11 @@ from .models import (
     ArtistResponse,
     CreatePlaylistRequest,
     EditPlaylistRequest,
+    HistoryEntryResponse,
+    HistoryResponse,
     HomeResponse,
     LibraryResponse,
+    PlayHistory,
     PlaylistResponse,
     RemovePlaylistItemsRequest,
     SongResponse,
@@ -38,6 +41,7 @@ from .models import (
 from .services import auth_service, extract_audio_url, yt_service
 from .utils import (
     curl_to_headers,
+    fix_thumbnail_url,
     normalize_artist,
     normalize_playlist,
     normalize_song,
@@ -45,14 +49,13 @@ from .utils import (
 )
 
 router = APIRouter()
+logger = logging.getLogger("flow.routes")
 
 
 @router.get("/health")
 async def health_check():
     return {"status": "ok"}
 
-
-logger = logging.getLogger("uvicorn")
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="v1/auth/login")
 
@@ -130,7 +133,7 @@ async def signup(user_in: UserCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_user)
 
-    response = UserResponse.from_orm(new_user)
+    response = UserResponse.model_validate(new_user)
     response.has_yt_auth = bool(new_user.yt_auth_json)
     if new_user.settings_json:
         response.settings = json.loads(new_user.settings_json)
@@ -160,7 +163,7 @@ async def login(
 
 @router.get("/auth/me", response_model=UserResponse)
 async def read_users_me(current_user: User = Depends(get_current_user)):
-    response = UserResponse.from_orm(current_user)
+    response = UserResponse.model_validate(current_user)
     response.has_yt_auth = bool(current_user.yt_auth_json)
     if current_user.settings_json:
         response.settings = json.loads(current_user.settings_json)
@@ -178,7 +181,7 @@ async def update_settings(
     db.commit()
     db.refresh(current_user)
 
-    response = UserResponse.from_orm(current_user)
+    response = UserResponse.model_validate(current_user)
     response.has_yt_auth = bool(current_user.yt_auth_json)
     response.settings = req.settings
     return response
@@ -187,15 +190,30 @@ async def update_settings(
 # --- Home & Feed Endpoints ---
 
 
+def get_proxy_base(request: Request) -> str:
+    if settings.PROXIED_IMAGE_URL:
+        return settings.PROXIED_IMAGE_URL
+    
+    # Use the request's own base URL to build the proxy endpoint
+    # Base URL should include protocol and host
+    base_url = f"{request.url.scheme}://{request.url.netloc}"
+    
+    # The router is prefixed with /v1, so the endpoint is at /v1/proxy-image
+    return f"{base_url}/v1/proxy-image"
+
+
 @router.get("/home", response_model=HomeResponse)
 async def get_home(
     request: Request, limit: int = 25, current_user: User = Depends(get_current_user)
 ):
+    logger.debug(
+        f"Requesting home data for user: {current_user.username} with limit: {limit}"
+    )
     try:
-        proxy_base = str(request.url_for("proxy_image"))
+        proxy_base = get_proxy_base(request)
         return yt_service.get_home_cached(current_user, limit, proxy_base=proxy_base)
     except Exception as e:
-        logger.exception(f"Error in get_home: {e}")
+        logger.exception(f"Error in get_home for user {current_user.username}: {e}")
         raise HTTPException(500, str(e))
 
 
@@ -226,6 +244,7 @@ async def trending_artists(current_user: User = Depends(get_current_user)):
 
 @router.delete("/home/cache")
 async def clear_home_cache(current_user: User = Depends(get_current_user)):
+    logger.info(f"Clearing home cache for user: {current_user.username}")
     yt_service.clear_cache(current_user.id)
     return {"status": "ok", "message": "Your home cache cleared"}
 
@@ -233,7 +252,7 @@ async def clear_home_cache(current_user: User = Depends(get_current_user)):
 @router.get("/feed", response_model=HomeResponse)
 async def get_feed(request: Request):
     try:
-        proxy_base = str(request.url_for("proxy_image"))
+        proxy_base = get_proxy_base(request)
         return yt_service.get_feed_cached(proxy_base=proxy_base)
     except Exception as e:
         raise HTTPException(500, str(e))
@@ -252,7 +271,7 @@ async def search_songs(
     if not q.strip():
         raise HTTPException(400, "Query is empty")
     try:
-        proxy_base = str(request.url_for("proxy_image"))
+        proxy_base = get_proxy_base(request)
         results = yt_service.get_client(current_user).search(
             q, filter="songs", limit=limit
         )
@@ -278,7 +297,7 @@ async def get_search_suggestions(
 async def get_library(request: Request, current_user: User = Depends(get_current_user)):
     _require_yt_auth(current_user)
     try:
-        proxy_base = str(request.url_for("proxy_image"))
+        proxy_base = get_proxy_base(request)
         raw = yt_service.get_client(current_user).get_library_playlists(limit=100)
         return LibraryResponse(
             playlists=[normalize_playlist(p, proxy_base) for p in raw]
@@ -287,15 +306,87 @@ async def get_library(request: Request, current_user: User = Depends(get_current
         raise HTTPException(500, str(e))
 
 
-@router.get("/history", response_model=List[SongResponse])
-async def get_history(request: Request, current_user: User = Depends(get_current_user)):
+@router.get("/history/yt", response_model=List[SongResponse])
+async def get_yt_history(
+    request: Request, current_user: User = Depends(get_current_user)
+):
     _require_yt_auth(current_user)
     try:
-        proxy_base = str(request.url_for("proxy_image"))
+        proxy_base = get_proxy_base(request)
         raw = yt_service.get_client(current_user).get_history()
         return [s for item in raw if (s := normalize_song(item, proxy_base))]
     except Exception as e:
         raise HTTPException(500, str(e))
+
+
+@router.post("/history", response_model=SongResponse)
+async def record_play(
+    song: SongResponse,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Save a played song to persistent history."""
+    history_entry = PlayHistory(
+        user_id=current_user.id,
+        song_id=song.id,
+        title=song.title,
+        artist=song.artist,
+        album=song.album,
+        duration_ms=song.durationMs,
+        thumbnail_url=song.thumbnailUrl,
+        played_at=datetime.utcnow(),
+    )
+    db.add(history_entry)
+    db.commit()
+    db.refresh(history_entry)
+    return song
+
+
+@router.get("/history", response_model=HistoryResponse)
+async def get_persistent_history(
+    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    """Retrieve database-backed play history with date segmentation."""
+    entries = (
+        db.query(PlayHistory)
+        .filter(PlayHistory.user_id == current_user.id)
+        .order_by(PlayHistory.played_at.desc())
+        .all()
+    )
+
+    from datetime import datetime as dt
+
+    now = dt.utcnow()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start = today_start - timedelta(days=now.weekday())
+    month_start = today_start.replace(day=1)
+
+    res = HistoryResponse()
+
+    for e in entries:
+        item = HistoryEntryResponse(
+            id=e.song_id,
+            title=e.title,
+            artist=e.artist,
+            album=e.album,
+            durationMs=e.duration_ms,
+            thumbnailUrl=e.thumbnail_url,
+            playedAt=e.played_at,
+        )
+
+        if e.played_at >= today_start:
+            res.today.append(item)
+        elif e.played_at >= week_start:
+            res.thisWeek.append(item)
+        elif e.played_at >= month_start:
+            res.thisMonth.append(item)
+        else:
+            month_key = e.played_at.strftime("%B %Y")
+            if month_key not in res.byMonth:
+                res.byMonth[month_key] = []
+            res.byMonth[month_key].append(item)
+
+    return res
 
 
 # --- Browsing & Content Endpoints ---
@@ -309,7 +400,7 @@ async def get_playlist_tracks(
     current_user: User = Depends(get_current_user),
 ):
     try:
-        proxy_base = str(request.url_for("proxy_image"))
+        proxy_base = get_proxy_base(request)
         actual_limit = None if limit <= 0 else limit
         data = yt_service.get_client(current_user).get_playlist(
             playlistId=playlist_id, limit=actual_limit
@@ -328,7 +419,7 @@ async def get_radio(
     current_user: User = Depends(get_current_user),
 ):
     try:
-        proxy_base = str(request.url_for("proxy_image"))
+        proxy_base = get_proxy_base(request)
         data = yt_service.get_client(current_user).get_watch_playlist(
             videoId=video_id, limit=limit
         )
@@ -338,10 +429,15 @@ async def get_radio(
         raise HTTPException(500, str(e))
 
 
-@router.get("/albums/{browse_id}")
-async def get_album(browse_id: str, current_user: User = Depends(get_current_user)):
+@router.get("/albums/{browse_id}", response_model=List[SongResponse])
+async def get_album(
+    request: Request, browse_id: str, current_user: User = Depends(get_current_user)
+):
     try:
-        return yt_service.get_client(current_user).get_album(browseId=browse_id)
+        proxy_base = get_proxy_base(request)
+        data = yt_service.get_client(current_user).get_album(browseId=browse_id)
+        tracks = data.get("tracks") or []
+        return [s for item in tracks if (s := normalize_song(item, proxy_base))]
     except Exception as e:
         raise HTTPException(500, str(e))
 
@@ -375,19 +471,20 @@ async def get_songs_batch(
     if not ids.strip():
         return []
     video_ids = [vid.strip() for vid in ids.split(",") if vid.strip()]
-    try:
-        try:
-            proxy_base = str(request.url_for("proxy_image"))
-        except Exception as e:
-            logger.warning(f"Could not generate proxy_image URL: {e}")
-            proxy_base = None
+    logger.debug(
+        f"Batch fetching {len(video_ids)} songs for user {current_user.username}"
+    )
 
+    try:
+        proxy_base = get_proxy_base(request)
         client = yt_service.get_client(current_user)
-        results = []
-        for vid in video_ids:
+
+        from anyio.to_thread import run_sync
+
+        async def fetch_song(vid):
             try:
                 # get_song returns a dict with basic info
-                data = client.get_song(vid)
+                data = await run_sync(client.get_song, vid)
                 if data and isinstance(data, dict) and "videoDetails" in data:
                     # Map YT Music videoDetails to our SongResponse
                     details = data["videoDetails"]
@@ -396,21 +493,26 @@ async def get_songs_batch(
                         .get("thumbnails", [{}])[-1]
                         .get("url")
                     )
-                    results.append(
-                        SongResponse(
-                            id=details["videoId"],
-                            title=details["title"],
-                            artist=details["author"],
-                            album="",  # Not always in videoDetails
-                            durationMs=int(details["lengthSeconds"]) * 1000,
-                            thumbnailUrl=fix_thumbnail_url(raw_thumb, proxy_base),
-                        )
+                    return SongResponse(
+                        id=details["videoId"],
+                        title=details["title"],
+                        artist=details["author"],
+                        album="",  # Not always in videoDetails
+                        durationMs=int(details["lengthSeconds"]) * 1000,
+                        thumbnailUrl=fix_thumbnail_url(raw_thumb, proxy_base),
                     )
             except Exception as e:
                 logger.warning(f"Failed to fetch batch song {vid}: {e}")
-                continue
-        return results
+            return None
+
+        # Fetch in parallel
+        tasks = [fetch_song(vid) for vid in video_ids]
+        results = await asyncio.gather(*tasks)
+        return [r for r in results if r is not None]
     except Exception as e:
+        logger.exception(
+            f"Error in get_songs_batch for user {current_user.username}: {e}"
+        )
         raise HTTPException(500, str(e))
 
 
@@ -737,13 +839,29 @@ async def stream_audio(
 
 @router.get("/proxy-image")
 async def proxy_image(url: str):
+    logger.debug(f"Proxying image: {url}")
     try:
         decoded_url = urllib.parse.unquote(url)
+        # Ensure we have a valid URL
+        if not decoded_url.startswith("http"):
+            raise HTTPException(400, "Invalid image URL")
+
         client = get_shared_client()
-        resp = await client.get(decoded_url)
+        # Use a standard browser UA to avoid 403s from Google/YT
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+        }
+        resp = await client.get(decoded_url, headers=headers, timeout=10.0)
+
+        if resp.status_code != 200:
+            logger.warning(f"Image proxy failed for {decoded_url}: {resp.status_code}")
+            return Response(status_code=resp.status_code)
+
         return Response(
             content=resp.content,
             media_type=resp.headers.get("Content-Type", "image/jpeg"),
+            headers={"Cache-Control": "public, max-age=31536000"},
         )
     except Exception as e:
+        logger.error(f"Image proxy exception for {url}: {e}")
         raise HTTPException(500, f"Image proxy failed: {e}")

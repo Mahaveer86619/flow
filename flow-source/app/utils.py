@@ -13,14 +13,13 @@ from .models import ArtistResponse, PlaylistResponse, SongResponse
 def fix_thumbnail_url(
     url: Optional[str], proxy_base: Optional[str] = None
 ) -> Optional[str]:
-    """Normalise a YouTube/Google thumbnail URL to a consistent size and optionally wrap in proxy."""
+    """Normalise a YouTube/Google thumbnail URL to a consistent size.
+    Proxy wrapping is now handled by the mobile client to support Cloudflare tunnels.
+    """
     if not url:
         return None
     # Request 1000 px so full-screen art stays crisp
     url = re.sub(r"=w\d+-h\d+(-[^?&]*)?$", "=w1000-h1000-l90-rj", url)
-
-    if proxy_base:
-        return f"{proxy_base}?url={urllib.parse.quote(url)}"
     return url
 
 
@@ -37,10 +36,39 @@ def normalize_song(
     album = item.get("album") or {}
     album_name = album.get("name", "") if isinstance(album, dict) else ""
 
-    thumbnails = item.get("thumbnails") or []
-    raw_url = thumbnails[-1]["url"] if thumbnails else None
+    # Robust thumbnail extraction (handle thumbnails vs thumbnail, list vs dict)
+    thumbnails_data = item.get("thumbnails") or item.get("thumbnail") or []
+    if isinstance(thumbnails_data, dict):
+        thumbnails_list = thumbnails_data.get("thumbnails") or [thumbnails_data]
+    elif isinstance(thumbnails_data, list):
+        thumbnails_list = thumbnails_data
+    else:
+        thumbnails_list = []
 
-    duration_seconds = item.get("duration_seconds") or 0
+    raw_url = None
+    if thumbnails_list and isinstance(thumbnails_list, list):
+        last_thumb = thumbnails_list[-1]
+        if isinstance(last_thumb, dict):
+            raw_url = last_thumb.get("url")
+
+    # Robust duration extraction (handle duration_seconds vs duration string)
+    duration_seconds = item.get("duration_seconds")
+    if duration_seconds is None:
+        duration_str = item.get("duration")
+        if duration_str and isinstance(duration_str, str) and ":" in duration_str:
+            try:
+                parts = duration_str.split(":")
+                if len(parts) == 2:
+                    duration_seconds = int(parts[0]) * 60 + int(parts[1])
+                elif len(parts) == 3:
+                    duration_seconds = (
+                        int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+                    )
+            except Exception:
+                pass
+
+    if duration_seconds is None:
+        duration_seconds = 0
 
     return SongResponse(
         id=video_id,
@@ -67,8 +95,22 @@ def normalize_artist(
     name = item.get("artist") or item.get("title") or item.get("name")
     if not name:
         return None
-    thumbnails = item.get("thumbnails") or []
-    raw_url = thumbnails[-1]["url"] if thumbnails else None
+
+    # Robust thumbnail extraction
+    thumbnails_data = item.get("thumbnails") or item.get("thumbnail") or []
+    if isinstance(thumbnails_data, dict):
+        thumbnails_list = thumbnails_data.get("thumbnails") or [thumbnails_data]
+    elif isinstance(thumbnails_data, list):
+        thumbnails_list = thumbnails_data
+    else:
+        thumbnails_list = []
+
+    raw_url = None
+    if thumbnails_list and isinstance(thumbnails_list, list):
+        last_thumb = thumbnails_list[-1]
+        if isinstance(last_thumb, dict):
+            raw_url = last_thumb.get("url")
+
     return ArtistResponse(
         name=name, thumbnailUrl=fix_thumbnail_url(raw_url, proxy_base)
     )
@@ -77,8 +119,20 @@ def normalize_artist(
 def normalize_playlist(
     item: dict, proxy_base: Optional[str] = None
 ) -> PlaylistResponse:
-    thumbnails = item.get("thumbnails") or []
-    raw_url = thumbnails[-1]["url"] if thumbnails else None
+    # Robust thumbnail extraction
+    thumbnails_data = item.get("thumbnails") or item.get("thumbnail") or []
+    if isinstance(thumbnails_data, dict):
+        thumbnails_list = thumbnails_data.get("thumbnails") or [thumbnails_data]
+    elif isinstance(thumbnails_data, list):
+        thumbnails_list = thumbnails_data
+    else:
+        thumbnails_list = []
+
+    raw_url = None
+    if thumbnails_list and isinstance(thumbnails_list, list):
+        last_thumb = thumbnails_list[-1]
+        if isinstance(last_thumb, dict):
+            raw_url = last_thumb.get("url")
 
     count_str: str = str(item.get("count") or "")
     description = f"{count_str} songs" if count_str else item.get("description", "")
@@ -102,6 +156,7 @@ def write_cookie_file(auth_data: str | dict, cookie_file: str) -> bool:
     Returns True if the file was written with at least one cookie.
     """
     import logging as _logging
+
     _log = _logging.getLogger("uvicorn")
     try:
         data: dict = {}
@@ -154,7 +209,9 @@ def write_cookie_file(auth_data: str | dict, cookie_file: str) -> bool:
                 # __Host- cookies must be for the exact host (no leading dot)
                 if name.startswith("__Host-"):
                     for domain in ["youtube.com", "music.youtube.com", "google.com"]:
-                        f.write(f"{domain}\tFALSE\t/\tTRUE\t{expiry}\t{name}\t{value}\n")
+                        f.write(
+                            f"{domain}\tFALSE\t/\tTRUE\t{expiry}\t{name}\t{value}\n"
+                        )
                 else:
                     for domain in [".youtube.com", ".music.youtube.com", ".google.com"]:
                         f.write(f"{domain}\tTRUE\t/\tTRUE\t{expiry}\t{name}\t{value}\n")
@@ -165,6 +222,7 @@ def write_cookie_file(auth_data: str | dict, cookie_file: str) -> bool:
 
     except Exception as e:
         import logging as _logging2
+
         _logging2.getLogger("uvicorn").error(f"write_cookie_file failed: {e}")
         return False
 

@@ -124,8 +124,7 @@ class ApiSongDataSource implements SongDataSource {
   @override
   Future<List<SongModel>> fetchAlbumTracks(String browseId) async {
     AppLogger.i(_tag, 'fetchAlbumTracks($browseId)');
-    final json = await _getJson('/v1/albums/$browseId') as Map<String, dynamic>;
-    final list = (json['tracks'] as List<dynamic>?) ?? [];
+    final list = await _getJson('/v1/albums/$browseId') as List<dynamic>;
     try {
       return list
           .map((e) => SongModel.fromJson(e as Map<String, dynamic>))
@@ -142,13 +141,12 @@ class ApiSongDataSource implements SongDataSource {
     int limit = 25,
   }) async {
     AppLogger.i(_tag, 'fetchRadioTracks($videoId, limit=$limit)');
-    final json =
+    final list =
         await _getJson(
               '/v1/radio/$videoId',
               params: {'limit': limit.toString()},
             )
-            as Map<String, dynamic>;
-    final list = (json['tracks'] as List<dynamic>?) ?? [];
+            as List<dynamic>;
     try {
       return list
           .map((e) => SongModel.fromJson(e as Map<String, dynamic>))
@@ -187,9 +185,49 @@ class ApiSongDataSource implements SongDataSource {
   }
 
   @override
+  Future<void> recordPlay(SongModel song) async {
+    try {
+      final uri = Uri.parse('${ServerConfig.instance.baseUrl}/v1/history');
+      final headers = <String, String>{
+        'User-Agent': 'FlowMusicApp/1.0',
+        'Content-Type': 'application/json',
+      };
+      final token = LocalStorage.instance.jwtToken;
+      if (token != null) {
+        headers['Authorization'] = 'Bearer $token';
+      }
+
+      await _client
+          .post(uri, headers: headers, body: jsonEncode(song.toJson()))
+          .timeout(_timeout);
+    } catch (e) {
+      AppLogger.w(_tag, 'Failed to record play history: $e');
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> fetchPersistentHistory() async {
+    AppLogger.i(_tag, 'fetchPersistentHistory()');
+    final json = await _getJson('/v1/history') as Map<String, dynamic>;
+    return json;
+  }
+
+  @override
   List<Map<String, dynamic>> fetchCategories() => _staticCategories;
 
   // ── HTTP helpers ──────────────────────────────────────────────────────────────
+
+  /// Wraps the original thumbnail URL into a local proxy URL using the current
+  /// API base URL. This ensures images work across Cloudflare tunnels etc.
+  String? _proxyUrl(String? original) {
+    if (original == null || original.isEmpty) return null;
+    if (original.startsWith('http://localhost') ||
+        original.contains('/v1/proxy-image')) {
+      return original;
+    }
+    final encoded = Uri.encodeComponent(original);
+    return '${ServerConfig.instance.baseUrl}/v1/proxy-image?url=$encoded';
+  }
 
   Future<dynamic> _getJson(String path, {Map<String, String>? params}) async {
     // ── Connectivity gate ──────────────────────────────────────────────────────
@@ -216,7 +254,8 @@ class ApiSongDataSource implements SongDataSource {
       AppLogger.d(_tag, '${response.statusCode} ← $uri');
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
-        return jsonDecode(response.body);
+        final decoded = jsonDecode(response.body);
+        return _applyProxyToThumbnails(decoded);
       }
 
       if (response.statusCode == 401) {
@@ -236,6 +275,24 @@ class ApiSongDataSource implements SongDataSource {
       AppLogger.e(_tag, 'Request failed: $uri', e, st);
       throw wrapped;
     }
+  }
+
+  /// Recursively traverses the JSON response and wraps any 'thumbnailUrl' field.
+  dynamic _applyProxyToThumbnails(dynamic data) {
+    if (data is Map) {
+      final map = Map<String, dynamic>.from(data);
+      if (map.containsKey('thumbnailUrl')) {
+        map['thumbnailUrl'] = _proxyUrl(map['thumbnailUrl'] as String?);
+      }
+      // Recursively apply to all values
+      for (final key in map.keys) {
+        map[key] = _applyProxyToThumbnails(map[key]);
+      }
+      return map;
+    } else if (data is List) {
+      return data.map((e) => _applyProxyToThumbnails(e)).toList();
+    }
+    return data;
   }
 
   int _len(Map<String, dynamic> json, String key) =>

@@ -25,7 +25,7 @@ from .utils import (
     write_cookie_file,
 )
 
-logger = logging.getLogger("uvicorn")
+logger = logging.getLogger("flow.services")
 
 # Password hashing — bcrypt disabled for now (passlib/bcrypt version mismatch)
 # pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -62,41 +62,35 @@ class YTMusicService:
         self.home_cache = {}
         self.home_cache_ttl = 300
         self._shelf_map = [
-            (["quick pick", "top pick", "start radio"], "quickAccess"),
+            (["quick pick", "top pick", "start radio"], "quickPicks"),
             (["listen again", "listening again", "continue"], "listeningAgain"),
+            (["fresh find", "new release", "latest", "just out"], "freshFinds"),
+            (["picked for you", "for you", "mixed", "your", "personalized", "discover"], "pickedForYou"),
             (["forgotten", "throwback", "rediscover", "missed"], "forgottenFavorites"),
-            (
-                ["mood", "genre", "vibe", "energy", "workout", "focus", "relax"],
-                "moodsAndGenres",
-            ),
-            (["new release", "latest", "just out", "new album"], "newReleases"),
+            (["album", "mpreb"], "albumsForYou"),
+            (["mood", "genre", "vibe", "energy", "workout", "focus", "relax"], "moodsAndGenres"),
             (["top chart", "trending", "popular", "global", "hits"], "trending"),
             (["similar to", "related to", "based on", "recommended"], "similarTo"),
-            (
-                [
-                    "for you",
-                    "mixed",
-                    "your",
-                    "personalized",
-                    "discover",
-                ],
-                "musicForYou",
-            ),
         ]
 
     def get_client(self, user: Optional[User] = None):
         if user and user.yt_auth_json:
             try:
+                logger.debug(f"Creating authenticated client for user: {user.username}")
                 auth_data = json.loads(user.yt_auth_json)
                 return ytmusicapi.YTMusic(auth=auth_data)
-            except Exception:
+            except Exception as e:
+                logger.error(f"Failed to parse YT auth for user {user.username}: {e}")
                 # Fallback to unauthenticated if parse fails
-                pass
 
         # Check if a global auth file still exists (for backward compatibility or shared dev)
         if os.path.exists(settings.AUTH_FILE_PATH):
+            logger.debug(
+                f"Creating authenticated client from global file: {settings.AUTH_FILE_PATH}"
+            )
             return ytmusicapi.YTMusic(settings.AUTH_FILE_PATH)
 
+        logger.debug("Creating unauthenticated YTMusic client")
         return ytmusicapi.YTMusic()
 
     def _classify_shelf(self, title: str) -> Optional[str]:
@@ -126,11 +120,15 @@ class YTMusicService:
         limit: int = 25,
         proxy_base: Optional[str] = None,
     ) -> HomeResponse:
+        logger.info(f"Building home data for user: {user.username if user else 'anon'}")
         try:
             ytm = self.get_client(user)
             raw_shelves = ytm.get_home(limit=limit)
+            logger.debug(f"Fetched {len(raw_shelves)} raw shelves from YTMusic")
         except Exception as e:
-            logger.error(f"ytmusicapi.get_home failed: {e}")
+            logger.error(
+                f"ytmusicapi.get_home failed for user {user.username if user else 'anon'}: {e}"
+            )
             return HomeResponse(shelves=[], trending=[])
 
         shelves = []
@@ -303,8 +301,10 @@ async def extract_audio_url(video_id: str, user: Optional[User] = None) -> str:
     if video_id in _url_cache:
         url, expiry = _url_cache[video_id]
         if now < expiry:
+            logger.debug(f"Cache hit for {video_id}")
             return url
 
+    logger.info(f"Cache miss for {video_id}, extracting...")
     # Use a lock to prevent concurrent extractions for the same video_id
     if video_id not in _extraction_locks:
         _extraction_locks[video_id] = asyncio.Lock()
@@ -314,6 +314,7 @@ async def extract_audio_url(video_id: str, user: Optional[User] = None) -> str:
         if video_id in _url_cache:
             url, expiry = _url_cache[video_id]
             if now < expiry:
+                logger.debug(f"Cache hit for {video_id} (inside lock)")
                 return url
 
         return await run_sync(_extract_sync, video_id, user)
@@ -396,7 +397,9 @@ def _extract_sync(video_id: str, user: Optional[User] = None) -> str:
     yt_url = f"https://www.youtube.com/watch?v={video_id}"
 
     for strategy in strategies:
+        logger.debug(f"Trying extraction strategy: {strategy['name']} for {video_id}")
         for cp in cookie_paths:
+            logger.debug(f"Using cookie path: {cp} for strategy {strategy['name']}")
             ydl_opts: dict = {
                 "quiet": True,
                 "no_warnings": True,

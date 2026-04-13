@@ -9,18 +9,23 @@ import '../../widgets/album_art_widget.dart';
 import '../../widgets/like_button.dart';
 import '../../widgets/squiggly_progress_bar.dart';
 import '../queue/queue_screen.dart';
+import 'package:flow/core/network/download_service.dart';
 
 class PlayerScreen extends StatefulWidget {
   const PlayerScreen({super.key});
 
   static Future<void> show(BuildContext context) {
+    final playerBloc = context.read<PlayerBloc>();
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       useSafeArea: false,
       enableDrag: false, // Handle drag manually via DraggableScrollableSheet
-      builder: (context) => const PlayerScreen(),
+      builder: (context) => BlocProvider<PlayerBloc>.value(
+        value: playerBloc,
+        child: const PlayerScreen(),
+      ),
     );
   }
 
@@ -368,6 +373,17 @@ class _MainPlayerSection extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             ListTile(
+              leading: const Icon(Icons.radio_rounded, color: Colors.white),
+              title: const Text(
+                'Start radio',
+                style: TextStyle(color: Colors.white),
+              ),
+              onTap: () {
+                context.read<PlayerBloc>().add(PlayRadioEvent(song));
+                Navigator.pop(ctx);
+              },
+            ),
+            ListTile(
               leading: const Icon(
                 Icons.playlist_add_rounded,
                 color: Colors.white,
@@ -411,7 +427,12 @@ class _DownloadIcon extends StatelessWidget {
     return BlocSelector<PlayerBloc, PlayerState, double>(
       selector: (state) => state.getDownloadProgress(song.id),
       builder: (context, progress) {
-        final isDownloaded = DownloadService.instance.isDownloadedSync(song.id);
+        bool isDownloaded = false;
+        try {
+          isDownloaded = DownloadService.instance.isDownloadedSync(song.id);
+        } catch (_) {
+          // Fallback for tests where DownloadService is not initialised
+        }
 
         if (progress >= 0 && progress < 1.0) {
           return Stack(

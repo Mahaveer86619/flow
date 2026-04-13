@@ -2,9 +2,14 @@ import 'song.dart';
 
 class HomeShelf {
   final String title;
+  final String? section;
   final List<HomeItem> items;
 
-  const HomeShelf({required this.title, required this.items});
+  const HomeShelf({
+    required this.title,
+    required this.items,
+    this.section,
+  });
 }
 
 enum HomeItemType { song, artist, album, playlist }

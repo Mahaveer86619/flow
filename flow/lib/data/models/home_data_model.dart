@@ -15,34 +15,16 @@ class HomeDataModel {
   });
 
   factory HomeDataModel.fromJson(Map<String, dynamic> json) {
-    final shelves = <Map<String, dynamic>>[];
-
-    void addShelf(String title, String key, String type) {
-      final items = json[key] as List<dynamic>?;
-      if (items != null && items.isNotEmpty) {
-        shelves.add({
-          'title': title,
-          'items': items.map((i) => {'type': type, 'data': i}).toList(),
-        });
-      }
-    }
-
-    addShelf('Quick pick', 'quickAccess', 'song');
-    addShelf('Listening again', 'listeningAgain', 'song');
-    addShelf('Forgotten favorites', 'forgottenFavorites', 'song');
-    addShelf('Music for you', 'musicForYou', 'song');
-    addShelf('Trending artists', 'trendingArtists', 'artist');
-
     final rawShelves = (json['shelves'] as List<dynamic>? ?? [])
-        .cast<Map<String, dynamic>>();
-    shelves.addAll(rawShelves);
+        .map((s) => s as Map<String, dynamic>)
+        .toList();
 
     final trending = ((json['trending'] as List<dynamic>?) ?? [])
         .map((s) => SongModel.fromJson(s as Map<String, dynamic>))
         .toList();
 
     return HomeDataModel(
-      rawShelves: shelves,
+      rawShelves: rawShelves,
       trending: trending,
       profileUrl: json['profileUrl'] as String?,
     );
@@ -51,6 +33,7 @@ class HomeDataModel {
   HomeData toEntity() {
     final shelves = rawShelves.map((shelfJson) {
       final title = shelfJson['title'] as String? ?? 'Recommended';
+      final section = shelfJson['section'] as String?;
       final items = (shelfJson['items'] as List<dynamic>? ?? []).map((
         itemJson,
       ) {
@@ -92,7 +75,7 @@ class HomeDataModel {
         return HomeItem(type: type, data: mappedData);
       }).toList();
 
-      return HomeShelf(title: title, items: items);
+      return HomeShelf(title: title, section: section, items: items);
     }).toList();
 
     return HomeData(

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../core/app_event_bus.dart';
 import '../../../core/error/app_exception.dart';
 import '../../../core/logger/app_logger.dart';
 import '../../../core/network/download_service.dart';
@@ -19,6 +20,7 @@ class LibraryCubit extends Cubit<LibraryState> {
 
   StreamSubscription? _likedSongsSub;
   StreamSubscription? _downloadSub;
+  StreamSubscription? _eventSub;
 
   bool _isInitialLoading = false;
 
@@ -29,6 +31,15 @@ class LibraryCubit extends Cubit<LibraryState> {
        _songRepository = songRepository,
        super(const LibraryState(isLoading: true, playlists: [])) {
     AppLogger.i(_tag, 'Created');
+
+    _eventSub = AppEventBus.instance.events.listen((event) {
+      if (event is GlobalRetryEvent) {
+        if (state.error) {
+          reload(isGlobal: true);
+        }
+      }
+    });
+
     _loadAll();
 
     _likedSongsSub = LocalStorage.instance.likedSongsStream.listen((ids) async {
@@ -54,11 +65,15 @@ class LibraryCubit extends Cubit<LibraryState> {
   Future<void> close() {
     _likedSongsSub?.cancel();
     _downloadSub?.cancel();
+    _eventSub?.cancel();
     return super.close();
   }
 
-  Future<void> reload() {
-    AppLogger.i(_tag, 'reload()');
+  Future<void> reload({bool isGlobal = false}) {
+    AppLogger.i(_tag, 'reload(isGlobal: $isGlobal)');
+    if (!isGlobal) {
+      AppEventBus.instance.fire(GlobalRetryEvent());
+    }
     return _loadAll();
   }
 

@@ -4,6 +4,7 @@ import '../../core/network/download_service.dart';
 import '../../core/storage/local_storage.dart';
 import '../../domain/entities/home_data.dart';
 import '../../domain/entities/song.dart';
+import '../../domain/entities/history_data.dart';
 import '../../domain/repositories/song_repository.dart';
 import '../models/song_model.dart';
 import '../sources/song_data_source.dart';
@@ -178,6 +179,61 @@ class SongRepositoryImpl implements SongRepository {
     } catch (e) {
       // Don't throw for prefetch, just log
       AppLogger.w(_tag, 'Prefetch failed for $videoId: $e');
+    }
+  }
+
+  @override
+  Future<void> recordPlay(Song song) async {
+    try {
+      final model = SongModel(
+        id: song.id,
+        title: song.title,
+        artist: song.artist,
+        album: song.album,
+        duration: song.duration,
+        thumbnailUrl: song.thumbnailUrl,
+        colorPrimary: song.colorPrimary,
+        colorSecondary: song.colorSecondary,
+        isDownloaded: song.isDownloaded,
+      );
+      await _source.recordPlay(model);
+    } catch (e) {
+      AppLogger.w(_tag, 'Failed to record play history: $e');
+    }
+  }
+
+  @override
+  Future<HistoryData> getPersistentHistory() async {
+    AppLogger.i(_tag, 'getPersistentHistory()');
+    try {
+      final Map<String, dynamic> json = await _source.fetchPersistentHistory();
+
+      List<Song> parseList(dynamic list) {
+        if (list == null || list is! List) return [];
+        return list
+            .map(
+              (e) => SongModel.fromJson(e as Map<String, dynamic>).toEntity(),
+            )
+            .toList();
+      }
+
+      final byMonthRaw = json['byMonth'] as Map<String, dynamic>? ?? {};
+      final byMonth = <String, List<Song>>{};
+      byMonthRaw.forEach((key, value) {
+        byMonth[key] = parseList(value);
+      });
+
+      return HistoryData(
+        today: parseList(json['today']),
+        thisWeek: parseList(json['thisWeek']),
+        thisMonth: parseList(json['thisMonth']),
+        byMonth: byMonth,
+      );
+    } on AppException {
+      rethrow;
+    } catch (e, st) {
+      AppLogger.e(_tag, 'getPersistentHistory failed', e, st);
+      throw toAppException(e);
     }
   }
 

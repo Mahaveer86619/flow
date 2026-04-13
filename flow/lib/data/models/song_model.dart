@@ -25,6 +25,7 @@ class SongModel {
   final Color colorPrimary;
   final Color colorSecondary;
   final bool isDownloaded;
+  final DateTime? playedAt;
 
   const SongModel({
     required this.id,
@@ -36,6 +37,7 @@ class SongModel {
     required this.colorPrimary,
     required this.colorSecondary,
     this.isDownloaded = false,
+    this.playedAt,
   });
 
   // ── JSON ─────────────────────────────────────────────────────────────────────
@@ -62,6 +64,9 @@ class SongModel {
           ? Color(json['colorSecondary'] as int)
           : colors.$2,
       isDownloaded: json['isDownloaded'] as bool? ?? false,
+      playedAt: json['playedAt'] != null
+          ? DateTime.tryParse(json['playedAt'] as String)
+          : null,
     );
   }
 
@@ -75,6 +80,7 @@ class SongModel {
     'colorPrimary': colorPrimary.value,
     'colorSecondary': colorSecondary.value,
     'isDownloaded': isDownloaded,
+    'playedAt': playedAt?.toIso8601String(),
   };
 
   // ── Domain mapping ────────────────────────────────────────────────────────────
@@ -89,6 +95,7 @@ class SongModel {
     colorPrimary: colorPrimary,
     colorSecondary: colorSecondary,
     isDownloaded: isDownloaded,
+    playedAt: playedAt,
   );
 
   // ── Color derivation ──────────────────────────────────────────────────────────

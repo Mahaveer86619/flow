@@ -145,6 +145,21 @@ class LocalStorage {
     });
   }
 
+  String? get appVersion => _settings.get(HiveKeys.appVersion) as String?;
+  void saveAppVersion(String version) =>
+      _settings.put(HiveKeys.appVersion, version);
+
+  /// Clears search history and player state, but preserves critical settings
+  /// (Server URL, Theme, Downloads path) and Auth.
+  Future<void> clearCache() async {
+    AppLogger.w('LocalStorage', 'Clearing local cache (player & search)...');
+    await _player.clear();
+    await _search.clear();
+    // We could also clear _metadata if we want to force re-fetch of song info,
+    // but that might break downloaded songs if not careful.
+    // For now, let's keep it to player state and search.
+  }
+
   // ── Auth ─────────────────────────────────────────────────────────────────────
 
   String? get jwtToken => _auth.get(HiveKeys.jwtToken) as String?;

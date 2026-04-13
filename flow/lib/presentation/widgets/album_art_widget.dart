@@ -41,6 +41,10 @@ class AlbumArtWidget extends StatelessWidget {
             fit: BoxFit.cover,
             cacheWidth: cacheSize,
             cacheHeight: cacheSize,
+            headers: const {
+              'User-Agent':
+                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+            },
             loadingBuilder: (context, child, progress) =>
                 progress == null ? child : _buildVinyl(),
             errorBuilder: (context, error, stackTrace) => _buildVinyl(),

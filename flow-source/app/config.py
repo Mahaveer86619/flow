@@ -16,9 +16,10 @@ class Settings(BaseSettings):
     COOKIES_FILE_PATH: str = "./data/cookies.txt"
 
     # Database Settings
-    DATABASE_URL: str = (
-        "postgresql://flow_user:R3ally_Str0ng_P4ssw0rd_99@db:5432/flow_music"
-    )
+    DATABASE_URL: str = "sqlite:///./data/flow_music.db"
+
+    # Logging Settings
+    LOG_LEVEL: str = "INFO"  # Default log level
 
     # JWT Settings
     SECRET_KEY: str = "y0ur-sup3r-s3cr3t-k3y-th4t-sh0uld-b3-ch4ng3d"

@@ -10,6 +10,7 @@ class HomeState {
   final String greeting;
   final List<HomeShelf> shelves;
   final List<Song> trending;
+  final List<Song> recentlyPlayed;
   final List<Song> allSongs;
   final String? profileUrl;
 
@@ -21,6 +22,7 @@ class HomeState {
     this.greeting = '',
     this.shelves = const [],
     this.trending = const [],
+    this.recentlyPlayed = const [],
     this.allSongs = const [],
     this.profileUrl,
   });
@@ -33,6 +35,7 @@ class HomeState {
     String? greeting,
     List<HomeShelf>? shelves,
     List<Song>? trending,
+    List<Song>? recentlyPlayed,
     List<Song>? allSongs,
     String? profileUrl,
   }) {
@@ -44,6 +47,7 @@ class HomeState {
       greeting: greeting ?? this.greeting,
       shelves: shelves ?? this.shelves,
       trending: trending ?? this.trending,
+      recentlyPlayed: recentlyPlayed ?? this.recentlyPlayed,
       allSongs: allSongs ?? this.allSongs,
       profileUrl: profileUrl ?? this.profileUrl,
     );

@@ -314,6 +314,21 @@ class MockSongDataSource implements SongDataSource {
   }
 
   @override
+  Future<void> recordPlay(SongModel song) async {
+    // No-op for mock data
+  }
+
+  @override
+  Future<Map<String, dynamic>> fetchPersistentHistory() async {
+    return {
+      'today': [],
+      'thisWeek': [],
+      'thisMonth': [],
+      'older': [],
+    };
+  }
+
+  @override
   List<Map<String, dynamic>> fetchCategories() =>
       List.unmodifiable(_categories);
 }

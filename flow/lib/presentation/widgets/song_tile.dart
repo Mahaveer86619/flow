@@ -11,6 +11,7 @@ class SongTile extends StatelessWidget {
   final List<Song> queue;
   final int index;
   final String? heroTag;
+  final VoidCallback? onTap;
 
   const SongTile({
     super.key,
@@ -18,6 +19,7 @@ class SongTile extends StatelessWidget {
     required this.queue,
     required this.index,
     this.heroTag,
+    this.onTap,
   });
 
   @override
@@ -28,14 +30,16 @@ class SongTile extends StatelessWidget {
     final isDesktop = Breakpoints.isDesktop(MediaQuery.sizeOf(context).width);
 
     return ListTile(
-      onTap: () {
-        context.read<PlayerBloc>().add(
-          PlayQueueEvent(songs: List<Song>.from(queue), startIndex: index),
-        );
-        if (!isDesktop) {
-          PlayerScreen.show(context);
-        }
-      },
+      onTap:
+          onTap ??
+          () {
+            context.read<PlayerBloc>().add(
+              PlayQueueEvent(songs: List<Song>.from(queue), startIndex: index),
+            );
+            if (!isDesktop) {
+              PlayerScreen.show(context);
+            }
+          },
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       leading: Hero(
         tag: heroTag ?? 'tile_art_${song.id}_${song.hashCode}_$index',
@@ -55,6 +59,10 @@ class SongTile extends StatelessWidget {
               ? Image.network(
                   song.thumbnailUrl!,
                   fit: BoxFit.cover,
+                  headers: const {
+                    'User-Agent':
+                        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+                  },
                   errorBuilder: (_, __, ___) => _fallback(),
                 )
               : _fallback(),
@@ -85,17 +93,101 @@ class SongTile extends StatelessWidget {
               color: const Color(0xFFEC4899),
             ),
           const SizedBox(width: 8),
-          IconButton(
-            icon: const Icon(Icons.more_vert_rounded),
-            onPressed: () => _showOptions(context, isLiked),
-            iconSize: 20,
-          ),
+          _SongOptionsButton(song: song, isLiked: isLiked),
         ],
       ),
     );
   }
 
-  void _showOptions(BuildContext context, bool isLiked) {
+  Widget _fallback() {
+    return const Center(
+      child: Icon(Icons.music_note_rounded, color: Colors.white, size: 20),
+    );
+  }
+}
+
+class _SongOptionsButton extends StatelessWidget {
+  final Song song;
+  final bool isLiked;
+
+  const _SongOptionsButton({required this.song, required this.isLiked});
+
+  @override
+  Widget build(BuildContext context) {
+    final platform = Theme.of(context).platform;
+    final isMobile =
+        platform == TargetPlatform.iOS || platform == TargetPlatform.android;
+
+    if (isMobile) {
+      return IconButton(
+        icon: const Icon(Icons.more_vert_rounded),
+        onPressed: () => _showMobileOptions(context),
+        iconSize: 20,
+      );
+    }
+
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.more_vert_rounded),
+      iconSize: 20,
+      onSelected: (value) {
+        if (value == 'radio') {
+          context.read<PlayerBloc>().add(PlayRadioEvent(song));
+        } else if (value == 'like') {
+          context.read<PlayerBloc>().add(ToggleLikeEvent(song));
+        }
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: 'radio',
+          child: Row(
+            children: [
+              const Icon(Icons.radio_rounded, size: 20),
+              const SizedBox(width: 12),
+              const Text('Start radio'),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'like',
+          child: Row(
+            children: [
+              Icon(
+                isLiked
+                    ? Icons.favorite_rounded
+                    : Icons.favorite_border_rounded,
+                size: 20,
+                color: isLiked ? const Color(0xFFEC4899) : null,
+              ),
+              const SizedBox(width: 12),
+              Text(isLiked ? 'Remove from Favourites' : 'Add to Favourites'),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'playlist',
+          child: Row(
+            children: [
+              const Icon(Icons.playlist_add_rounded, size: 20),
+              const SizedBox(width: 12),
+              const Text('Add to another Playlist'),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'share',
+          child: Row(
+            children: [
+              const Icon(Icons.share_rounded, size: 20),
+              const SizedBox(width: 12),
+              const Text('Share Song'),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showMobileOptions(BuildContext context) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -118,6 +210,14 @@ class SongTile extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 20),
+              ListTile(
+                leading: const Icon(Icons.radio_rounded),
+                title: const Text('Start radio'),
+                onTap: () {
+                  context.read<PlayerBloc>().add(PlayRadioEvent(song));
+                  Navigator.pop(ctx);
+                },
+              ),
               ListTile(
                 leading: Icon(
                   isLiked
@@ -148,12 +248,6 @@ class SongTile extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _fallback() {
-    return const Center(
-      child: Icon(Icons.music_note_rounded, color: Colors.white, size: 20),
     );
   }
 }

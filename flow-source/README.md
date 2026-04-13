@@ -1,6 +1,6 @@
 # Flow Source — The Powerhouse Backend ⚙️
 
-Flow Source is the high-performance engine that powers the Flow ecosystem. Built with FastAPI and PostgreSQL, it provides a secure, self-hosted platform for streaming your favorite music with zero tracking and full control.
+Flow Source is the high-performance engine that powers the Flow ecosystem. Built with FastAPI and SQLite, it provides a secure, self-hosted platform for streaming your favorite music with zero tracking and full control.
 
 ---
 
@@ -31,7 +31,7 @@ The backend is structured for scalability and clarity:
 
 ### Option 1: Docker Compose (Recommended)
 
-The easiest way to run Flow Source is using Docker. This ensures all dependencies (PostgreSQL, Python 3.12, ffmpeg) are correctly configured.
+The easiest way to run Flow Source is using Docker. This ensures all dependencies (SQLite, Python 3.12, ffmpeg) are correctly configured.
 
 1.  **Clone and Configure:**
     ```bash

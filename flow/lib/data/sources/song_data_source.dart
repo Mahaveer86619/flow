@@ -36,6 +36,12 @@ abstract class SongDataSource {
   /// Proactively trigger background extraction.
   Future<void> prefetchAudio(String videoId);
 
+  /// Record a song play in persistent history.
+  Future<void> recordPlay(SongModel song);
+
+  /// Fetch persistent play history with date segmentation.
+  Future<Map<String, dynamic>> fetchPersistentHistory();
+
   /// Static browse categories — always synchronous, never needs the network.
   List<Map<String, dynamic>> fetchCategories();
 }

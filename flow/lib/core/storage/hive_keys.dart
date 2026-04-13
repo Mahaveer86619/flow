@@ -26,6 +26,7 @@ class HiveKeys {
   static const String eqPreset = 'eq_preset';
   static const String downloadQuality = 'download_quality';
   static const String downloadPath = 'download_path';
+  static const String appVersion = 'app_version';
 
   // ── auth box ─────────────────────────────────────────────────────────────────
   static const String authBox = 'flow_auth';

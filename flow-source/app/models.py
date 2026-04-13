@@ -1,7 +1,8 @@
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, EmailStr
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 
 from .database import Base
@@ -23,6 +24,27 @@ class User(Base):
 
     # Store user settings as a JSON string
     settings_json = Column(Text, nullable=True)
+
+    # Relationships
+    history = relationship(
+        "PlayHistory", back_populates="user", cascade="all, delete-orphan"
+    )
+
+
+class PlayHistory(Base):
+    __tablename__ = "play_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    song_id = Column(String, index=True)
+    title = Column(String)
+    artist = Column(String)
+    album = Column(String)
+    duration_ms = Column(Integer)
+    thumbnail_url = Column(Text, nullable=True)
+    played_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User", back_populates="history")
 
 
 # --- Pydantic Models ---
@@ -72,6 +94,17 @@ class SongResponse(BaseModel):
     album: str
     durationMs: int
     thumbnailUrl: Optional[str] = None
+
+
+class HistoryEntryResponse(SongResponse):
+    playedAt: datetime
+
+
+class HistoryResponse(BaseModel):
+    today: List[HistoryEntryResponse] = []
+    thisWeek: List[HistoryEntryResponse] = []
+    thisMonth: List[HistoryEntryResponse] = []
+    byMonth: Dict[str, List[HistoryEntryResponse]] = {}  # e.g. "March 2024"
 
 
 class ArtistResponse(BaseModel):

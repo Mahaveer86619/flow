@@ -1,34 +1,20 @@
 services:
-  db:
-    image: postgres:15-alpine
-    container_name: flow-db
-    environment:
-      POSTGRES_USER: flow_user
-      POSTGRES_DB: flow_music
-      POSTGRES_PASSWORD: "complex_password_to_be_replaced_by_env"
-    ports:
-      - "5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U flow_user -d flow_music"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
   api:
     build: .
     container_name: flow-api
-    depends_on:
-      db:
-        condition: service_healthy
     env_file:
       - .env
     ports:
       - "8000:8000"
     volumes:
       - .:/app
+      - ./data:/app/data
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    healthcheck:
+      test: ["CMD-SHELL", "http://localhost:8000/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   tunnel:
     image: cloudflare/cloudflared:latest
@@ -37,6 +23,3 @@ services:
     command: tunnel --protocol http2 --url http://api:8000
     depends_on:
       - api
-
-volumes:
-  postgres_data:
