@@ -93,36 +93,68 @@ class YTMusicService:
 
     def get_client(self, user: Optional[User] = None):
         if user and user.yt_auth_json:
-            import tempfile
             try:
+                from ytmusicapi.helpers import get_authorization, sapisid_from_cookie
+
                 logger.debug(f"Creating authenticated client for user: {user.username}")
-                
-                # --- CRITICAL FIX: YTMusic Authentication ---
-                # ytmusicapi (as of 1.10+) has a fundamental requirement: if auth is provided as 
-                # a dictionary, it expects a very specific structure. If it's provided as a 
-                # file path, it automatically delegates to the correct parser (Headers vs OAuth).
-                # To support both legacy Header-based JSON and new OAuth JSON (which throws 
-                # 'oauth_credentials not provided' if passed as a dict), we MUST write it 
-                # to a temporary file first. This ensures 100% reliable initialization.
-                with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tmp:
-                    tmp.write(user.yt_auth_json)
-                    tmp_path = tmp.name
-                
-                try:
-                    return ytmusicapi.YTMusic(auth=tmp_path)
-                finally:
-                    if os.path.exists(tmp_path):
-                        os.remove(tmp_path)
+                auth_data = json.loads(user.yt_auth_json)
+
+                # Map common lowercase keys to their expected Title-Case versions
+                # ytmusicapi 1.11.5 determine_auth_type is case-sensitive for 'Authorization' 
+                # and 'Cookie' when checking for BROWSER type.
+                normalization_map = {
+                    "cookie": "Cookie",
+                    "user-agent": "User-Agent",
+                    "x-goog-authuser": "X-Goog-AuthUser",
+                    "authorization": "Authorization",
+                    "origin": "Origin",
+                }
+
+                normalized_auth = {}
+                for k, v in auth_data.items():
+                    norm_key = normalization_map.get(k.lower(), k)
+                    # If not in map and looks like a header, Title-Case it
+                    if k.lower() not in normalization_map and "-" in k:
+                        norm_key = "-".join([p.capitalize() for p in k.split("-")])
+                    normalized_auth[norm_key] = v
+
+                # Ensure Authorization header is present (Crucial for ytmusicapi 1.11.5)
+                # It uses this to distinguish BROWSER type from OAUTH_CUSTOM_CLIENT.
+                if "Cookie" in normalized_auth and "Authorization" not in normalized_auth:
+                    try:
+                        cookie_val = normalized_auth["Cookie"]
+                        sapisid = sapisid_from_cookie(cookie_val)
+                        origin = normalized_auth.get("Origin", "https://music.youtube.com")
+                        normalized_auth["Authorization"] = get_authorization(
+                            sapisid + " " + origin
+                        )
+                        logger.debug(f"Calculated missing Authorization header for {user.username}")
+                    except Exception as e:
+                        logger.warning(f"Failed to calculate Authorization header: {e}")
+
+                # Pass dictionary directly to YTMusic (supported in 1.11.5)
+                # This avoids tempfile overhead and extension-based type detection issues.
+                client = ytmusicapi.YTMusic(auth=normalized_auth)
+                logger.debug(
+                    f"Client initialized for {user.username} (type={getattr(client, 'auth_type', 'unknown')})"
+                )
+                return client
+
             except Exception as e:
-                logger.error(f"Failed to initialize YT auth for user {user.username}: {e}")
-                # Fallback to unauthenticated if parse fails
+                logger.error(
+                    f"Failed to initialize YT auth for user {user.username}: {e}\n{traceback.format_exc()}"
+                )
+                # Fallback to global/unauthenticated if user auth fails
 
         # Check if a global auth file still exists (for backward compatibility or shared dev)
         if os.path.exists(settings.AUTH_FILE_PATH):
             logger.debug(
                 f"Creating authenticated client from global file: {settings.AUTH_FILE_PATH}"
             )
-            return ytmusicapi.YTMusic(settings.AUTH_FILE_PATH)
+            try:
+                return ytmusicapi.YTMusic(settings.AUTH_FILE_PATH)
+            except Exception as e:
+                logger.error(f"Failed to initialize global YT auth: {e}")
 
         logger.debug("Creating unauthenticated YTMusic client")
         return ytmusicapi.YTMusic()
