@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:io' show Platform;
+import 'dart:io' show Platform, File;
 import 'package:flutter/foundation.dart';
 import 'package:smtc_windows/smtc_windows.dart';
 import '../../domain/entities/song.dart';
@@ -94,16 +94,27 @@ class WindowsMediaSession {
   Future<void> updateSong(Song song) async {
     if (!_isWindows || _smtc == null) return;
     try {
+      String? thumb = song.thumbnailUrl;
+      if (thumb != null && !thumb.startsWith('http')) {
+        // It's a local path - SMTCWindows needs file:/// URI
+        final file = File(thumb);
+        if (await file.exists()) {
+          thumb = Uri.file(thumb).toString();
+        } else {
+          thumb = null;
+        }
+      }
+
       await _smtc!.updateMetadata(
         MusicMetadata(
           title: song.title,
           artist: song.artist,
           albumArtist: song.artist,
           album: song.album.isNotEmpty ? song.album : song.artist,
-          thumbnail: song.thumbnailUrl,
+          thumbnail: thumb,
         ),
       );
-      AppLogger.d(_tag, 'Metadata updated: "${song.title}"');
+      AppLogger.d(_tag, 'Metadata updated: "${song.title}" (thumb: $thumb)');
     } catch (e) {
       AppLogger.w(_tag, 'updateSong failed: $e');
     }

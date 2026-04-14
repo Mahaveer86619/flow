@@ -10,6 +10,7 @@ class SectionHeader extends StatelessWidget {
   final String title;
   final String? subtitle;
   final String? profileUrl;
+  final String? profileName;
   final VoidCallback? onSeeAll;
 
   const SectionHeader({
@@ -17,6 +18,7 @@ class SectionHeader extends StatelessWidget {
     required this.title,
     this.subtitle,
     this.profileUrl,
+    this.profileName,
     this.onSeeAll,
   });
 
@@ -37,15 +39,22 @@ class SectionHeader extends StatelessWidget {
                 backgroundImage: NetworkImage(profileUrl!),
                 backgroundColor: colorScheme.surfaceContainerHigh,
               ),
-            )
-          else if (subtitle != null)
-            const SizedBox.shrink(), // Space for logic if needed
+            ),
 
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (subtitle != null)
+                if (profileName != null)
+                  Text(
+                    profileName!,
+                    style: GoogleFonts.outfit(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: colorScheme.onSurface.withAlpha(140),
+                    ),
+                  )
+                else if (subtitle != null)
                   Text(
                     subtitle!.toUpperCase(),
                     style: GoogleFonts.outfit(

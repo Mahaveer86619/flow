@@ -27,6 +27,9 @@ abstract class SongDataSource {
   /// Tracks for an album.
   Future<List<SongModel>> fetchAlbumTracks(String browseId, {int limit = 25});
 
+  /// Tracks for an artist.
+  Future<List<SongModel>> fetchArtistSongs(String channelId);
+
   /// Tracks from a radio station (up-next).
   Future<List<SongModel>> fetchRadioTracks(String videoId, {int limit = 25});
 
@@ -44,4 +47,48 @@ abstract class SongDataSource {
 
   /// Static browse categories — always synchronous, never needs the network.
   List<Map<String, dynamic>> fetchCategories();
+
+  // --- Playlist Management ---
+
+  /// Create a new playlist.
+  Future<String> createPlaylist({
+    required String title,
+    String? description,
+    String? privacyStatus,
+    List<String>? videoIds,
+    String? sourcePlaylist,
+  });
+
+  /// Edit an existing playlist.
+  Future<void> editPlaylist({
+    required String playlistId,
+    String? title,
+    String? description,
+    String? privacyStatus,
+  });
+
+  /// Delete a playlist.
+  Future<void> deletePlaylist(String playlistId);
+
+  /// Add tracks to a playlist.
+  Future<void> addPlaylistItems({
+    required String playlistId,
+    required List<String> videoIds,
+    String? sourcePlaylist,
+    bool duplicates = false,
+  });
+
+  /// Remove tracks from a playlist.
+  Future<void> removePlaylistItems({
+    required String playlistId,
+    required List<Map<String, dynamic>> videos,
+  });
+
+  // --- Artist Management ---
+
+  /// Like/Subscribe to an artist.
+  Future<void> likeArtist(String channelId);
+
+  /// Unlike/Unsubscribe from an artist.
+  Future<void> unlikeArtist(String channelId);
 }

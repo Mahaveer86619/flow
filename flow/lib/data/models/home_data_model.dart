@@ -7,11 +7,17 @@ class HomeDataModel {
   final List<Map<String, dynamic>> rawShelves;
   final List<SongModel> trending;
   final String? profileUrl;
+  final String? ytName;
+  final List<SongModel> musicVideos;
+  final List<SongModel> favArtistsSongs;
 
   const HomeDataModel({
     required this.rawShelves,
     this.trending = const [],
     this.profileUrl,
+    this.ytName,
+    this.musicVideos = const [],
+    this.favArtistsSongs = const [],
   });
 
   factory HomeDataModel.fromJson(Map<String, dynamic> json) {
@@ -23,12 +29,32 @@ class HomeDataModel {
         .map((s) => SongModel.fromJson(s as Map<String, dynamic>))
         .toList();
 
+    final musicVideos = ((json['musicVideos'] as List<dynamic>?) ?? [])
+        .map((s) => SongModel.fromJson(s as Map<String, dynamic>))
+        .toList();
+
+    final favArtistsSongs = ((json['favArtistsSongs'] as List<dynamic>?) ?? [])
+        .map((s) => SongModel.fromJson(s as Map<String, dynamic>))
+        .toList();
+
     return HomeDataModel(
       rawShelves: rawShelves,
       trending: trending,
       profileUrl: json['profileUrl'] as String?,
+      ytName: json['yt_name'] as String?,
+      musicVideos: musicVideos,
+      favArtistsSongs: favArtistsSongs,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'shelves': rawShelves,
+    'trending': trending.map((s) => s.toJson()).toList(),
+    'profileUrl': profileUrl,
+    'yt_name': ytName,
+    'musicVideos': musicVideos.map((s) => s.toJson()).toList(),
+    'favArtistsSongs': favArtistsSongs.map((s) => s.toJson()).toList(),
+  };
 
   HomeData toEntity() {
     final shelves = rawShelves.map((shelfJson) {
@@ -82,6 +108,9 @@ class HomeDataModel {
       shelves: shelves,
       trending: trending.map((m) => m.toEntity()).toList(),
       profileUrl: profileUrl,
+      ytName: ytName,
+      musicVideos: musicVideos.map((m) => m.toEntity()).toList(),
+      favArtistsSongs: favArtistsSongs.map((m) => m.toEntity()).toList(),
     );
   }
 

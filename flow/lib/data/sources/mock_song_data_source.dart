@@ -309,6 +309,12 @@ class MockSongDataSource implements SongDataSource {
       List.unmodifiable(_songs.take(limit).toList());
 
   @override
+  Future<List<SongModel>> fetchArtistSongs(String channelId) async {
+    await Future.delayed(const Duration(milliseconds: 500));
+    return _songs.where((s) => s.artist.contains('Artist')).toList();
+  }
+
+  @override
   Future<List<SongModel>> fetchRadioTracks(
     String videoId, {
     int limit = 25,
@@ -343,4 +349,44 @@ class MockSongDataSource implements SongDataSource {
   @override
   List<Map<String, dynamic>> fetchCategories() =>
       List.unmodifiable(_categories);
+
+  @override
+  Future<String> createPlaylist({
+    required String title,
+    String? description,
+    String? privacyStatus,
+    List<String>? videoIds,
+    String? sourcePlaylist,
+  }) async => 'new_playlist_id';
+
+  @override
+  Future<void> editPlaylist({
+    required String playlistId,
+    String? title,
+    String? description,
+    String? privacyStatus,
+  }) async {}
+
+  @override
+  Future<void> deletePlaylist(String playlistId) async {}
+
+  @override
+  Future<void> addPlaylistItems({
+    required String playlistId,
+    required List<String> videoIds,
+    String? sourcePlaylist,
+    bool duplicates = false,
+  }) async {}
+
+  @override
+  Future<void> removePlaylistItems({
+    required String playlistId,
+    required List<Map<String, dynamic>> videos,
+  }) async {}
+
+  @override
+  Future<void> likeArtist(String channelId) async {}
+
+  @override
+  Future<void> unlikeArtist(String channelId) async {}
 }

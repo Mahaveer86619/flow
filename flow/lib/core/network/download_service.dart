@@ -115,12 +115,6 @@ class DownloadService {
     if (_activeDownloads.containsKey(song.id)) return;
 
     try {
-      final existingFile = await getLocalFile(song.id);
-      if (existingFile != null && await existingFile.exists()) {
-        AppLogger.i(_tag, 'Song ${song.id} already downloaded');
-        return;
-      }
-
       final dirPath = await _localPath;
       final safeTitle = _sanitizeFileName(song.title);
       final fileName = '${safeTitle}_${song.id}.mp3';
@@ -128,44 +122,7 @@ class DownloadService {
 
       await file.parent.create(recursive: true);
 
-      final streamUrl = '${ServerConfig.instance.baseUrl}/v1/stream/${song.id}';
-      final token = LocalStorage.instance.jwtToken;
-
-      AppLogger.i(_tag, 'Starting download: ${song.title}');
-
-      final request = http.Request('GET', Uri.parse(streamUrl));
-      if (token != null) {
-        request.headers['Authorization'] = 'Bearer $token';
-      }
-      request.headers['User-Agent'] = 'FlowMusicApp/1.0';
-
-      final response = await _client.send(request);
-
-      if (response.statusCode != 200) {
-        throw Exception('Server returned ${response.statusCode}');
-      }
-
-      final contentLength = response.contentLength ?? 0;
-      int downloaded = 0;
-      final bytes = <int>[];
-
-      _activeDownloads[song.id] = 0.0;
-      _progressController.add(Map.from(_activeDownloads));
-
-      await for (final chunk in response.stream) {
-        bytes.addAll(chunk);
-        downloaded += chunk.length;
-
-        if (contentLength > 0) {
-          final progress = downloaded / contentLength;
-          _activeDownloads[song.id] = progress;
-          _progressController.add(Map.from(_activeDownloads));
-        }
-      }
-
-      await file.writeAsBytes(bytes);
-
-      // Download thumbnail
+      // Download thumbnail first so it's ready
       String? localThumbPath;
       if (song.thumbnailUrl != null) {
         try {
@@ -176,6 +133,62 @@ class DownloadService {
         } catch (e) {
           AppLogger.w(_tag, 'Thumbnail download failed: $e');
         }
+      }
+
+      final streamUrl = '${ServerConfig.instance.baseUrl}/v1/stream/${song.id}';
+      final token = LocalStorage.instance.jwtToken;
+
+      AppLogger.i(_tag, 'Starting download: ${song.title}');
+
+      // Check if we can resume
+      int existingLength = 0;
+      if (await file.exists()) {
+        existingLength = await file.length();
+        AppLogger.i(_tag, 'Found existing file of $existingLength bytes, attempting resume');
+      }
+
+      final request = http.Request('GET', Uri.parse(streamUrl));
+      if (token != null) {
+        request.headers['Authorization'] = 'Bearer $token';
+      }
+      request.headers['User-Agent'] = 'FlowMusicApp/1.0';
+      if (existingLength > 0) {
+        request.headers['Range'] = 'bytes=$existingLength-';
+      }
+
+      final response = await _client.send(request);
+
+      if (response.statusCode != 200 && response.statusCode != 206) {
+        if (response.statusCode == 416) {
+          // Requested range not satisfiable - file might be complete
+          AppLogger.i(_tag, 'Range not satisfiable, assuming file complete');
+        } else {
+          throw Exception('Server returned ${response.statusCode}');
+        }
+      }
+
+      final contentLength = (response.contentLength ?? 0) + existingLength;
+      int downloaded = existingLength;
+
+      _activeDownloads[song.id] = existingLength > 0 ? (existingLength / contentLength) : 0.0;
+      _progressController.add(Map.from(_activeDownloads));
+
+      // Open file for appending
+      final sink = file.openWrite(mode: FileMode.append);
+
+      try {
+        await for (final chunk in response.stream) {
+          sink.add(chunk);
+          downloaded += chunk.length;
+
+          if (contentLength > 0) {
+            final progress = downloaded / contentLength;
+            _activeDownloads[song.id] = progress;
+            _progressController.add(Map.from(_activeDownloads));
+          }
+        }
+      } finally {
+        await sink.close();
       }
 
       // Save mapping in Hive and update memory set
@@ -207,6 +220,79 @@ class DownloadService {
       _progressController.add(Map.from(_activeDownloads));
       AppLogger.e(_tag, 'Download failed: ${song.title}', e, st);
       rethrow;
+    }
+  }
+
+  Future<void> moveDownloads(String oldBasePath, String newBasePath) async {
+    try {
+      AppLogger.i(_tag, 'Moving downloads from $oldBasePath to $newBasePath');
+      
+      final oldFlowPath = '$oldBasePath${Platform.pathSeparator}flow';
+      final newFlowPath = '$newBasePath${Platform.pathSeparator}flow';
+      
+      final oldDir = Directory(oldFlowPath);
+      if (!await oldDir.exists()) {
+        AppLogger.w(_tag, 'Old download directory does not exist: $oldFlowPath');
+        return;
+      }
+      
+      final newDir = Directory(newFlowPath);
+      await newDir.create(recursive: true);
+      
+      final mappings = LocalStorage.instance.downloadedPaths;
+      int movedCount = 0;
+      
+      for (final entry in mappings.entries) {
+        final songId = entry.key;
+        final oldFilePath = entry.value;
+        final file = File(oldFilePath);
+        
+        if (await file.exists()) {
+          final fileName = oldFilePath.split(Platform.pathSeparator).last;
+          final newFilePath = '$newFlowPath${Platform.pathSeparator}downloads${Platform.pathSeparator}$fileName';
+          final newFile = File(newFilePath);
+          await newFile.parent.create(recursive: true);
+          
+          try {
+            await file.copy(newFilePath);
+            await file.delete();
+            LocalStorage.instance.saveDownloadMapping(songId, newFilePath);
+            movedCount++;
+            
+            // Also move thumbnail
+            final oldThumbPath = '$oldFlowPath${Platform.pathSeparator}downloads${Platform.pathSeparator}thumbs${Platform.pathSeparator}$songId.jpg';
+            final oldThumb = File(oldThumbPath);
+            if (await oldThumb.exists()) {
+              final newThumbPath = '$newFlowPath${Platform.pathSeparator}downloads${Platform.pathSeparator}thumbs${Platform.pathSeparator}$songId.jpg';
+              final newThumb = File(newThumbPath);
+              await newThumb.parent.create(recursive: true);
+              await oldThumb.copy(newThumbPath);
+              await oldThumb.delete();
+              
+              // Update metadata with new thumb path
+              final metadata = LocalStorage.instance.getDownloadMetadata(songId);
+              if (metadata != null) {
+                metadata['thumbnailUrl'] = newThumbPath;
+                LocalStorage.instance.saveDownloadMetadata(songId, metadata);
+              }
+            }
+          } catch (e) {
+            AppLogger.e(_tag, 'Failed to move file for song $songId', e);
+          }
+        }
+      }
+      
+      AppLogger.i(_tag, 'Moved $movedCount downloads successfully');
+      
+      // Attempt to clean up old directory if empty
+      try {
+        if (await oldDir.list().isEmpty) {
+          await oldDir.delete(recursive: true);
+        }
+      } catch (_) {}
+      
+    } catch (e, st) {
+      AppLogger.e(_tag, 'Failed to move downloads', e, st);
     }
   }
 

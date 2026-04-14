@@ -143,6 +143,20 @@ class ApiSongDataSource implements SongDataSource {
   }
 
   @override
+  Future<List<SongModel>> fetchArtistSongs(String channelId) async {
+    AppLogger.i(_tag, 'fetchArtistSongs($channelId)');
+    final list = await _getJson('/v1/artists/$channelId/songs') as List<dynamic>;
+    try {
+      return list
+          .map((e) => SongModel.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } catch (e, st) {
+      AppLogger.e(_tag, 'fetchArtistSongs parse failure', e, st);
+      throw ParseException('Failed to parse artist songs: $e');
+    }
+  }
+
+  @override
   Future<List<SongModel>> fetchRadioTracks(
     String videoId, {
     int limit = 25,
@@ -222,6 +236,79 @@ class ApiSongDataSource implements SongDataSource {
   @override
   List<Map<String, dynamic>> fetchCategories() => _staticCategories;
 
+  // --- Playlist Management ---
+
+  @override
+  Future<String> createPlaylist({
+    required String title,
+    String? description,
+    String? privacyStatus,
+    List<String>? videoIds,
+    String? sourcePlaylist,
+  }) async {
+    final resp = await _postJson('/v1/playlists', body: {
+      'title': title,
+      if (description != null) 'description': description,
+      if (privacyStatus != null) 'privacy_status': privacyStatus,
+      if (videoIds != null) 'video_ids': videoIds,
+      if (sourcePlaylist != null) 'source_playlist': sourcePlaylist,
+    });
+    return resp['id'] as String;
+  }
+
+  @override
+  Future<void> editPlaylist({
+    required String playlistId,
+    String? title,
+    String? description,
+    String? privacyStatus,
+  }) async {
+    await _patchJson('/v1/playlists/$playlistId', body: {
+      if (title != null) 'title': title,
+      if (description != null) 'description': description,
+      if (privacyStatus != null) 'privacyStatus': privacyStatus,
+    });
+  }
+
+  @override
+  Future<void> deletePlaylist(String playlistId) async {
+    await _deleteJson('/v1/playlists/$playlistId');
+  }
+
+  @override
+  Future<void> addPlaylistItems({
+    required String playlistId,
+    required List<String> videoIds,
+    String? sourcePlaylist,
+    bool duplicates = false,
+  }) async {
+    await _postJson('/v1/playlists/$playlistId/items', body: {
+      'videoIds': videoIds,
+      if (sourcePlaylist != null) 'source_playlist': sourcePlaylist,
+      'duplicates': duplicates,
+    });
+  }
+
+  @override
+  Future<void> removePlaylistItems({
+    required String playlistId,
+    required List<Map<String, dynamic>> videos,
+  }) async {
+    await _deleteJson('/v1/playlists/$playlistId/items', body: {'videos': videos});
+  }
+
+  // --- Artist Management ---
+
+  @override
+  Future<void> likeArtist(String channelId) async {
+    await _postJson('/v1/artists/$channelId/like');
+  }
+
+  @override
+  Future<void> unlikeArtist(String channelId) async {
+    await _postJson('/v1/artists/$channelId/unlike');
+  }
+
   // ── HTTP helpers ──────────────────────────────────────────────────────────────
 
   /// Wraps the original thumbnail URL into a local proxy URL using the current
@@ -281,6 +368,90 @@ class ApiSongDataSource implements SongDataSource {
       final wrapped = toAppException(e);
       AppLogger.e(_tag, 'Request failed: $uri', e, st);
       throw wrapped;
+    }
+  }
+
+  Future<dynamic> _postJson(String path, {dynamic body}) async {
+    if (!_connectivity.isOnline) throw const NetworkException();
+    final uri = Uri.parse('${ServerConfig.instance.baseUrl}$path');
+    try {
+      final headers = <String, String>{
+        'User-Agent': 'FlowMusicApp/1.0',
+        'Content-Type': 'application/json',
+      };
+      final token = LocalStorage.instance.jwtToken;
+      if (token != null) headers['Authorization'] = 'Bearer $token';
+
+      final response = await _client
+          .post(uri, headers: headers, body: body != null ? jsonEncode(body) : null)
+          .timeout(_timeout);
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return response.body.isNotEmpty ? jsonDecode(response.body) : null;
+      }
+      if (response.statusCode == 401) {
+        AuthEventBus.notifyUnauthorized();
+        throw const UnauthorizedException();
+      }
+      throw ServerException(message: response.body, statusCode: response.statusCode);
+    } catch (e) {
+      throw toAppException(e);
+    }
+  }
+
+  Future<dynamic> _patchJson(String path, {dynamic body}) async {
+    if (!_connectivity.isOnline) throw const NetworkException();
+    final uri = Uri.parse('${ServerConfig.instance.baseUrl}$path');
+    try {
+      final headers = <String, String>{
+        'User-Agent': 'FlowMusicApp/1.0',
+        'Content-Type': 'application/json',
+      };
+      final token = LocalStorage.instance.jwtToken;
+      if (token != null) headers['Authorization'] = 'Bearer $token';
+
+      final response = await _client
+          .patch(uri, headers: headers, body: body != null ? jsonEncode(body) : null)
+          .timeout(_timeout);
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return response.body.isNotEmpty ? jsonDecode(response.body) : null;
+      }
+      if (response.statusCode == 401) {
+        AuthEventBus.notifyUnauthorized();
+        throw const UnauthorizedException();
+      }
+      throw ServerException(message: response.body, statusCode: response.statusCode);
+    } catch (e) {
+      throw toAppException(e);
+    }
+  }
+
+  Future<dynamic> _deleteJson(String path, {dynamic body}) async {
+    if (!_connectivity.isOnline) throw const NetworkException();
+    final uri = Uri.parse('${ServerConfig.instance.baseUrl}$path');
+    try {
+      final headers = <String, String>{
+        'User-Agent': 'FlowMusicApp/1.0',
+        if (body != null) 'Content-Type': 'application/json',
+      };
+      final token = LocalStorage.instance.jwtToken;
+      if (token != null) headers['Authorization'] = 'Bearer $token';
+
+      final response = await _client
+          .delete(uri, headers: headers, body: body != null ? jsonEncode(body) : null)
+          .timeout(_timeout);
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return response.body.isNotEmpty ? jsonDecode(response.body) : null;
+      }
+      if (response.statusCode == 401) {
+        AuthEventBus.notifyUnauthorized();
+        throw const UnauthorizedException();
+      }
+      throw ServerException(message: response.body, statusCode: response.statusCode);
+    } catch (e) {
+      throw toAppException(e);
     }
   }
 

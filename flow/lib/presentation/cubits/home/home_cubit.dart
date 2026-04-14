@@ -116,6 +116,9 @@ class HomeCubit extends Cubit<HomeState> {
           recentlyPlayed: recent,
           allSongs: data.allSongs,
           profileUrl: data.profileUrl,
+          ytName: data.ytName,
+          musicVideos: data.musicVideos,
+          favArtistsSongs: data.favArtistsSongs,
         ),
       );
     } on AppException catch (e) {

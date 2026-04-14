@@ -13,6 +13,9 @@ class HomeState {
   final List<Song> recentlyPlayed;
   final List<Song> allSongs;
   final String? profileUrl;
+  final String? ytName;
+  final List<Song> musicVideos;
+  final List<Song> favArtistsSongs;
 
   const HomeState({
     this.isLoading = false,
@@ -25,6 +28,9 @@ class HomeState {
     this.recentlyPlayed = const [],
     this.allSongs = const [],
     this.profileUrl,
+    this.ytName,
+    this.musicVideos = const [],
+    this.favArtistsSongs = const [],
   });
 
   HomeState copyWith({
@@ -38,6 +44,9 @@ class HomeState {
     List<Song>? recentlyPlayed,
     List<Song>? allSongs,
     String? profileUrl,
+    String? ytName,
+    List<Song>? musicVideos,
+    List<Song>? favArtistsSongs,
   }) {
     return HomeState(
       isLoading: isLoading ?? this.isLoading,
@@ -50,6 +59,9 @@ class HomeState {
       recentlyPlayed: recentlyPlayed ?? this.recentlyPlayed,
       allSongs: allSongs ?? this.allSongs,
       profileUrl: profileUrl ?? this.profileUrl,
+      ytName: ytName ?? this.ytName,
+      musicVideos: musicVideos ?? this.musicVideos,
+      favArtistsSongs: favArtistsSongs ?? this.favArtistsSongs,
     );
   }
 }

@@ -76,6 +76,7 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     on<ToggleRepeatEvent>(_onToggleRepeat);
     on<ToggleEndlessRadioEvent>(_onToggleEndlessRadio);
     on<PlayDownloadedRadioEvent>(_onPlayDownloadedRadio);
+    on<SkipToQueueIndexEvent>(_onSkipToQueueIndex);
     on<ToggleLikeEvent>(_onToggleLike);
     on<ToggleDownloadEvent>(_onToggleDownload);
     on<SetVolumeEvent>(_onSetVolume);
@@ -506,18 +507,31 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
       }
     }
 
+    Uri? artUri;
+    if (song.thumbnailUrl != null) {
+      if (song.thumbnailUrl!.startsWith('http')) {
+        artUri = Uri.parse(song.thumbnailUrl!);
+      } else {
+        // Local path
+        artUri = Uri.file(song.thumbnailUrl!);
+      }
+    }
+
     final mediaItem = MediaItem(
       id: song.id,
       title: song.title,
       artist: song.artist,
       album: song.album.isNotEmpty ? song.album : song.artist,
       duration: song.duration,
-      artUri: song.thumbnailUrl != null ? Uri.parse(song.thumbnailUrl!) : null,
+      artUri: artUri,
       rating: Rating.newHeartRating(isLiked),
       extras: <String, dynamic>{
         'isLiked': isLiked,
         'isLocal': useLocal,
+        // Ensure only 3 controls in compact view: Previous, Play/Pause, Next
         'androidCompactControlIndices': [0, 1, 2],
+        // Hint to show heart button if supported
+        'displayRating': true,
       },
     );
 
@@ -800,13 +814,28 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     emit(state.copyWith(downloadProgress: event.progress));
   }
 
+  void _onSkipToQueueIndex(
+    SkipToQueueIndexEvent event,
+    Emitter<PlayerState> emit,
+  ) {
+    if (event.index >= 0 && event.index < state.queue.length) {
+      _audioPlayer.seek(Duration.zero, index: event.index);
+    }
+  }
+
   void _onTrackCompleted(
     _TrackCompletedEvent event,
     Emitter<PlayerState> emit,
   ) {
     if (!state.isRepeat && !_audioPlayer.hasNext) {
       if (state.isEndlessRadio && state.currentSong != null) {
-        add(PlayRadioEvent(state.currentSong!));
+        // Fetch more tracks. Once added, just_audio will have a 'next' track.
+        _fetchMoreRadioTracks().then((_) {
+          if (!isClosed && _audioPlayer.hasNext && !state.isPlaying) {
+            _audioPlayer.seekToNext();
+            _audioPlayer.play();
+          }
+        });
       } else {
         _mediaSession.setStopped();
         emit(state.copyWith(isPlaying: false));

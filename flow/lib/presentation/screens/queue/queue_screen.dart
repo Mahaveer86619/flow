@@ -146,10 +146,7 @@ class QueueScreen extends StatelessWidget {
                               isPlaying: false,
                               onTap: () {
                                 context.read<PlayerBloc>().add(
-                                  PlayQueueEvent(
-                                    songs: state.queue,
-                                    startIndex: state.queueIndex + 1 + index,
-                                  ),
+                                  SkipToQueueIndexEvent(state.queueIndex + 1 + index),
                                 );
                               },
                             ),

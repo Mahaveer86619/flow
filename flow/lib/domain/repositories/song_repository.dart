@@ -24,8 +24,17 @@ abstract class SongRepository {
   /// Tracks for an album.
   Future<List<Song>> getAlbumTracks(String browseId, {int limit = 25});
 
+  /// Tracks for an artist.
+  Future<List<Song>> getArtistSongs(String channelId);
+
   /// Tracks from a radio station (up-next).
   Future<List<Song>> getRadioTracks(String videoId, {int limit = 25});
+
+  /// Like/Subscribe to an artist.
+  Future<void> likeArtist(String channelId);
+
+  /// Unlike/Unsubscribe from an artist.
+  Future<void> unlikeArtist(String channelId);
 
   /// Get multiple songs by their IDs.
   Future<List<Song>> getSongsByIds(List<String> ids);

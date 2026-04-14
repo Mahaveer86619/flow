@@ -25,11 +25,17 @@ class HomeData {
   final List<HomeShelf> shelves;
   final List<Song> trending;
   final String? profileUrl;
+  final String? ytName;
+  final List<Song> musicVideos;
+  final List<Song> favArtistsSongs;
 
   const HomeData({
     this.shelves = const [],
     this.trending = const [],
     this.profileUrl,
+    this.ytName,
+    this.musicVideos = const [],
+    this.favArtistsSongs = const [],
   });
 
   /// Deduplicated union of all songs in all shelves — used as the player queue.
@@ -49,6 +55,18 @@ class HomeData {
     }
 
     for (final s in trending) {
+      if (seen.add(s.id)) {
+        songs.add(s);
+      }
+    }
+
+    for (final s in musicVideos) {
+      if (seen.add(s.id)) {
+        songs.add(s);
+      }
+    }
+
+    for (final s in favArtistsSongs) {
       if (seen.add(s.id)) {
         songs.add(s);
       }

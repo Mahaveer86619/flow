@@ -158,6 +158,17 @@ class _HomeScreenContent extends StatelessWidget {
                                         ),
                                       ),
                                     ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'lets start with a radio',
+                                      style: GoogleFonts.outfit(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500,
+                                        color: colorScheme.onSurface.withAlpha(
+                                          100,
+                                        ),
+                                      ),
+                                    ),
                                   ],
                                 ),
                                 const Spacer(),
@@ -228,6 +239,9 @@ class _HomeScreenContent extends StatelessWidget {
                   HomeShelf? quickPicks;
                   HomeShelf? listeningAgain;
                   HomeShelf? freshFinds;
+                  HomeShelf? favArtists;
+                  HomeShelf? trendingArtists;
+                  HomeShelf? musicVideos;
                   final List<HomeShelf> otherShelves = [];
 
                   for (final shelf in rawShelves) {
@@ -240,6 +254,13 @@ class _HomeScreenContent extends StatelessWidget {
                     } else if (shelf.section == 'freshFinds' &&
                         freshFinds == null) {
                       freshFinds = shelf;
+                    } else if (shelf.section == 'favArtistsSongs') {
+                      favArtists = shelf;
+                    } else if (shelf.section == 'trendingArtists') {
+                      trendingArtists = shelf;
+                    } else if (shelf.section == 'musicVideos' || 
+                               shelf.section == 'videoRecommendations') {
+                      musicVideos = shelf;
                     } else {
                       otherShelves.add(shelf);
                     }
@@ -249,36 +270,13 @@ class _HomeScreenContent extends StatelessWidget {
                   if (quickPicks != null) displayShelves.add(quickPicks);
                   if (listeningAgain != null)
                     displayShelves.add(listeningAgain);
+                  if (musicVideos != null) displayShelves.add(musicVideos);
+                  if (favArtists != null) displayShelves.add(favArtists);
                   if (freshFinds != null) displayShelves.add(freshFinds);
+                  if (trendingArtists != null) displayShelves.add(trendingArtists);
 
                   // 3. Add the rest
                   displayShelves.addAll(otherShelves);
-
-                  // 4. Artificially inflate for 20-30 shelves as requested
-                  if (displayShelves.isNotEmpty) {
-                    int i = 0;
-                    final baseCount = displayShelves.length;
-                    while (displayShelves.length < 28) {
-                      final original = displayShelves[i % baseCount];
-                      final mockSections = [
-                        'videoRecommendations',
-                        'topCharts',
-                        'featuredGrid',
-                        'artistSpotlight',
-                        'moodMix',
-                        'newArrivals',
-                        'frequentListens',
-                      ];
-                      displayShelves.add(
-                        HomeShelf(
-                          title: '${original.title} ${displayShelves.length}',
-                          items: original.items,
-                          section: mockSections[i % mockSections.length],
-                        ),
-                      );
-                      i++;
-                    }
-                  }
 
                   return displayShelves.map(
                     (shelf) => SliverPadding(
@@ -288,6 +286,7 @@ class _HomeScreenContent extends StatelessWidget {
                         allSongs: state.allSongs,
                         songIndexMap: songIndexMap,
                         profileUrl: state.profileUrl,
+                        ytName: state.ytName,
                       ),
                     ),
                   );
@@ -307,12 +306,14 @@ class _HomeShelfRenderer extends StatelessWidget {
   final List<Song> allSongs;
   final Map<String, int> songIndexMap;
   final String? profileUrl;
+  final String? ytName;
 
   const _HomeShelfRenderer({
     required this.shelf,
     required this.allSongs,
     required this.songIndexMap,
     this.profileUrl,
+    this.ytName,
   });
 
   @override
@@ -321,12 +322,15 @@ class _HomeShelfRenderer extends StatelessWidget {
 
     switch (section) {
       case 'quickPicks':
-        return _buildQuickAccessRow(context, null, null);
+        return _buildQuickAccessRow(context, 'lets start with a radio', null);
       case 'listeningAgain':
       case 'frequentListens':
         return _buildListenAgainShelf(context);
-      case 'newArrivals':
       case 'freshFinds':
+        return _buildFreshPicksShelf(context);
+      case 'trendingArtists':
+        return _buildArtistRow(context, 'Popular Artists', null);
+      case 'newArrivals':
         return _buildFreshFindsStaggered(context, null, null);
       case 'recentlyPlayed':
       case 'pickedForYou':
@@ -336,8 +340,11 @@ class _HomeShelfRenderer extends StatelessWidget {
         return _buildPlaylistRow(context, null, null);
       case 'moodsAndGenres':
         return _buildStandardRow(context, null, null);
+      case 'musicVideos':
       case 'videoRecommendations':
         return _buildVideoRow(context);
+      case 'favArtistsSongs':
+        return _buildStandardRow(context, 'from your fav artists', null);
       case 'topCharts':
         return _buildTopCharts(context);
       case 'featuredGrid':
@@ -346,6 +353,8 @@ class _HomeShelfRenderer extends StatelessWidget {
         return _buildArtistRow(context, null, null);
       case 'moodMix':
         return _buildStandardRow(context, null, null, cardWidth: 160);
+      case 'similarTo':
+        return _buildStandardRow(context, 'fans also like', null);
       default:
         // Fallback logic
         final itemTypes = shelf.items.map((e) => e.type).toSet();
@@ -497,70 +506,37 @@ class _HomeShelfRenderer extends StatelessWidget {
     if (songs.isEmpty)
       return const SliverToBoxAdapter(child: SizedBox.shrink());
 
-    final isDesktop = Breakpoints.isDesktop(MediaQuery.sizeOf(context).width);
-
-    // Group songs into columns of 4
-    final List<List<Song>> columns = [];
-    for (var i = 0; i < songs.length; i += 4) {
-      final end = (i + 4 < songs.length) ? i + 4 : songs.length;
-      columns.add(songs.sublist(i, end));
-    }
-
     return SliverMainAxisGroup(
       slivers: [
-        SliverToBoxAdapter(child: SectionHeader(title: shelf.title)),
+        SliverToBoxAdapter(
+          child: SectionHeader(
+            title: shelf.title,
+            profileUrl: profileUrl,
+            profileName: ytName,
+          ),
+        ),
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.only(top: 16),
             child: SizedBox(
-              height: 260, // Height for 4 items (~64 each)
-              child: isDesktop
-                  ? ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: columns.length,
-                      itemBuilder: (context, colIndex) {
-                        final columnSongs = columns[colIndex];
-                        return Container(
-                          width: 400, // Fixed width for desktop
-                          margin: const EdgeInsets.only(right: 24),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: columnSongs.map((song) {
-                              final globalIndex = songIndexMap[song.id] ?? 0;
-                              return _ListenAgainItem(
-                                song: song,
-                                allSongs: allSongs,
-                                index: globalIndex,
-                              );
-                            }).toList(),
-                          ),
-                        );
-                      },
-                    )
-                  : PageView.builder(
-                      scrollDirection: Axis.horizontal,
-                      controller: PageController(viewportFraction: 0.9),
-                      padEnds: false,
-                      itemCount: columns.length,
-                      itemBuilder: (context, colIndex) {
-                        final columnSongs = columns[colIndex];
-                        return Padding(
-                          padding: const EdgeInsets.only(left: 16),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: columnSongs.map((song) {
-                              final globalIndex = songIndexMap[song.id] ?? 0;
-                              return _ListenAgainItem(
-                                song: song,
-                                allSongs: allSongs,
-                                index: globalIndex,
-                              );
-                            }).toList(),
-                          ),
-                        );
-                      },
-                    ),
+              height: 200, 
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: songs.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 16),
+                itemBuilder: (context, i) {
+                  final song = songs[i];
+                  final globalIndex = songIndexMap[song.id] ?? 0;
+                  return SongCard(
+                    song: song,
+                    queue: allSongs,
+                    index: globalIndex,
+                    cardWidth: 140,
+                    heroTag: 'listen_again_${song.id}_$i',
+                  );
+                },
+              ),
             ),
           ),
         ),
@@ -694,6 +670,9 @@ class _HomeShelfRenderer extends StatelessWidget {
     if (songs.isEmpty)
       return const SliverToBoxAdapter(child: SizedBox.shrink());
 
+    // 4 rows, up to 6 columns = 24 items
+    final displaySongs = songs.take(24).toList();
+
     return SliverMainAxisGroup(
       slivers: [
         SliverToBoxAdapter(
@@ -707,19 +686,86 @@ class _HomeShelfRenderer extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.only(top: 16),
             child: SizedBox(
-              height: 165,
+              height: 260, // Height for 4 items (~60 each)
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: songs.length,
-                separatorBuilder: (context, index) => const SizedBox(width: 16),
-                itemBuilder: (context, i) {
-                  final song = songs[i];
-                  return _QuickPickStaggeredItem(
-                    song: song,
-                    isLarge: true,
-                    allSongs: allSongs,
-                    index: songIndexMap[song.id] ?? 0,
+                itemCount: (displaySongs.length / 4).ceil(),
+                separatorBuilder: (_, __) => const SizedBox(width: 24),
+                itemBuilder: (context, colIndex) {
+                  final startIndex = colIndex * 4;
+                  final columnSongs = displaySongs.skip(startIndex).take(4).toList();
+                  return SizedBox(
+                    width: 300,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: columnSongs.map((song) {
+                        return _QuickPickListTile(
+                          song: song,
+                          allSongs: allSongs,
+                          index: songIndexMap[song.id] ?? 0,
+                        );
+                      }).toList(),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFreshPicksShelf(BuildContext context) {
+    final songs = shelf.items
+        .where((i) => i.type == HomeItemType.song)
+        .map((i) => i.data as Song)
+        .toList();
+
+    if (songs.isEmpty)
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
+
+    // 4 rows, up to 6 columns = 24 items
+    final displaySongs = songs.take(24).toList();
+
+    return SliverMainAxisGroup(
+      slivers: [
+        SliverToBoxAdapter(
+          child: SectionHeader(
+            title: shelf.title,
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.only(top: 16),
+            child: SizedBox(
+              height: 480, // Height for 4 square cards (~110 each + gap)
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: (displaySongs.length / 4).ceil(),
+                separatorBuilder: (_, __) => const SizedBox(width: 16),
+                itemBuilder: (context, colIndex) {
+                  final startIndex = colIndex * 4;
+                  final columnSongs =
+                      displaySongs.skip(startIndex).take(4).toList();
+                  return SizedBox(
+                    width: 150,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: columnSongs.map((song) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _QuickPickStaggeredItem(
+                            song: song,
+                            isLarge: false,
+                            allSongs: allSongs,
+                            index: songIndexMap[song.id] ?? 0,
+                          ),
+                        );
+                      }).toList(),
+                    ),
                   );
                 },
               ),
@@ -1451,6 +1497,85 @@ class _QuickPickStaggeredItemState extends State<_QuickPickStaggeredItem> {
       ),
       child: const Center(
         child: Icon(Icons.music_note_rounded, color: Colors.white, size: 32),
+      ),
+    );
+  }
+}
+
+class _QuickPickListTile extends StatelessWidget {
+  final Song song;
+  final List<Song> allSongs;
+  final int index;
+
+  const _QuickPickListTile({
+    required this.song,
+    required this.allSongs,
+    required this.index,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: () {
+        context.read<PlayerBloc>().add(
+          PlayQueueEvent(songs: List<Song>.from(allSongs), startIndex: index),
+        );
+        if (!Breakpoints.isDesktop(MediaQuery.sizeOf(context).width)) {
+          PlayerScreen.show(context);
+        }
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                borderRadius: AppRadius.smallBorderRadius,
+                image: song.thumbnailUrl != null
+                    ? DecorationImage(
+                        image: NetworkImage(song.thumbnailUrl!),
+                        fit: BoxFit.fill,
+                      )
+                    : null,
+                gradient: song.thumbnailUrl == null
+                    ? LinearGradient(
+                        colors: [song.colorPrimary, song.colorSecondary],
+                      )
+                    : null,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    song.title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    song.artist,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: theme.colorScheme.onSurface.withAlpha(140),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

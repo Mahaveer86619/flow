@@ -52,13 +52,35 @@ class AuthCubit extends Cubit<AuthState> {
     try {
       final user = await _authSource.getMe(token);
       final hasYt = (user['has_yt_auth'] as bool?) ?? false;
+      final ytName = user['yt_name'] as String?;
+      final ytAvatar = user['yt_avatar_url'] as String?;
+      
       LocalStorage.instance.saveHasYtAuth(hasYt);
       if (user['settings'] != null) {
         AuthEventBus.notifySettingsLoaded(
           user['settings'] as Map<String, dynamic>,
         );
       }
-      if (!isClosed) emit(state.copyWith(hasYtAuth: hasYt));
+      if (!isClosed) {
+        emit(state.copyWith(
+          hasYtAuth: hasYt,
+          ytName: ytName,
+          ytAvatarUrl: ytAvatar,
+        ));
+      }
+
+      // Refresh YT profile if connected but name missing
+      if (hasYt && ytName == null) {
+        try {
+          final refreshed = await _authSource.refreshProfile(token);
+          if (!isClosed) {
+            emit(state.copyWith(
+              ytName: refreshed['yt_name'] as String?,
+              ytAvatarUrl: refreshed['yt_avatar_url'] as String?,
+            ));
+          }
+        } catch (_) {}
+      }
     } on ServerException catch (e) {
       if (e.statusCode == 401) {
         AppLogger.w(_tag, 'Token expired, logging out');

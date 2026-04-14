@@ -23,6 +23,7 @@ class LocalStorage {
   late final Box _auth;
   late final Box _downloads;
   late final Box _metadata;
+  late final Box _songMetadataCache;
 
   final _likedSongsController = StreamController<List<String>>.broadcast();
   Stream<List<String>> get likedSongsStream => _likedSongsController.stream;
@@ -35,6 +36,7 @@ class LocalStorage {
     _auth = await Hive.openBox(HiveKeys.authBox);
     _downloads = await Hive.openBox(HiveKeys.downloadsBox);
     _metadata = await Hive.openBox(HiveKeys.metadataBox);
+    _songMetadataCache = await Hive.openBox(HiveKeys.songMetadataBox);
     AppLogger.i(
       'LocalStorage',
       'Hive initialised. '
@@ -45,6 +47,7 @@ class LocalStorage {
           'Searches=${recentSearches.length}  '
           'Downloads=${_downloads.length}  '
           'Metadata=${_metadata.length}  '
+          'Cache=${_songMetadataCache.length}  '
           'Auth=${jwtToken != null ? "token present" : "no token"}',
     );
   }
@@ -152,12 +155,10 @@ class LocalStorage {
   /// Clears search history and player state, but preserves critical settings
   /// (Server URL, Theme, Downloads path) and Auth.
   Future<void> clearCache() async {
-    AppLogger.w('LocalStorage', 'Clearing local cache (player & search)...');
+    AppLogger.w('LocalStorage', 'Clearing local cache (player, search, metadata cache)...');
     await _player.clear();
     await _search.clear();
-    // We could also clear _metadata if we want to force re-fetch of song info,
-    // but that might break downloaded songs if not careful.
-    // For now, let's keep it to player state and search.
+    await _songMetadataCache.clear();
   }
 
   // ── Auth ─────────────────────────────────────────────────────────────────────
@@ -213,5 +214,15 @@ class LocalStorage {
   void removeDownloadMapping(String songId) {
     _downloads.delete(songId);
     _metadata.delete(songId);
+  }
+
+  // ── General Cache ───────────────────────────────────────────────────────────
+
+  void saveCachedMetadata(String key, dynamic data) {
+    _songMetadataCache.put(key, data);
+  }
+
+  dynamic getCachedMetadata(String key) {
+    return _songMetadataCache.get(key);
   }
 }

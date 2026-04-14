@@ -25,7 +25,7 @@ class AuthDataSource {
           body: {'username': username, 'password': password},
         )
         .timeout(_timeout);
-    _assertOk(resp);
+    _assertOk(resp, notify: false);
     final json = jsonDecode(resp.body) as Map<String, dynamic>;
     return json['access_token'] as String;
   }
@@ -88,6 +88,15 @@ class AuthDataSource {
     _assertOk(resp);
   }
 
+  Future<Map<String, dynamic>> refreshProfile(String token) async {
+    AppLogger.i(_tag, 'refreshProfile()');
+    final resp = await http
+        .post(Uri.parse('$_base/v1/auth/refresh-profile'), headers: _headers(token))
+        .timeout(_timeout);
+    _assertOk(resp);
+    return jsonDecode(resp.body) as Map<String, dynamic>;
+  }
+
   Future<void> disconnectYT(String token) async {
     AppLogger.i(_tag, 'disconnectYT()');
     final resp = await http
@@ -96,20 +105,29 @@ class AuthDataSource {
     _assertOk(resp);
   }
 
-  void _assertOk(http.Response resp) {
+  void _assertOk(http.Response resp, {bool notify = true}) {
     if (resp.statusCode >= 200 && resp.statusCode < 300) return;
 
-    if (resp.statusCode == 401) {
+    final isUnauthorized = resp.statusCode == 401;
+    if (isUnauthorized && notify) {
       AuthEventBus.notifyUnauthorized();
-      throw const UnauthorizedException();
     }
 
-    String detail = 'Request failed (${resp.statusCode})';
+    String detail = isUnauthorized
+        ? 'Incorrect username or password'
+        : 'Request failed (${resp.statusCode})';
+
     try {
       final json = jsonDecode(resp.body) as Map<String, dynamic>;
       detail = json['detail'] as String? ?? detail;
     } catch (_) {}
+
     AppLogger.w(_tag, 'HTTP ${resp.statusCode}: $detail');
+
+    if (isUnauthorized) {
+      throw ServerException(message: detail, statusCode: 401);
+    }
+
     throw ServerException(message: detail, statusCode: resp.statusCode);
   }
 }

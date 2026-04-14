@@ -5,6 +5,8 @@ class AuthState {
   final String? username;
   final String? email;
   final bool hasYtAuth;
+  final String? ytName;
+  final String? ytAvatarUrl;
 
   const AuthState({
     this.isLoading = false,
@@ -13,6 +15,8 @@ class AuthState {
     this.username,
     this.email,
     this.hasYtAuth = false,
+    this.ytName,
+    this.ytAvatarUrl,
   });
 
   AuthState copyWith({
@@ -22,6 +26,8 @@ class AuthState {
     String? username,
     String? email,
     bool? hasYtAuth,
+    String? ytName,
+    String? ytAvatarUrl,
   }) =>
       AuthState(
         isLoading: isLoading ?? this.isLoading,
@@ -30,5 +36,7 @@ class AuthState {
         username: username ?? this.username,
         email: email ?? this.email,
         hasYtAuth: hasYtAuth ?? this.hasYtAuth,
+        ytName: ytName ?? this.ytName,
+        ytAvatarUrl: ytAvatarUrl ?? this.ytAvatarUrl,
       );
 }

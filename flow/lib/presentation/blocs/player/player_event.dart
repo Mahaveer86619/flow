@@ -41,6 +41,12 @@ class SeekToEvent extends PlayerEvent {
   const SeekToEvent(this.fraction);
 }
 
+/// Skip to a specific track in the existing queue.
+class SkipToQueueIndexEvent extends PlayerEvent {
+  final int index;
+  const SkipToQueueIndexEvent(this.index);
+}
+
 /// Skip to the next track in the queue.
 class SkipNextEvent extends PlayerEvent {
   const SkipNextEvent();

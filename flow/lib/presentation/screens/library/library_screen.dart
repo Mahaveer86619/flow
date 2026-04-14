@@ -206,16 +206,15 @@ class _LibraryShortcuts extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
+      child: Row(
         children: [
-          _ShortcutTile(
-            title: 'Downloaded',
-            subtitle: '${state.downloadedSongs.length} songs',
+          _LibraryChip(
+            title: 'Downloads',
             icon: Icons.download_done_rounded,
             color: const Color(0xFF10B981),
-            isWide: true,
             onTap: () => _openSongList(
               context,
               'Downloaded',
@@ -223,13 +222,11 @@ class _LibraryShortcuts extends StatelessWidget {
               ListCategory.downloaded,
             ),
           ),
-          const SizedBox(height: 12),
-          _ShortcutTile(
-            title: 'Flow Favourites',
-            subtitle: '${state.likedSongs.length} songs',
+          const SizedBox(width: 12),
+          _LibraryChip(
+            title: 'Favorites',
             icon: Icons.favorite_rounded,
             color: const Color(0xFFEC4899),
-            isWide: true,
             onTap: () => _openSongList(
               context,
               'Flow Favourites',
@@ -237,13 +234,11 @@ class _LibraryShortcuts extends StatelessWidget {
               ListCategory.favourites,
             ),
           ),
-          const SizedBox(height: 12),
-          _ShortcutTile(
-            title: 'YouTube Likes',
-            subtitle: '${state.remoteLikedSongs.length} songs from YouTube',
+          const SizedBox(width: 12),
+          _LibraryChip(
+            title: 'YT Liked',
             icon: Icons.subscriptions_rounded,
             color: const Color(0xFFFF0000),
-            isWide: true,
             onTap: () => _openSongList(
               context,
               'YouTube Likes',
@@ -272,32 +267,27 @@ class _LibraryShortcuts extends StatelessWidget {
   }
 }
 
-class _ShortcutTile extends StatelessWidget {
+class _LibraryChip extends StatelessWidget {
   final String title;
-  final String subtitle;
   final IconData icon;
   final Color color;
   final VoidCallback onTap;
-  final bool isWide;
-  final Widget? trailing;
 
-  const _ShortcutTile({
+  const _LibraryChip({
     required this.title,
-    required this.subtitle,
     required this.icon,
     required this.color,
     required this.onTap,
-    this.isWide = false,
-    this.trailing,
   });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return GestureDetector(
+    return InkWell(
       onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
           color: cs.surfaceContainerHigh.withAlpha(180),
           borderRadius: BorderRadius.circular(20),
@@ -306,52 +296,16 @@ class _ShortcutTile extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: color.withAlpha(25),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: color, size: 22),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: GoogleFonts.outfit(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 15,
-                      letterSpacing: -0.2,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.visible,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: cs.onSurface.withAlpha(120),
-                      fontWeight: FontWeight.w500,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+            Icon(icon, color: color, size: 20),
+            const SizedBox(width: 10),
+            Text(
+              title,
+              style: GoogleFonts.outfit(
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
+                letterSpacing: -0.2,
               ),
             ),
-            if (trailing != null)
-              trailing!
-            else if (isWide)
-              Icon(
-                Icons.chevron_right_rounded,
-                color: cs.onSurface.withAlpha(40),
-                size: 20,
-              ),
           ],
         ),
       ),

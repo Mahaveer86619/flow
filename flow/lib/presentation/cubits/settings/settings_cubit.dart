@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/storage/local_storage.dart';
 import '../../../core/logger/app_logger.dart';
+import '../../../core/network/download_service.dart';
 import '../../../data/sources/auth_data_source.dart';
 import '../../../core/auth/auth_cubit.dart';
 import '../../../core/auth/auth_event_bus.dart';
@@ -116,9 +117,14 @@ class SettingsCubit extends Cubit<SettingsState> {
 
   void setDownloadPath(String? path) {
     if (path == null) return;
+    final oldPath = LocalStorage.instance.downloadPath;
     LocalStorage.instance.saveDownloadPath(path);
     emit(state.copyWith(downloadPath: () => path));
     _syncToRemote();
+
+    if (oldPath != null && oldPath != path) {
+      DownloadService.instance.moveDownloads(oldPath, path);
+    }
   }
 
   void clearDownloadPath() {
