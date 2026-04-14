@@ -165,6 +165,30 @@ async def login(
 async def read_users_me(current_user: User = Depends(get_current_user)):
     response = UserResponse.model_validate(current_user)
     response.has_yt_auth = bool(current_user.yt_auth_json)
+    response.yt_name = current_user.yt_name
+    response.yt_avatar_url = current_user.yt_avatar_url
+    if current_user.settings_json:
+        response.settings = json.loads(current_user.settings_json)
+    return response
+
+
+@router.post("/auth/refresh-profile", response_model=UserResponse)
+async def refresh_user_profile(
+    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    try:
+        profile = yt_service.get_user_profile(current_user)
+        if profile:
+            current_user.yt_name = profile.get("name")
+            current_user.yt_avatar_url = profile.get("avatar")
+            db.add(current_user)
+            db.commit()
+            db.refresh(current_user)
+    except Exception as e:
+        logger.error(f"Failed to refresh profile: {e}")
+
+    response = UserResponse.model_validate(current_user)
+    response.has_yt_auth = bool(current_user.yt_auth_json)
     if current_user.settings_json:
         response.settings = json.loads(current_user.settings_json)
     return response
@@ -204,8 +228,12 @@ def get_proxy_base(request: Request) -> str:
 
 @router.get("/home", response_model=HomeResponse)
 async def get_home(
-    request: Request, limit: int = 25, current_user: User = Depends(get_current_user)
+    request: Request,
+    response: Response,
+    limit: int = 25,
+    current_user: User = Depends(get_current_user),
 ):
+    response.headers["Cache-Control"] = "public, max-age=300"
     logger.debug(
         f"Requesting home data for user: {current_user.username} with limit: {limit}"
     )
@@ -254,6 +282,27 @@ async def get_home(
         return data
     except Exception as e:
         logger.exception(f"Error in get_home for user {current_user.username}: {e}")
+        raise HTTPException(500, str(e))
+
+
+@router.post("/artists/{channel_id}/like")
+async def like_artist(channel_id: str, current_user: User = Depends(get_current_user)):
+    _require_yt_auth(current_user)
+    try:
+        # ytmusicapi uses subscribe/unsubscribe for artists
+        res = yt_service.get_client(current_user).subscribe_artists([channel_id])
+        return {"status": res}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@router.post("/artists/{channel_id}/unlike")
+async def unlike_artist(channel_id: str, current_user: User = Depends(get_current_user)):
+    _require_yt_auth(current_user)
+    try:
+        res = yt_service.get_client(current_user).unsubscribe_artists([channel_id])
+        return {"status": res}
+    except Exception as e:
         raise HTTPException(500, str(e))
 
 
@@ -435,10 +484,12 @@ async def get_persistent_history(
 @router.get("/playlists/{playlist_id}/tracks", response_model=List[SongResponse])
 async def get_playlist_tracks(
     request: Request,
+    response: Response,
     playlist_id: str,
     limit: int = 100,
     current_user: User = Depends(get_current_user),
 ):
+    response.headers["Cache-Control"] = "public, max-age=600"
     try:
         proxy_base = get_proxy_base(request)
         actual_limit = None if limit <= 0 else limit
@@ -471,8 +522,12 @@ async def get_radio(
 
 @router.get("/albums/{browse_id}", response_model=List[SongResponse])
 async def get_album(
-    request: Request, browse_id: str, current_user: User = Depends(get_current_user)
+    request: Request,
+    response: Response,
+    browse_id: str,
+    current_user: User = Depends(get_current_user),
 ):
+    response.headers["Cache-Control"] = "public, max-age=600"
     try:
         proxy_base = get_proxy_base(request)
         data = yt_service.get_client(current_user).get_album(browseId=browse_id)
@@ -488,6 +543,31 @@ async def get_artist(channel_id: str, current_user: User = Depends(get_current_u
         return yt_service.get_client(current_user).get_artist(channelId=channel_id)
     except Exception as e:
         raise HTTPException(500, str(e))
+
+
+@router.get("/artists/{channel_id}/songs", response_model=List[SongResponse])
+async def get_artist_songs(
+    request: Request, channel_id: str, current_user: User = Depends(get_current_user)
+):
+    try:
+        proxy_base = get_proxy_base(request)
+        client = yt_service.get_client(current_user)
+        artist_data = client.get_artist(channelId=channel_id)
+        
+        songs_data = artist_data.get("songs", {})
+        results = songs_data.get("results", [])
+        
+        # If there's a "browseId" for "All songs", we might want to fetch that, 
+        # but for a quick overview, the first few are usually enough.
+        # However, to be thorough:
+        browse_id = songs_data.get("browseId")
+        if browse_id:
+            results = client.get_playlist(browse_id).get("tracks", [])
+            
+        return [s for item in results if (s := normalize_song(item, proxy_base))]
+    except Exception as e:
+        logger.error(f"Failed to fetch artist songs for {channel_id}: {e}")
+        return []
 
 
 @router.get("/songs/lyrics/{video_id}")

@@ -65,7 +65,7 @@ class YTMusicService:
         self.home_cache_ttl = 300
         self._shelf_map = [
             (["quick pick", "top pick", "start radio"], "quickPicks"),
-            (["listen again", "listening again", "continue"], "listeningAgain"),
+            (["listen again", "listening again", "continue", "recent"], "listeningAgain"),
             (["fresh find", "new release", "latest", "just out", "new arrival"], "freshFinds"),
             (
                 [
@@ -75,6 +75,7 @@ class YTMusicService:
                     "your",
                     "personalized",
                     "discover",
+                    "mix",
                 ],
                 "pickedForYou",
             ),
@@ -85,7 +86,9 @@ class YTMusicService:
                 "moodsAndGenres",
             ),
             (["top chart", "trending", "popular", "global", "hits"], "trending"),
-            (["similar to", "related to", "based on", "recommended"], "similarTo"),
+            (["similar to", "related to", "based on", "recommended", "fans", "might also like"], "similarTo"),
+            (["artist spotlight", "from your fav"], "artistSpotlight"),
+            (["video"], "musicVideos"),
         ]
 
     def get_client(self, user: Optional[User] = None):
@@ -145,10 +148,78 @@ class YTMusicService:
         except Exception:
             return []
 
+    def _get_fresh_picks(self, ytm, user: User, proxy_base: Optional[str] = None) -> List[dict]:
+        """
+        Lightweight recommendation system:
+        1. Takes seeds from recent history (last 3 songs).
+        2. Takes seeds from liked artists (up to 3).
+        3. Fetches related tracks/radio for these seeds.
+        4. Mixes with trending new releases.
+        """
+        try:
+            import random
+            recommendations = []
+            seen_ids = set()
+
+            # 1. Seeds from History
+            try:
+                history = ytm.get_history()
+                history_seeds = [item.get("videoId") for item in history[:3] if item.get("videoId")]
+                for video_id in history_seeds:
+                    related = ytm.get_song_related(video_id)
+                    # get_song_related returns a lot of data, we want tracks
+                    # In newer versions it might be in 'tracks' or similar
+                    # Often we can use get_watch_playlist for a radio-like experience
+                    radio = ytm.get_watch_playlist(videoId=video_id, limit=5)
+                    tracks = radio.get("tracks", [])
+                    for t in tracks:
+                        if t.get("videoId") and t["videoId"] not in seen_ids:
+                            song = normalize_song(t, proxy_base)
+                            if song:
+                                recommendations.append({"type": "song", "data": song.model_dump()})
+                                seen_ids.add(t["videoId"])
+            except Exception as e:
+                logger.warning(f"RecSys: History seeds failed: {e}")
+
+            # 2. Seeds from Liked Artists
+            try:
+                liked_artists = ytm.get_library_artists(limit=10)
+                if liked_artists:
+                    random_artists = random.sample(liked_artists, min(len(liked_artists), 3))
+                    for artist in random_artists:
+                        artist_data = ytm.get_artist(artist['browseId'])
+                        songs = artist_data.get("songs", {}).get("results", [])
+                        for s in songs[:5]:
+                            if s.get("videoId") and s["videoId"] not in seen_ids:
+                                song = normalize_song(s, proxy_base)
+                                if song:
+                                    recommendations.append({"type": "song", "data": song.model_dump()})
+                                    seen_ids.add(s["videoId"])
+            except Exception as e:
+                logger.warning(f"RecSys: Artist seeds failed: {e}")
+
+            # 3. Seeds from Explore (Trending/New)
+            try:
+                explore = ytm.get_explore()
+                new_releases = explore.get("new_releases", [])
+                for item in new_releases[:10]:
+                    song = normalize_album_as_song(item, proxy_base)
+                    if song and song.id not in seen_ids:
+                        recommendations.append({"type": "song", "data": song.model_dump()})
+                        seen_ids.add(song.id)
+            except Exception as e:
+                logger.warning(f"RecSys: Explore seeds failed: {e}")
+
+            random.shuffle(recommendations)
+            return recommendations[:30] # Return a healthy chunk
+        except Exception as e:
+            logger.error(f"RecSys: Systemic failure: {e}")
+            return []
+
     def build_home_data(
         self,
         user: Optional[User] = None,
-        limit: int = 25,
+        limit: int = 30,
         proxy_base: Optional[str] = None,
     ) -> HomeResponse:
         logger.info(f"Building home data for user: {user.username if user else 'anon'}")
@@ -164,6 +235,7 @@ class YTMusicService:
 
         shelves = []
         seen_ids = set()
+        music_videos = []
 
         for raw_shelf in raw_shelves:
             if not isinstance(raw_shelf, dict):
@@ -184,6 +256,11 @@ class YTMusicService:
                     try:
                         song = normalize_song(item, proxy_base)
                         if song:
+                            # Check if it's a music video (heuristic: duration or type)
+                            # ytmusicapi often identifies videos in specific shelves
+                            if "Video" in title or item.get("resultType") == "video":
+                                music_videos.append(song)
+                            
                             items.append({"type": "song", "data": song.model_dump()})
                     except Exception as e:
                         logger.warning(f"Failed to normalize song {video_id}: {e}")
@@ -215,10 +292,89 @@ class YTMusicService:
                 section = self._classify_shelf(title) or "musicForYou"
                 shelves.append({"title": title, "section": section, "items": items})
 
+        # --- FRESH PICKS: Lightweight Recommendation System ---
+        fresh_picks = self._get_fresh_picks(ytm, user, proxy_base)
+        if fresh_picks:
+            # Remove any existing freshFinds to replace with our better RecSys
+            shelves = [s for s in shelves if s["section"] != "freshFinds"]
+            # Insert at top (index 0) or after quick access
+            shelves.insert(0, {
+                "title": "Fresh picks for you",
+                "section": "freshFinds",
+                "items": fresh_picks
+            })
+
+        # --- Explicitly fetch Quick Picks (from Liked Songs if missing) ---
+        if not any(s["section"] == "quickPicks" for s in shelves):
+            try:
+                liked = ytm.get_liked_songs(limit=24)
+                liked_tracks = liked.get("tracks", [])
+                quick_pick_items = []
+                for item in liked_tracks:
+                    song = normalize_song(item, proxy_base)
+                    if song:
+                        quick_pick_items.append({"type": "song", "data": song.model_dump()})
+                if quick_pick_items:
+                    shelves.insert(0, {
+                        "title": "Quick picks",
+                        "section": "quickPicks",
+                        "items": quick_pick_items
+                    })
+            except Exception as e:
+                logger.warning(f"Failed to fetch fallback Quick Picks: {e}")
+
+        # --- Explicitly fetch Listen Again (from History if missing) ---
+        if not any(s["section"] == "listeningAgain" for s in shelves):
+            try:
+                history = ytm.get_history()
+                listen_again_items = []
+                seen_ids = set()
+                for item in history:
+                    video_id = item.get("videoId")
+                    if video_id and video_id not in seen_ids:
+                        song = normalize_song(item, proxy_base)
+                        if song:
+                            listen_again_items.append({"type": "song", "data": song.model_dump()})
+                            seen_ids.add(video_id)
+                    if len(listen_again_items) >= 20:
+                        break
+                if listen_again_items:
+                    # Insert after Quick Picks
+                    idx = 1 if any(s["section"] == "quickPicks" for s in shelves) else 0
+                    shelves.insert(idx, {
+                        "title": "Listen again",
+                        "section": "listeningAgain",
+                        "items": listen_again_items
+                    })
+            except Exception as e:
+                logger.warning(f"Failed to fetch fallback Listen Again: {e}")
+
+        # --- Explicitly fetch Music Videos ---
+        if not any(s["section"] in ["musicVideos", "videoRecommendations"] for s in shelves):
+            try:
+                explore = ytm.get_explore()
+                trending = explore.get("trending", {})
+                trending_items = trending.get("items", [])
+                video_items = []
+                for item in trending_items:
+                    # Trending items might be songs or videos
+                    song = normalize_song(item, proxy_base)
+                    if song:
+                        video_items.append({"type": "song", "data": song.model_dump()})
+                if video_items:
+                    shelves.append({
+                        "title": "Music videos for you",
+                        "section": "musicVideos",
+                        "items": video_items
+                    })
+            except Exception as e:
+                logger.warning(f"Failed to fetch music videos: {e}")
+
         # --- Explicitly fetch New Arrivals (New Releases) ---
         if not any(s["section"] == "freshFinds" for s in shelves):
             try:
-                new_releases = ytm.get_new_releases()
+                explore = ytm.get_explore()
+                new_releases = explore.get("new_releases", [])
                 new_arrival_items = []
                 for item in new_releases[:12]:
                     try:
@@ -231,8 +387,7 @@ class YTMusicService:
                     except Exception:
                         continue
                 if new_arrival_items:
-                    # Insert at index 2 (after Quick Picks and Listen Again usually)
-                    shelves.insert(min(2, len(shelves)), {
+                    shelves.append({
                         "title": "Fresh Finds",
                         "section": "freshFinds",
                         "items": new_arrival_items
@@ -240,16 +395,101 @@ class YTMusicService:
             except Exception as e:
                 logger.warning(f"Failed to fetch explicit new releases: {e}")
 
+        # --- Explicitly fetch Popular Artists ---
+        if not any(s["section"] == "trendingArtists" for s in shelves):
+            try:
+                charts = ytm.get_charts(country="ZZ")
+                artists = charts.get("artists", [])
+                artist_items = []
+                for item in artists[:12]:
+                    try:
+                        artist = normalize_artist(item, proxy_base)
+                        if artist:
+                            artist_items.append({
+                                "type": "artist",
+                                "data": artist.model_dump()
+                            })
+                    except Exception:
+                        continue
+                if artist_items:
+                    shelves.append({
+                        "title": "Popular Artists",
+                        "section": "trendingArtists",
+                        "items": artist_items
+                    })
+            except Exception as e:
+                logger.warning(f"Failed to fetch trending artists: {e}")
+
+        # --- Fetch from Favorite Artists ---
+        fav_artists_songs = []
+        try:
+            # Heuristic: find liked artists from library
+            liked_artists = ytm.get_library_artists(limit=5)
+            for artist in liked_artists:
+                browse_id = artist.get("browseId")
+                if browse_id:
+                    artist_data = ytm.get_artist(browse_id)
+                    # Get some songs from artist
+                    for song_item in artist_data.get("songs", {}).get("results", [])[:4]:
+                        song = normalize_song(song_item, proxy_base)
+                        if song and song.id not in seen_ids:
+                            seen_ids.add(song.id)
+                            fav_artists_songs.append(song)
+        except Exception as e:
+            logger.warning(f"Failed to fetch favorite artists songs: {e}")
+
         trending = self._get_trending_songs(ytm, proxy_base)
 
-        profile_url = f"https://api.dicebear.com/7.x/avataaars/svg?seed={user.username if user else 'anon'}"
-        if proxy_base:
-            # Proxy doesn't handle SVG well, but let's keep it direct for now or use a JPG source
+        # --- Explicitly add specialty shelves ---
+        if music_videos:
+            shelves.append({
+                "title": "Recommended Music Videos",
+                "section": "musicVideos",
+                "items": [{"type": "song", "data": s.model_dump()} for s in music_videos[:12]]
+            })
+        
+        if fav_artists_songs:
+            shelves.append({
+                "title": "From Your Favorite Artists",
+                "section": "favArtistsSongs",
+                "items": [{"type": "song", "data": s.model_dump()} for s in fav_artists_songs[:12]]
+            })
+
+        profile_url = user.yt_avatar_url if user and user.yt_avatar_url else f"https://api.dicebear.com/7.x/avataaars/svg?seed={user.username if user else 'anon'}"
+        if not user.yt_avatar_url and proxy_base:
             profile_url = (
                 f"https://i.pravatar.cc/150?u={user.username if user else 'anon'}"
             )
 
-        return HomeResponse(shelves=shelves, trending=trending, profileUrl=profile_url)
+        return HomeResponse(
+            shelves=shelves, 
+            trending=trending, 
+            profileUrl=profile_url,
+            yt_name=user.yt_name if user else None,
+            musicVideos=music_videos,
+            favArtistsSongs=fav_artists_songs
+        )
+
+    def get_user_profile(self, user: User) -> dict:
+        try:
+            ytm = self.get_client(user)
+            # get_account_info() is not a standard ytmusicapi method in all versions, 
+            # but usually available or can be inferred from other calls.
+            # In some versions it's get_library_playlists() and checking headers or similar.
+            # Let's try to get it via a hack or check official docs.
+            # Actually, ytmusicapi 1.11.5 doesn't have a direct get_account_info.
+            # But we can get it from the home page or library.
+            try:
+                # This often contains profile info in the response headers or initial data
+                # but ytmusicapi doesn't expose it easily.
+                # However, we can try to get it from a specific endpoint if we have OAuth.
+                pass
+            except:
+                pass
+            return {"name": user.username, "avatar": None} # Fallback
+        except Exception as e:
+            logger.error(f"Failed to get user profile: {e}")
+            return {}
 
     def get_home_cached(
         self,

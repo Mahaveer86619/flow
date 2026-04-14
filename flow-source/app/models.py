@@ -21,6 +21,8 @@ class User(Base):
 
     # Store YT Music auth as a JSON string
     yt_auth_json = Column(Text, nullable=True)
+    yt_name = Column(String, nullable=True)
+    yt_avatar_url = Column(Text, nullable=True)
 
     # Store user settings as a JSON string
     settings_json = Column(Text, nullable=True)
@@ -72,6 +74,8 @@ class UserResponse(UserBase):
     id: int
     is_active: bool
     has_yt_auth: bool = False
+    yt_name: Optional[str] = None
+    yt_avatar_url: Optional[str] = None
     settings: Optional[Dict[str, Any]] = None
 
     class Config:
@@ -94,6 +98,8 @@ class SongResponse(BaseModel):
     album: str
     durationMs: int
     thumbnailUrl: Optional[str] = None
+    isVideo: bool = False
+    aspectRatio: float = 1.0  # 1.0 for square, 1.77 for 16:9
 
 
 class HistoryEntryResponse(SongResponse):
@@ -124,11 +130,14 @@ class HomeResponse(BaseModel):
     shelves: List[Dict[str, Any]]
     trending: List[SongResponse] = []
     profileUrl: Optional[str] = None
+    yt_name: Optional[str] = None
     quickAccess: List[SongResponse] = []
     listeningAgain: List[SongResponse] = []
     freshFinds: List[SongResponse] = []
     forgottenFavorites: List[SongResponse] = []
     musicForYou: List[SongResponse] = []
+    musicVideos: List[SongResponse] = []
+    favArtistsSongs: List[SongResponse] = []
     trendingArtists: List[ArtistResponse] = []
 
 

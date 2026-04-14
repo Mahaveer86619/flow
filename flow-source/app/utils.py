@@ -11,15 +11,42 @@ from .models import ArtistResponse, PlaylistResponse, SongResponse
 
 
 def fix_thumbnail_url(
-    url: Optional[str], proxy_base: Optional[str] = None
+    url: Optional[str], proxy_base: Optional[str] = None, is_video: bool = False
 ) -> Optional[str]:
-    """Normalise a YouTube/Google thumbnail URL to a consistent size.
-    Proxy wrapping is now handled by the mobile client to support Cloudflare tunnels.
-    """
+    """Normalise a YouTube/Google thumbnail URL to a consistent size and aspect ratio."""
     if not url:
         return None
-    # Request 1000 px so full-screen art stays crisp
-    url = re.sub(r"=w\d+-h\d+(-[^?&]*)?$", "=w1000-h1000-l90-rj", url)
+    
+    # Handle Google User Content (lh3.googleusercontent.com, yt3.ggpht.com)
+    if "googleusercontent.com" in url or "ggpht.com" in url:
+        if is_video:
+            # For videos, we might want a rectangular crop if available, 
+            # but usually these are square source images.
+            # If we want 16:9 from googleusercontent, it's tricky.
+            # We'll stick to a high res square or the original if it's already rectangular.
+            url = re.sub(r"=w\d+-h\d+(-[^?&]*)?$", "=w1280-h720-l90-rj", url)
+            if "=w" not in url:
+                url += "=w1280-h720-l90-rj"
+        else:
+            # Request 1000 px so full-screen art stays crisp (Square)
+            url = re.sub(r"=w\d+-h\d+(-[^?&]*)?$", "=w1000-h1000-l90-rj", url)
+            if "=w" not in url:
+                url += "=w1000-h1000-l90-rj"
+        return url
+
+    # Handle YouTube Video Thumbnails (i.ytimg.com)
+    if "i.ytimg.com" in url:
+        if is_video:
+            # Keep 16:9 for videos
+            url = re.sub(r"/(?:default|mqdefault|hqdefault|sddefault|maxresdefault)\.jpg", "/hq720.jpg", url)
+        else:
+            # Force square for songs if it's a ytimg URL (rare for songs, but happens)
+            # Actually, ytimg URLs are almost always 16:9. 
+            # If it's a song, we prefer the hqdefault which is often padded but "squarer" in intent
+            # or we let the frontend handle the center-crop.
+            url = re.sub(r"/(?:default|mqdefault|hqdefault|sddefault|maxresdefault)\.jpg", "/hqdefault.jpg", url)
+        return url
+
     return url
 
 
@@ -29,6 +56,14 @@ def normalize_song(
     video_id = item.get("videoId")
     if not video_id:
         return None
+
+    # Detect if it's a music video
+    is_video = False
+    vtype = item.get("videoType") or item.get("type") or item.get("resultType") or ""
+    if isinstance(vtype, str):
+        vtype = vtype.lower()
+        if "video" in vtype or vtype == "omv": # OMV = Official Music Video
+            is_video = True
 
     artists = item.get("artists") or []
     artist_name = ", ".join(a["name"] for a in artists if a.get("name")) or "Unknown"
@@ -76,7 +111,9 @@ def normalize_song(
         artist=artist_name,
         album=album_name,
         durationMs=int(duration_seconds) * 1000,
-        thumbnailUrl=fix_thumbnail_url(raw_url, proxy_base),
+        thumbnailUrl=fix_thumbnail_url(raw_url, proxy_base, is_video=is_video),
+        isVideo=is_video,
+        aspectRatio=1.77 if is_video else 1.0
     )
 
 
