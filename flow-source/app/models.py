@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, EmailStr
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text, Float
 from sqlalchemy.orm import relationship
 
 from .database import Base
@@ -31,6 +31,12 @@ class User(Base):
     history = relationship(
         "PlayHistory", back_populates="user", cascade="all, delete-orphan"
     )
+    interactions = relationship(
+        "UserSongInteraction", back_populates="user", cascade="all, delete-orphan"
+    )
+    recommendations = relationship(
+        "UserRecommendation", back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class PlayHistory(Base):
@@ -47,6 +53,31 @@ class PlayHistory(Base):
     played_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", back_populates="history")
+
+
+class UserSongInteraction(Base):
+    __tablename__ = "user_song_interactions"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    song_id = Column(String, index=True)
+    play_count = Column(Integer, default=0)
+    repeat_count = Column(Integer, default=0)  # Consecutive plays
+    last_played_at = Column(DateTime, default=datetime.utcnow)
+    genre_tags = Column(Text, nullable=True)  # JSON string
+
+    user = relationship("User", back_populates="interactions")
+
+
+class UserRecommendation(Base):
+    __tablename__ = "user_recommendations"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    song_id = Column(String, index=True)
+    data = Column(Text)  # JSON serialized SongResponse
+    score = Column(Float, default=0.0)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User", back_populates="recommendations")
 
 
 # --- Pydantic Models ---
