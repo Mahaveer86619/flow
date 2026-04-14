@@ -837,9 +837,16 @@ async def prefetch_audio(video_id: str, current_user: User = Depends(get_current
 
 @router.get("/stream/{video_id}")
 async def stream_audio(
-    video_id: str, request: Request, current_user: User = Depends(get_current_user)
+    video_id: str,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     logger.info(f"Streaming request for {video_id} from {request.client.host}")
+
+    # Track interaction asynchronously to not block streaming
+    asyncio.create_task(run_sync(yt_service.track_interaction, db, current_user, video_id))
+
     try:
         audio_url = await extract_audio_url(video_id, user=current_user)
     except Exception as e:

@@ -17,7 +17,7 @@ from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
 from .config import settings
-from .models import ArtistResponse, HomeResponse, SongResponse, User
+from .models import ArtistResponse, HomeResponse, SongResponse, User, UserSongInteraction, UserRecommendation
 from .utils import (
     is_artist_item,
     normalize_artist,
@@ -147,6 +147,42 @@ class YTMusicService:
             return [s for item in items[:20] if (s := normalize_song(item, proxy_base))]
         except Exception:
             return []
+
+    def track_interaction(
+        self,
+        db: Session,
+        user: User,
+        song_id: str,
+        genres: Optional[List[str]] = None,
+    ):
+        interaction = (
+            db.query(UserSongInteraction)
+            .filter(
+                UserSongInteraction.user_id == user.id,
+                UserSongInteraction.song_id == song_id,
+            )
+            .first()
+        )
+
+        if not interaction:
+            interaction = UserSongInteraction(
+                user_id=user.id,
+                song_id=song_id,
+                play_count=1,
+                genre_tags=json.dumps(genres) if genres else None,
+            )
+            db.add(interaction)
+        else:
+            interaction.play_count += 1
+            interaction.last_played_at = datetime.utcnow()
+            if genres:
+                existing_genres = (
+                    json.loads(interaction.genre_tags) if interaction.genre_tags else []
+                )
+                updated_genres = list(set(existing_genres + genres))
+                interaction.genre_tags = json.dumps(updated_genres)
+
+        db.commit()
 
     def _get_fresh_picks(self, ytm, user: User, proxy_base: Optional[str] = None) -> List[dict]:
         """
