@@ -80,6 +80,46 @@ def normalize_song(
     )
 
 
+def normalize_album_as_song(
+    item: dict, proxy_base: Optional[str] = None
+) -> Optional[SongResponse]:
+    """get_new_releases returns albums/singles, but we need song entities for the staggered grid."""
+    # Sometimes it has a videoId directly
+    video_id = item.get("videoId")
+    # If not, use browseId or playlistId as fallback ID for mapping
+    if not video_id:
+        video_id = item.get("browseId") or item.get("playlistId") or ""
+
+    if not video_id:
+        return None
+
+    artists = item.get("artists") or []
+    artist_name = ", ".join(a["name"] for a in artists if a.get("name")) or "Unknown"
+
+    thumbnails_data = item.get("thumbnails") or item.get("thumbnail") or []
+    if isinstance(thumbnails_data, dict):
+        thumbnails_list = thumbnails_data.get("thumbnails") or [thumbnails_data]
+    elif isinstance(thumbnails_data, list):
+        thumbnails_list = thumbnails_data
+    else:
+        thumbnails_list = []
+
+    raw_url = None
+    if thumbnails_list and isinstance(thumbnails_list, list):
+        last_thumb = thumbnails_list[-1]
+        if isinstance(last_thumb, dict):
+            raw_url = last_thumb.get("url")
+
+    return SongResponse(
+        id=video_id,
+        title=item.get("title") or "Unknown",
+        artist=artist_name,
+        album=item.get("title") or "Unknown",
+        durationMs=0,
+        thumbnailUrl=fix_thumbnail_url(raw_url, proxy_base),
+    )
+
+
 def is_artist_item(item: dict) -> bool:
     return (
         item.get("resultType") == "artist"

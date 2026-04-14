@@ -23,6 +23,8 @@ import '../notifications/notifications_screen.dart';
 import '../search/search_screen.dart';
 import '../settings/settings_screen.dart';
 
+import '../../widgets/text_carousel.dart';
+
 class DesktopShell extends StatefulWidget {
   const DesktopShell({super.key});
 
@@ -382,8 +384,8 @@ class _RecentlyPlayedDialog extends StatelessWidget {
                         size: 18,
                       ),
                     ),
-                    title: Text(
-                      song.title,
+                    title: TextCarousel(
+                      text: song.title,
                       style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                     subtitle: Text(song.artist),

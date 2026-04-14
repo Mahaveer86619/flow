@@ -9,5 +9,5 @@ import '../repositories/song_repository.dart';
 class GetHomeDataUseCase {
   final SongRepository _repository;
   const GetHomeDataUseCase(this._repository);
-  Future<HomeData> call() => _repository.getHomeData();
+  Future<HomeData> call({int limit = 25}) => _repository.getHomeData(limit: limit);
 }

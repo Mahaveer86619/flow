@@ -124,6 +124,12 @@ class HomeResponse(BaseModel):
     shelves: List[Dict[str, Any]]
     trending: List[SongResponse] = []
     profileUrl: Optional[str] = None
+    quickAccess: List[SongResponse] = []
+    listeningAgain: List[SongResponse] = []
+    freshFinds: List[SongResponse] = []
+    forgottenFavorites: List[SongResponse] = []
+    musicForYou: List[SongResponse] = []
+    trendingArtists: List[ArtistResponse] = []
 
 
 class LibraryResponse(BaseModel):

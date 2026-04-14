@@ -24,10 +24,10 @@ class SongRepositoryImpl implements SongRepository {
   const SongRepositoryImpl(this._source);
 
   @override
-  Future<HomeData> getHomeData() async {
-    AppLogger.i(_tag, 'getHomeData()');
+  Future<HomeData> getHomeData({int limit = 25}) async {
+    AppLogger.i(_tag, 'getHomeData(limit: $limit)');
     try {
-      final model = await _source.fetchHomeData();
+      final model = await _source.fetchHomeData(limit: limit);
       final entity = model.toEntity();
       AppLogger.d(_tag, 'getHomeData: allSongs=${entity.allSongs.length}');
       return entity;
@@ -40,10 +40,10 @@ class SongRepositoryImpl implements SongRepository {
   }
 
   @override
-  Future<List<Song>> searchSongs(String query) async {
-    AppLogger.i(_tag, 'searchSongs("$query")');
+  Future<List<Song>> searchSongs(String query, {int limit = 25}) async {
+    AppLogger.i(_tag, 'searchSongs("$query", limit: $limit)');
     try {
-      final models = await _source.searchSongs(query);
+      final models = await _source.searchSongs(query, limit: limit);
       final songs = models.map((m) => m.toEntity()).toList();
       AppLogger.d(_tag, 'searchSongs("$query"): ${songs.length} hits');
       return songs;
@@ -97,10 +97,10 @@ class SongRepositoryImpl implements SongRepository {
   }
 
   @override
-  Future<List<Song>> getAlbumTracks(String browseId) async {
-    AppLogger.i(_tag, 'getAlbumTracks($browseId)');
+  Future<List<Song>> getAlbumTracks(String browseId, {int limit = 25}) async {
+    AppLogger.i(_tag, 'getAlbumTracks($browseId, limit: $limit)');
     try {
-      final models = await _source.fetchAlbumTracks(browseId);
+      final models = await _source.fetchAlbumTracks(browseId, limit: limit);
       final tracks = models.map((m) => m.toEntity()).toList();
       AppLogger.d(_tag, 'getAlbumTracks($browseId): ${tracks.length} tracks');
       return tracks;

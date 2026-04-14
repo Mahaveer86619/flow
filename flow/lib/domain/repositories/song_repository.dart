@@ -10,10 +10,10 @@ import '../entities/history_data.dart';
 
 abstract class SongRepository {
   /// Structured home screen data — all sections in one call.
-  Future<HomeData> getHomeData();
+  Future<HomeData> getHomeData({int limit = 25});
 
   /// Songs matching [query] via the backend search or local filter.
-  Future<List<Song>> searchSongs(String query);
+  Future<List<Song>> searchSongs(String query, {int limit = 25});
 
   /// User playlist metadata for the library screen.
   Future<List<Playlist>> getPlaylists();
@@ -22,7 +22,7 @@ abstract class SongRepository {
   Future<List<Song>> getPlaylistTracks(String playlistId, {int limit = 100});
 
   /// Tracks for an album.
-  Future<List<Song>> getAlbumTracks(String browseId);
+  Future<List<Song>> getAlbumTracks(String browseId, {int limit = 25});
 
   /// Tracks from a radio station (up-next).
   Future<List<Song>> getRadioTracks(String videoId, {int limit = 25});

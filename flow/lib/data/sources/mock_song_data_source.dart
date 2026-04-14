@@ -218,7 +218,7 @@ class MockSongDataSource implements SongDataSource {
   // ── SongDataSource impl ──────────────────────────────────────────────────────
 
   @override
-  Future<HomeDataModel> fetchHomeData() async {
+  Future<HomeDataModel> fetchHomeData({int limit = 25}) async {
     final artists = <Map<String, dynamic>>[];
     final seen = <String>{};
     for (final s in _songs) {
@@ -235,15 +235,27 @@ class MockSongDataSource implements SongDataSource {
     final rawShelves = [
       {
         'title': 'Quick Picks',
+        'section': 'quickPicks',
         'items': _songs
-            .sublist(0, 6)
+            .take(limit)
             .map((s) => {'type': 'song', 'data': s.toJson()})
             .toList(),
       },
       {
         'title': 'Listen Again',
+        'section': 'listeningAgain',
         'items': _songs
-            .sublist(0, 6)
+            .reversed
+            .take(limit)
+            .map((s) => {'type': 'song', 'data': s.toJson()})
+            .toList(),
+      },
+      {
+        'title': 'Fresh Finds',
+        'section': 'newArrivals',
+        'items': _songs
+            .skip(10)
+            .take(15)
             .map((s) => {'type': 'song', 'data': s.toJson()})
             .toList(),
       },
@@ -270,14 +282,14 @@ class MockSongDataSource implements SongDataSource {
   }
 
   @override
-  Future<List<SongModel>> searchSongs(String query) async {
+  Future<List<SongModel>> searchSongs(String query, {int limit = 25}) async {
     if (query.trim().isEmpty) return const [];
     final q = query.toLowerCase();
     return _songs.where((s) {
       return s.title.toLowerCase().contains(q) ||
           s.artist.toLowerCase().contains(q) ||
           s.album.toLowerCase().contains(q);
-    }).toList();
+    }).take(limit).toList();
   }
 
   @override
@@ -293,8 +305,8 @@ class MockSongDataSource implements SongDataSource {
   );
 
   @override
-  Future<List<SongModel>> fetchAlbumTracks(String browseId) async =>
-      List.unmodifiable(_songs.take(10).toList());
+  Future<List<SongModel>> fetchAlbumTracks(String browseId, {int limit = 25}) async =>
+      List.unmodifiable(_songs.take(limit).toList());
 
   @override
   Future<List<SongModel>> fetchRadioTracks(

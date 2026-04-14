@@ -79,7 +79,7 @@ class HomeCubit extends Cubit<HomeState> {
 
     try {
       AppLogger.d(_tag, 'Fetching home data and history...');
-      final dataFuture = _getHomeData();
+      final dataFuture = _getHomeData(limit: 48);
       final historyFuture = _songRepository.getPersistentHistory();
 
       final results = await Future.wait([dataFuture, historyFuture]);

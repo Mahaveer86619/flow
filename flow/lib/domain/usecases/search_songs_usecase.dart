@@ -8,5 +8,5 @@ import '../repositories/song_repository.dart';
 class SearchSongsUseCase {
   final SongRepository _repository;
   const SearchSongsUseCase(this._repository);
-  Future<List<Song>> call(String query) => _repository.searchSongs(query);
+  Future<List<Song>> call(String query, {int limit = 25}) => _repository.searchSongs(query, limit: limit);
 }

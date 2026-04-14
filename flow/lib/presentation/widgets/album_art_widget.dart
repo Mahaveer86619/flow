@@ -38,7 +38,7 @@ class AlbumArtWidget extends StatelessWidget {
             thumbnailUrl!,
             width: size,
             height: size,
-            fit: BoxFit.cover,
+            fit: BoxFit.fill,
             cacheWidth: cacheSize,
             cacheHeight: cacheSize,
             headers: const {

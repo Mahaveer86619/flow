@@ -14,6 +14,8 @@ import '../../widgets/section_header.dart';
 import '../../widgets/song_tile.dart';
 import '../player/player_screen.dart';
 
+import '../../widgets/skeleton.dart';
+
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
 
@@ -55,7 +57,7 @@ class _SearchScreenState extends State<SearchScreen> {
         slivers: [
           SliverAppBar(
             expandedHeight: 140,
-            floating: true,
+            floating: false,
             pinned: true,
             backgroundColor: colorScheme.surface,
             surfaceTintColor: Colors.transparent,
@@ -63,6 +65,25 @@ class _SearchScreenState extends State<SearchScreen> {
             leading: IconButton(
               icon: const Icon(Icons.arrow_back_rounded),
               onPressed: () => Navigator.pop(context),
+            ),
+            centerTitle: false,
+            title: LayoutBuilder(
+              builder: (context, constraints) {
+                final top = constraints.biggest.height;
+                final isCollapsed = top < 100;
+                return AnimatedOpacity(
+                  duration: const Duration(milliseconds: 200),
+                  opacity: isCollapsed ? 1.0 : 0.0,
+                  child: Text(
+                    'Search',
+                    style: GoogleFonts.spaceGrotesk(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                );
+              },
             ),
             flexibleSpace: FlexibleSpaceBar(
               expandedTitleScale: 1.0,
@@ -143,7 +164,7 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
           ),
 
-          // ── Content: recent / results / empty / categories ────────────────────
+          // ── Content ────────────────────
           BlocBuilder<SearchCubit, SearchState>(
             builder: (context, state) {
               final showRecent =
@@ -215,8 +236,11 @@ class _SearchScreenState extends State<SearchScreen> {
                   ],
                 );
               } else if (state.isLoading) {
-                return const SliverFillRemaining(
-                  child: Center(child: CircularProgressIndicator()),
+                return SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, i) => const SkeletonSongTile(),
+                    childCount: 10,
+                  ),
                 );
               } else if (state.error && state.hasQuery) {
                 return SliverFillRemaining(

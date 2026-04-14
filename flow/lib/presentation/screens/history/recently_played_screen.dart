@@ -6,6 +6,8 @@ import '../../../domain/entities/song.dart';
 import '../../../domain/repositories/song_repository.dart';
 import '../../widgets/song_tile.dart';
 
+import '../../widgets/skeleton.dart';
+
 class RecentlyPlayedScreen extends StatefulWidget {
   const RecentlyPlayedScreen({super.key});
 
@@ -41,7 +43,10 @@ class _RecentlyPlayedScreenState extends State<RecentlyPlayedScreen> {
         future: _historyFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return ListView.builder(
+              itemBuilder: (context, i) => const SkeletonSongTile(),
+              itemCount: 15,
+            );
           }
           if (snapshot.hasError) {
             return Center(child: Text('Error: ${snapshot.error}'));

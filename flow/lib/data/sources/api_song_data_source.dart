@@ -41,17 +41,18 @@ class ApiSongDataSource implements SongDataSource {
   // ── SongDataSource impl ──────────────────────────────────────────────────────
 
   @override
-  Future<HomeDataModel> fetchHomeData() async {
-    AppLogger.i(_tag, 'fetchHomeData()');
-    final json = await _getJson('/v1/home') as Map<String, dynamic>;
+  Future<HomeDataModel> fetchHomeData({int limit = 25}) async {
+    AppLogger.i(_tag, 'fetchHomeData(limit: $limit)');
+    final json =
+        await _getJson('/v1/home', params: {'limit': limit.toString()}) as Map<String, dynamic>;
     AppLogger.d(
       _tag,
       'fetchHomeData: '
-      'quickAccess=${_len(json, "quickAccess")} '
+      'quickPicks=${_len(json, "quickPicks")} '
       'listeningAgain=${_len(json, "listeningAgain")} '
-      'forgottenFavorites=${_len(json, "forgottenFavorites")} '
+      'freshFinds=${_len(json, "freshFinds")} '
       'musicForYou=${_len(json, "musicForYou")} '
-      'artists=${_len(json, "trendingArtists")}',
+      'trendingArtists=${_len(json, "trendingArtists")}',
     );
     try {
       return HomeDataModel.fromJson(json);
@@ -62,11 +63,14 @@ class ApiSongDataSource implements SongDataSource {
   }
 
   @override
-  Future<List<SongModel>> searchSongs(String query) async {
+  Future<List<SongModel>> searchSongs(String query, {int limit = 25}) async {
     if (query.trim().isEmpty) return const [];
-    AppLogger.i(_tag, 'searchSongs("$query")');
+    AppLogger.i(_tag, 'searchSongs("$query", limit: $limit)');
     final list =
-        await _getJson('/v1/search/songs', params: {'q': query})
+        await _getJson('/v1/search/songs', params: {
+          'q': query,
+          'limit': limit.toString(),
+        })
             as List<dynamic>;
     AppLogger.d(_tag, 'searchSongs("$query"): ${list.length} results');
     try {
@@ -122,9 +126,12 @@ class ApiSongDataSource implements SongDataSource {
   }
 
   @override
-  Future<List<SongModel>> fetchAlbumTracks(String browseId) async {
-    AppLogger.i(_tag, 'fetchAlbumTracks($browseId)');
-    final list = await _getJson('/v1/albums/$browseId') as List<dynamic>;
+  Future<List<SongModel>> fetchAlbumTracks(String browseId, {int limit = 25}) async {
+    AppLogger.i(_tag, 'fetchAlbumTracks($browseId, limit: $limit)');
+    final list = await _getJson(
+      '/v1/albums/$browseId',
+      params: {'limit': limit.toString()},
+    ) as List<dynamic>;
     try {
       return list
           .map((e) => SongModel.fromJson(e as Map<String, dynamic>))

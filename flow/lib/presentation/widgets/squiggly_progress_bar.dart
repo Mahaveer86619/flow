@@ -7,6 +7,10 @@ class SquigglyProgressBar extends StatefulWidget {
   final bool isInitialLoading;
   final bool isBuffering;
   final ValueChanged<double>? onSeek;
+  final double height;
+  final double amplitude;
+  final double strokeWidth;
+  final double waveCount;
 
   const SquigglyProgressBar({
     super.key,
@@ -15,6 +19,10 @@ class SquigglyProgressBar extends StatefulWidget {
     this.isInitialLoading = false,
     this.isBuffering = false,
     this.onSeek,
+    this.height = 18.0,
+    this.amplitude = 0.2,
+    this.strokeWidth = 2.5,
+    this.waveCount = 5.0,
   });
 
   @override
@@ -107,7 +115,7 @@ class _SquigglyProgressBarState extends State<SquigglyProgressBar>
           ]),
           builder: (context, _) {
             return SizedBox(
-              height: 18,
+              height: widget.height,
               width: double.infinity,
               child: CustomPaint(
                 painter: _SquigglyPainter(
@@ -121,6 +129,9 @@ class _SquigglyProgressBarState extends State<SquigglyProgressBar>
                   playedColor: colorScheme.primary,
                   bufferedColor: const Color(0xFF808080),
                   unplayedColor: colorScheme.surfaceContainerHighest,
+                  amplitude: widget.amplitude,
+                  strokeWidth: widget.strokeWidth,
+                  waveCount: widget.waveCount,
                 ),
               ),
             );
@@ -142,6 +153,9 @@ class _SquigglyPainter extends CustomPainter {
   final Color playedColor;
   final Color bufferedColor;
   final Color unplayedColor;
+  final double amplitude;
+  final double strokeWidth;
+  final double waveCount;
 
   const _SquigglyPainter({
     required this.progress,
@@ -154,6 +168,9 @@ class _SquigglyPainter extends CustomPainter {
     required this.playedColor,
     required this.bufferedColor,
     required this.unplayedColor,
+    required this.amplitude,
+    required this.strokeWidth,
+    required this.waveCount,
   });
 
   Path _buildPath(
@@ -161,10 +178,8 @@ class _SquigglyPainter extends CustomPainter {
     double startX = 0,
     double endX = 1.0,
     double? customPhase,
-    double? customAmplitude,
   }) {
-    const waveCount = 5.0;
-    final amplitude = customAmplitude ?? size.height * 0.18;
+    final actualAmplitude = size.height * amplitude;
     final midY = size.height / 2;
     final angularFreq = (2 * math.pi * waveCount) / size.width;
     final p = customPhase ?? phase;
@@ -175,10 +190,10 @@ class _SquigglyPainter extends CustomPainter {
 
     path.moveTo(
       actualStartX,
-      midY + amplitude * math.sin(angularFreq * actualStartX + p),
+      midY + actualAmplitude * math.sin(angularFreq * actualStartX + p),
     );
     for (double x = actualStartX + 1; x <= actualEndX; x += 1.5) {
-      final y = midY + amplitude * math.sin(angularFreq * x + p);
+      final y = midY + actualAmplitude * math.sin(angularFreq * x + p);
       path.lineTo(x, y);
     }
     return path;
@@ -202,7 +217,7 @@ class _SquigglyPainter extends CustomPainter {
       path,
       basePaint
         ..color = unplayedColor.withOpacity(1.0)
-        ..strokeWidth = 2.5,
+        ..strokeWidth = strokeWidth,
     );
 
     // 2. Loading Animation (Sliding overlay)
@@ -213,7 +228,7 @@ class _SquigglyPainter extends CustomPainter {
       final paint = Paint()
         ..color = playedColor.withOpacity(transitionValue)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 4.0
+        ..strokeWidth = strokeWidth * 1.5
         ..strokeCap = StrokeCap.round;
 
       canvas.save();
@@ -251,7 +266,7 @@ class _SquigglyPainter extends CustomPainter {
           path,
           basePaint
             ..color = bufferedColor.withOpacity(normalOpacity)
-            ..strokeWidth = 3.0,
+            ..strokeWidth = strokeWidth * 1.2,
         );
         canvas.restore();
       }
@@ -269,28 +284,27 @@ class _SquigglyPainter extends CustomPainter {
           path,
           basePaint
             ..color = playedColor.withOpacity(normalOpacity)
-            ..strokeWidth = 4.5,
+            ..strokeWidth = strokeWidth * 1.8,
         );
         canvas.restore();
 
         // 4. Playhead Dot
-        const waveCount = 5.0;
-        final amplitude = size.height * 0.18;
+        final actualAmplitude = size.height * amplitude;
         final midY = size.height / 2;
         final angularFreq = (2 * math.pi * waveCount) / size.width;
         final dotY =
-            midY + amplitude * math.sin(angularFreq * progressX + phase);
+            midY + actualAmplitude * math.sin(angularFreq * progressX + phase);
 
         canvas.drawCircle(
           Offset(progressX, dotY),
-          8,
+          size.height * 0.4,
           Paint()
             ..color = playedColor.withAlpha((60 * normalOpacity).toInt())
             ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
         );
         canvas.drawCircle(
           Offset(progressX, dotY),
-          4,
+          size.height * 0.2,
           Paint()..color = playedColor.withOpacity(normalOpacity),
         );
       }
@@ -305,5 +319,11 @@ class _SquigglyPainter extends CustomPainter {
       old.isBuffering != isBuffering ||
       old.loadingValue != loadingValue ||
       old.transitionValue != transitionValue ||
-      old.phase != phase;
+      old.phase != phase ||
+      old.amplitude != amplitude ||
+      old.strokeWidth != strokeWidth ||
+      old.waveCount != waveCount;
 }
+
+
+

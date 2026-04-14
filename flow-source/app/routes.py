@@ -4,7 +4,7 @@ import logging
 import os
 import tempfile
 import urllib.parse
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import List, Optional
 
 import httpx
@@ -193,11 +193,11 @@ async def update_settings(
 def get_proxy_base(request: Request) -> str:
     if settings.PROXIED_IMAGE_URL:
         return settings.PROXIED_IMAGE_URL
-    
+
     # Use the request's own base URL to build the proxy endpoint
     # Base URL should include protocol and host
     base_url = f"{request.url.scheme}://{request.url.netloc}"
-    
+
     # The router is prefixed with /v1, so the endpoint is at /v1/proxy-image
     return f"{base_url}/v1/proxy-image"
 
@@ -211,7 +211,47 @@ async def get_home(
     )
     try:
         proxy_base = get_proxy_base(request)
-        return yt_service.get_home_cached(current_user, limit, proxy_base=proxy_base)
+        data = yt_service.get_home_cached(current_user, limit, proxy_base=proxy_base)
+
+        # For backward compatibility with specific endpoints/legacy parsers
+        quick_picks = []
+        listening_again = []
+        forgotten_favorites = []
+        music_for_you = []
+        trending_artists = []
+
+        for shelf in data.shelves:
+            section = shelf.get("section")
+            
+            # Map songs
+            song_items = [item["data"] for item in shelf.get("items", []) if item["type"] == "song"]
+            if section == "quickPicks":
+                quick_picks.extend(song_items)
+            elif section == "listeningAgain":
+                listening_again.extend(song_items)
+            elif section == "forgottenFavorites":
+                forgotten_favorites.extend(song_items)
+            elif section == "musicForYou":
+                music_for_you.extend(song_items)
+            
+            # Map artists for trendingArtists
+            if section == "trending":
+                artist_items = [item["data"] for item in shelf.get("items", []) if item["type"] == "artist"]
+                trending_artists.extend(artist_items)
+
+        data.quickAccess = quick_picks
+        data.listeningAgain = listening_again
+        data.forgottenFavorites = forgotten_favorites
+        data.musicForYou = music_for_you
+        data.trendingArtists = trending_artists
+        data.freshFinds = [
+            item["data"] for shelf in data.shelves 
+            if shelf.get("section") == "freshFinds" 
+            for item in shelf.get("items", []) 
+            if item["type"] == "song"
+        ]
+
+        return data
     except Exception as e:
         logger.exception(f"Error in get_home for user {current_user.username}: {e}")
         raise HTTPException(500, str(e))

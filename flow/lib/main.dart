@@ -6,6 +6,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:just_audio_background/just_audio_background.dart';
 import 'core/auth/auth_cubit.dart';
+import 'core/config/app_constants.dart';
 import 'core/config/server_config.dart';
 import 'core/logger/app_logger.dart';
 import 'core/network/connectivity_service.dart';
@@ -135,17 +136,17 @@ void main() async {
       child: MultiBlocProvider(
         providers: [
           BlocProvider(create: (_) => AuthCubit()),
-          BlocProvider(create: (_) => NetworkCubit(ConnectivityService.instance)),
+          BlocProvider(
+            create: (_) => NetworkCubit(ConnectivityService.instance),
+          ),
           BlocProvider(create: (_) => PlayerBloc(songRepository: repository)),
           BlocProvider(
             create: (context) =>
                 SettingsCubit(authCubit: context.read<AuthCubit>()),
           ),
           BlocProvider(
-            create: (_) => HomeCubit(
-              getHomeData: getHomeData,
-              songRepository: repository,
-            ),
+            create: (_) =>
+                HomeCubit(getHomeData: getHomeData, songRepository: repository),
           ),
           BlocProvider(
             create: (_) => SearchCubit(
@@ -225,6 +226,25 @@ class FlowApp extends StatelessWidget {
     return base.copyWith(
       colorScheme: colorScheme,
       scaffoldBackgroundColor: colorScheme.surface,
+      cardTheme: CardThemeData(
+        shape: AppRadius.mediumShape,
+        elevation: 0,
+        clipBehavior: Clip.antiAlias,
+      ),
+      chipTheme: ChipThemeData(
+        shape: AppRadius.smallShape,
+        side: BorderSide.none,
+      ),
+      dialogTheme: DialogThemeData(shape: AppRadius.mediumShape),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(shape: AppRadius.mediumShape),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(shape: AppRadius.mediumShape),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(shape: AppRadius.mediumShape),
+      ),
       textTheme: GoogleFonts.outfitTextTheme(base.textTheme).apply(
         bodyColor: colorScheme.onSurface,
         displayColor: colorScheme.onSurface,

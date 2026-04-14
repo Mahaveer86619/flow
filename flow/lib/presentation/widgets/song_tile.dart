@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../core/config/app_constants.dart';
 import '../../domain/entities/song.dart';
 import '../blocs/player/player_bloc.dart';
 import '../screens/player/player_screen.dart';
 import '../../core/responsive/breakpoints.dart';
+
+import 'text_carousel.dart';
 
 class SongTile extends StatelessWidget {
   final Song song;
@@ -47,7 +50,7 @@ class SongTile extends StatelessWidget {
           width: 48,
           height: 48,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: AppRadius.mediumBorderRadius,
             gradient: LinearGradient(
               colors: [song.colorPrimary, song.colorSecondary],
               begin: Alignment.topLeft,
@@ -58,7 +61,7 @@ class SongTile extends StatelessWidget {
           child: song.thumbnailUrl != null
               ? Image.network(
                   song.thumbnailUrl!,
-                  fit: BoxFit.cover,
+                  fit: BoxFit.fill,
                   headers: const {
                     'User-Agent':
                         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
@@ -68,11 +71,9 @@ class SongTile extends StatelessWidget {
               : _fallback(),
         ),
       ),
-      title: Text(
-        song.title,
+      title: TextCarousel(
+        text: song.title,
         style: GoogleFonts.outfit(fontWeight: FontWeight.w600, fontSize: 15),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
       ),
       subtitle: Text(
         song.artist,
@@ -194,7 +195,7 @@ class _SongOptionsButton extends StatelessWidget {
       builder: (ctx) => Container(
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadius.large)),
         ),
         child: SafeArea(
           child: Column(

@@ -9,6 +9,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../core/config/app_constants.dart';
 import '../../core/responsive/breakpoints.dart';
 import '../../../domain/entities/song.dart';
 import '../blocs/player/player_bloc.dart';
@@ -22,6 +23,8 @@ import 'squiggly_progress_bar.dart';
 /// [showBackButton] – show the "chevron down" dismiss button (mobile only).
 /// [artMaxSize]     – caps the artwork square size in pixels (useful for the
 ///                    fixed-width desktop sidebar).
+import 'text_carousel.dart';
+
 class PlayerPanel extends StatelessWidget {
   final bool showBackButton;
   final double? artMaxSize;
@@ -83,15 +86,14 @@ class PlayerPanel extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          song.title,
+                        TextCarousel(
+                          text: song.title,
                           style: GoogleFonts.spaceGrotesk(
                             fontSize: 24,
                             fontWeight: FontWeight.w700,
                             color: Colors.white,
                             letterSpacing: -0.8,
                           ),
-                          overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 2),
                         Text(
@@ -428,7 +430,7 @@ class _MoreOptionsButton extends StatelessWidget {
       context: context,
       backgroundColor: const Color(0xFF1A1A24),
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.large)),
       ),
       builder: (ctx) => SafeArea(
         child: Column(

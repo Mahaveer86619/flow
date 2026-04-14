@@ -4,16 +4,20 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../core/config/app_constants.dart';
 import '../../core/responsive/breakpoints.dart';
 import '../../domain/entities/song.dart';
 import '../blocs/player/player_bloc.dart';
 import '../screens/player/player_screen.dart';
+
+import 'text_carousel.dart';
 
 class SongCard extends StatefulWidget {
   final Song song;
   final List<Song> queue;
   final int index;
   final double cardWidth;
+  final double aspectRatio;
   final String? heroTag;
 
   const SongCard({
@@ -22,6 +26,7 @@ class SongCard extends StatefulWidget {
     required this.queue,
     required this.index,
     this.cardWidth = 135,
+    this.aspectRatio = 1.0,
     this.heroTag,
   });
 
@@ -56,24 +61,24 @@ class _SongCardState extends State<SongCard> {
                 duration: const Duration(milliseconds: 200),
                 curve: Curves.easeOutCubic,
                 child: AspectRatio(
-                  aspectRatio: 16 / 9,
+                  aspectRatio: widget.aspectRatio,
                   child: _Artwork(
                     song: widget.song,
                     size: widget.cardWidth,
+                    aspectRatio: widget.aspectRatio,
                     isHovered: _isHovered,
                     heroTag: widget.heroTag,
                   ),
                 ),
               ),
               const SizedBox(height: 10),
-              Text(
-                widget.song.title,
+              TextCarousel(
+                text: widget.song.title,
                 style: const TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 13,
                   letterSpacing: -0.2,
                 ),
-                overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 2),
               Row(
@@ -122,12 +127,14 @@ class _SongCardState extends State<SongCard> {
 class _Artwork extends StatelessWidget {
   final Song song;
   final double size;
+  final double aspectRatio;
   final bool isHovered;
   final String? heroTag;
 
   const _Artwork({
     required this.song,
     required this.size,
+    required this.aspectRatio,
     required this.isHovered,
     this.heroTag,
   });
@@ -138,7 +145,7 @@ class _Artwork extends StatelessWidget {
       children: [
         Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: AppRadius.mediumBorderRadius,
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withAlpha(isHovered ? 60 : 40),
@@ -150,15 +157,15 @@ class _Artwork extends StatelessWidget {
           child: Hero(
             tag: heroTag ?? 'card_art_${song.id}_${song.hashCode}',
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: AppRadius.mediumBorderRadius,
               child: song.thumbnailUrl != null
                   ? Image.network(
                       song.thumbnailUrl!,
                       width: size,
-                      height: size * 9 / 16,
-                      fit: BoxFit.cover,
+                      height: size / aspectRatio,
+                      fit: BoxFit.fill,
                       cacheWidth: 640,
-                      cacheHeight: 360,
+                      cacheHeight: (640 / aspectRatio).round(),
                       headers: const {
                         'User-Agent':
                             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
@@ -174,7 +181,7 @@ class _Artwork extends StatelessWidget {
             child: Container(
               decoration: BoxDecoration(
                 color: Colors.black.withAlpha(30),
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: AppRadius.mediumBorderRadius,
               ),
               child: const Center(
                 child: Icon(
@@ -192,7 +199,7 @@ class _Artwork extends StatelessWidget {
   Widget _fallback() {
     return Container(
       width: size,
-      height: size * 9 / 16,
+      height: size / aspectRatio,
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -205,96 +212,6 @@ class _Artwork extends StatelessWidget {
         size: size * 0.25,
         color: Colors.white.withAlpha(45),
       ),
-    );
-  }
-}
-
-// ── Skeleton variants used by HomeScreen shimmer ──────────────────────────────
-
-class SkeletonSongCard extends StatelessWidget {
-  final double cardWidth;
-  const SkeletonSongCard({super.key, this.cardWidth = 135});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = Theme.of(context).colorScheme.surfaceContainerHigh;
-    return SizedBox(
-      width: cardWidth,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          AspectRatio(
-            aspectRatio: 16 / 9,
-            child: Container(
-              width: cardWidth,
-              decoration: BoxDecoration(
-                color: color,
-                borderRadius: BorderRadius.circular(14),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            width: cardWidth * 0.8,
-            height: 12,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(6),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Container(
-            width: cardWidth * 0.55,
-            height: 10,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(5),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class SkeletonQuickAccessTile extends StatelessWidget {
-  const SkeletonQuickAccessTile({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = Theme.of(context).colorScheme.surfaceContainerHigh;
-    return Container(
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(10),
-      ),
-    );
-  }
-}
-
-class SkeletonArtistCard extends StatelessWidget {
-  const SkeletonArtistCard({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = Theme.of(context).colorScheme.surfaceContainerHigh;
-    return Column(
-      children: [
-        Container(
-          width: 90,
-          height: 90,
-          decoration: BoxDecoration(shape: BoxShape.circle, color: color),
-        ),
-        const SizedBox(height: 6),
-        Container(
-          width: 70,
-          height: 11,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(5),
-          ),
-        ),
-      ],
     );
   }
 }

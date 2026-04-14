@@ -12,6 +12,8 @@ import '../playlist/playlist_screen.dart';
 import '../settings/settings_screen.dart';
 import '../list/list_screen.dart';
 
+import '../../widgets/skeleton.dart';
+
 class LibraryScreen extends StatelessWidget {
   const LibraryScreen({super.key});
 
@@ -21,117 +23,179 @@ class LibraryScreen extends StatelessWidget {
     final columns = screenWidth > 1200 ? 5 : (screenWidth > 800 ? 3 : 2);
     final colorScheme = Theme.of(context).colorScheme;
 
-    return CustomScrollView(
-      physics: const BouncingScrollPhysics(
-        parent: AlwaysScrollableScrollPhysics(),
-      ),
-      slivers: [
-        SliverAppBar(
-          expandedHeight: 100,
-          floating: true,
-          pinned: false,
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          flexibleSpace: FlexibleSpaceBar(
-            background: Padding(
-              padding: EdgeInsets.fromLTRB(
-                16,
-                MediaQuery.paddingOf(context).top + 12,
-                16,
-                0,
-              ),
-              child: Row(
-                children: [
-                  Text(
+    return RefreshIndicator(
+      onRefresh: () => context.read<LibraryCubit>().refresh(),
+      backgroundColor: colorScheme.surfaceContainerHigh,
+      color: colorScheme.primary,
+      edgeOffset: 100, // Start below the app bar
+      child: CustomScrollView(
+        physics: const BouncingScrollPhysics(
+          parent: AlwaysScrollableScrollPhysics(),
+        ),
+        slivers: [
+          SliverAppBar(
+            expandedHeight: 100,
+            floating: false,
+            pinned: true,
+            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+            surfaceTintColor: Colors.transparent,
+            elevation: 0,
+            centerTitle: false,
+            title: LayoutBuilder(
+              builder: (context, constraints) {
+                final top = constraints.biggest.height;
+                final isCollapsed = top < 90;
+                return AnimatedOpacity(
+                  duration: const Duration(milliseconds: 200),
+                  opacity: isCollapsed ? 1.0 : 0.0,
+                  child: Text(
                     'Library',
                     style: GoogleFonts.spaceGrotesk(
-                      fontSize: 32,
+                      fontSize: 22,
                       fontWeight: FontWeight.w800,
-                      letterSpacing: -1.2,
+                      letterSpacing: -0.5,
                     ),
                   ),
-                  const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.settings_outlined),
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const SettingsScreen(),
-                        ),
-                      );
-                    },
-                  ),
-                ],
+                );
+              },
+            ),
+            flexibleSpace: FlexibleSpaceBar(
+              background: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  MediaQuery.paddingOf(context).top + 12,
+                  16,
+                  0,
+                ),
+                child: Row(
+                  children: [
+                    Text(
+                      'Library',
+                      style: GoogleFonts.spaceGrotesk(
+                        fontSize: 32,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -1.2,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.settings_outlined),
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const SettingsScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
 
-        BlocBuilder<LibraryCubit, LibraryState>(
-          builder: (context, state) {
-            if (state.isLoading && state.playlists.isEmpty) {
-              return const SliverFillRemaining(
-                child: Center(child: CircularProgressIndicator()),
-              );
-            }
-
-            if (state.error && state.playlists.isEmpty) {
-              return SliverFillRemaining(
-                child: ErrorView(
-                  errorType: state.errorType,
-                  onRetry: () => context.read<LibraryCubit>().reload(),
-                ),
-              );
-            }
-
-            return SliverToBoxAdapter(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _LibraryShortcuts(state: state),
-                  const SizedBox(height: 24),
-                  const SectionHeader(title: 'Remote Playlists'),
-                ],
-              ),
-            );
-          },
-        ),
-
-        BlocBuilder<LibraryCubit, LibraryState>(
-          builder: (context, state) {
-            if (state.playlists.isEmpty) {
-              return const SliverToBoxAdapter(child: SizedBox.shrink());
-            }
-
-            return SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              sliver: SliverGrid(
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: columns,
-                  mainAxisSpacing: 16,
-                  crossAxisSpacing: 16,
-                  childAspectRatio: 0.82,
-                ),
-                delegate: SliverChildBuilderDelegate((context, i) {
-                  final pl = state.playlists[i];
-                  return _LibraryPlaylistCard(
-                    title: pl.name,
-                    subtitle: pl.description,
-                    imageUrl: pl.thumbnailUrl,
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => PlaylistScreen(playlist: pl),
+          BlocBuilder<LibraryCubit, LibraryState>(
+            builder: (context, state) {
+              if (state.isLoading && state.playlists.isEmpty) {
+                return SliverMainAxisGroup(
+                  slivers: [
+                    const SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 16),
+                        child: Column(
+                          children: [
+                            Skeleton(height: 80, borderRadius: 20),
+                            SizedBox(height: 12),
+                            Skeleton(height: 80, borderRadius: 20),
+                            SizedBox(height: 12),
+                            Skeleton(height: 80, borderRadius: 20),
+                          ],
+                        ),
                       ),
                     ),
-                  );
-                }, childCount: state.playlists.length),
-              ),
-            );
-          },
-        ),
-        const SliverToBoxAdapter(child: SizedBox(height: 120)),
-      ],
+                    const SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(16, 32, 16, 16),
+                        child: SkeletonText(width: 140, height: 20),
+                      ),
+                    ),
+                    SliverPadding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      sliver: SliverGrid(
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: columns,
+                          mainAxisSpacing: 16,
+                          crossAxisSpacing: 16,
+                          childAspectRatio: 0.82,
+                        ),
+                        delegate: SliverChildBuilderDelegate(
+                          (context, i) => const SkeletonPlaylistCard(),
+                          childCount: 6,
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              }
+
+              if (state.error && state.playlists.isEmpty) {
+                return SliverFillRemaining(
+                  child: ErrorView(
+                    errorType: state.errorType,
+                    onRetry: () => context.read<LibraryCubit>().reload(),
+                  ),
+                );
+              }
+
+              return SliverToBoxAdapter(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _LibraryShortcuts(state: state),
+                    const SizedBox(height: 24),
+                    const SectionHeader(title: 'Remote Playlists'),
+                  ],
+                ),
+              );
+            },
+          ),
+
+          BlocBuilder<LibraryCubit, LibraryState>(
+            builder: (context, state) {
+              if (state.playlists.isEmpty) {
+                return const SliverToBoxAdapter(child: SizedBox.shrink());
+              }
+
+              return SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                sliver: SliverGrid(
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: columns,
+                    mainAxisSpacing: 16,
+                    crossAxisSpacing: 16,
+                    childAspectRatio: 0.82,
+                  ),
+                  delegate: SliverChildBuilderDelegate((context, i) {
+                    final pl = state.playlists[i];
+                    return _LibraryPlaylistCard(
+                      title: pl.name,
+                      subtitle: pl.description,
+                      imageUrl: pl.thumbnailUrl,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => PlaylistScreen(playlist: pl),
+                        ),
+                      ),
+                    );
+                  }, childCount: state.playlists.length),
+                ),
+              );
+            },
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 120)),
+        ],
+      ),
     );
   }
 }
@@ -324,7 +388,7 @@ class _LibraryPlaylistCard extends StatelessWidget {
                 image: imageUrl != null
                     ? DecorationImage(
                         image: NetworkImage(imageUrl!),
-                        fit: BoxFit.cover,
+                        fit: BoxFit.fill,
                       )
                     : null,
                 boxShadow: [

@@ -77,6 +77,8 @@ class LibraryCubit extends Cubit<LibraryState> {
     return _loadAll();
   }
 
+  Future<void> refresh() => _loadAll();
+
   Future<void> _loadAll() async {
     if (_isInitialLoading) return;
     _isInitialLoading = true;

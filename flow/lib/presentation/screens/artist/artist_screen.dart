@@ -63,7 +63,7 @@ class ArtistScreen extends StatelessWidget {
                       thumbnailUrl,
                       width: isSmall ? 140.0 : 180.0,
                       height: isSmall ? 140.0 : 180.0,
-                      fit: BoxFit.cover,
+                      fit: BoxFit.fill,
                       errorBuilder: (context, error, stackTrace) =>
                           _artistFallback(name, isSmall),
                     )

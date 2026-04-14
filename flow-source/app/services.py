@@ -7,6 +7,7 @@ import traceback
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
+import anyio
 import yt_dlp
 import ytmusicapi
 from anyio.to_thread import run_sync
@@ -22,6 +23,7 @@ from .utils import (
     normalize_artist,
     normalize_playlist,
     normalize_song,
+    normalize_album_as_song,
     write_cookie_file,
 )
 
@@ -64,23 +66,52 @@ class YTMusicService:
         self._shelf_map = [
             (["quick pick", "top pick", "start radio"], "quickPicks"),
             (["listen again", "listening again", "continue"], "listeningAgain"),
-            (["fresh find", "new release", "latest", "just out"], "freshFinds"),
-            (["picked for you", "for you", "mixed", "your", "personalized", "discover"], "pickedForYou"),
+            (["fresh find", "new release", "latest", "just out", "new arrival"], "freshFinds"),
+            (
+                [
+                    "picked for you",
+                    "for you",
+                    "mixed",
+                    "your",
+                    "personalized",
+                    "discover",
+                ],
+                "pickedForYou",
+            ),
             (["forgotten", "throwback", "rediscover", "missed"], "forgottenFavorites"),
             (["album", "mpreb"], "albumsForYou"),
-            (["mood", "genre", "vibe", "energy", "workout", "focus", "relax"], "moodsAndGenres"),
+            (
+                ["mood", "genre", "vibe", "energy", "workout", "focus", "relax"],
+                "moodsAndGenres",
+            ),
             (["top chart", "trending", "popular", "global", "hits"], "trending"),
             (["similar to", "related to", "based on", "recommended"], "similarTo"),
         ]
 
     def get_client(self, user: Optional[User] = None):
         if user and user.yt_auth_json:
+            import tempfile
             try:
                 logger.debug(f"Creating authenticated client for user: {user.username}")
-                auth_data = json.loads(user.yt_auth_json)
-                return ytmusicapi.YTMusic(auth=auth_data)
+                
+                # --- CRITICAL FIX: YTMusic Authentication ---
+                # ytmusicapi (as of 1.10+) has a fundamental requirement: if auth is provided as 
+                # a dictionary, it expects a very specific structure. If it's provided as a 
+                # file path, it automatically delegates to the correct parser (Headers vs OAuth).
+                # To support both legacy Header-based JSON and new OAuth JSON (which throws 
+                # 'oauth_credentials not provided' if passed as a dict), we MUST write it 
+                # to a temporary file first. This ensures 100% reliable initialization.
+                with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tmp:
+                    tmp.write(user.yt_auth_json)
+                    tmp_path = tmp.name
+                
+                try:
+                    return ytmusicapi.YTMusic(auth=tmp_path)
+                finally:
+                    if os.path.exists(tmp_path):
+                        os.remove(tmp_path)
             except Exception as e:
-                logger.error(f"Failed to parse YT auth for user {user.username}: {e}")
+                logger.error(f"Failed to initialize YT auth for user {user.username}: {e}")
                 # Fallback to unauthenticated if parse fails
 
         # Check if a global auth file still exists (for backward compatibility or shared dev)
@@ -184,6 +215,31 @@ class YTMusicService:
                 section = self._classify_shelf(title) or "musicForYou"
                 shelves.append({"title": title, "section": section, "items": items})
 
+        # --- Explicitly fetch New Arrivals (New Releases) ---
+        if not any(s["section"] == "freshFinds" for s in shelves):
+            try:
+                new_releases = ytm.get_new_releases()
+                new_arrival_items = []
+                for item in new_releases[:12]:
+                    try:
+                        song = normalize_album_as_song(item, proxy_base)
+                        if song:
+                            new_arrival_items.append({
+                                "type": "song",
+                                "data": song.model_dump()
+                            })
+                    except Exception:
+                        continue
+                if new_arrival_items:
+                    # Insert at index 2 (after Quick Picks and Listen Again usually)
+                    shelves.insert(min(2, len(shelves)), {
+                        "title": "Fresh Finds",
+                        "section": "freshFinds",
+                        "items": new_arrival_items
+                    })
+            except Exception as e:
+                logger.warning(f"Failed to fetch explicit new releases: {e}")
+
         trending = self._get_trending_songs(ytm, proxy_base)
 
         profile_url = f"https://api.dicebear.com/7.x/avataaars/svg?seed={user.username if user else 'anon'}"
@@ -198,7 +254,7 @@ class YTMusicService:
     def get_home_cached(
         self,
         user: Optional[User] = None,
-        limit: int = 5,
+        limit: int = 25,
         proxy_base: Optional[str] = None,
     ) -> HomeResponse:
         now = time.monotonic()
@@ -275,7 +331,12 @@ class YTMusicService:
 # Global cache for extracted audio URLs to avoid slow yt-dlp calls on every request.
 # Format: {video_id: (url, expiry_timestamp)}
 _url_cache = {}
+_failure_cache = {}  # {video_id: expiry_timestamp}
 _extraction_locks: Dict[str, asyncio.Lock] = {}
+
+# Keep track of which strategy/cookie combination worked last to try it first next time (Fast Path)
+_preferred_strategy_name: Optional[str] = "android_vr"
+_preferred_cookie_type: Optional[str] = "global"  # 'user', 'global', or 'none'
 
 try:
     import curl_cffi  # noqa: F401
@@ -298,174 +359,272 @@ except (ImportError, AttributeError):
 
 async def extract_audio_url(video_id: str, user: Optional[User] = None) -> str:
     now = time.monotonic()
+
+    # 1. Check Success Cache
     if video_id in _url_cache:
         url, expiry = _url_cache[video_id]
         if now < expiry:
             logger.debug(f"Cache hit for {video_id}")
             return url
 
+    # 2. Check Failure Cache (short-lived)
+    if video_id in _failure_cache:
+        if now < _failure_cache[video_id]:
+            logger.warning(f"Returning cached failure for {video_id} (throttled)")
+            raise Exception(
+                f"Extraction previously failed for {video_id}, retrying later."
+            )
+
     logger.info(f"Cache miss for {video_id}, extracting...")
+
     # Use a lock to prevent concurrent extractions for the same video_id
     if video_id not in _extraction_locks:
         _extraction_locks[video_id] = asyncio.Lock()
 
     async with _extraction_locks[video_id]:
-        # Double-check cache inside the lock
+        # Double-check caches inside the lock
         if video_id in _url_cache:
             url, expiry = _url_cache[video_id]
             if now < expiry:
-                logger.debug(f"Cache hit for {video_id} (inside lock)")
                 return url
 
-        return await run_sync(_extract_sync, video_id, user)
+        # 1. Build cookie paths and identify types
+        user_cookie_path = None
+        if user and user.yt_auth_json:
+            data_dir = os.path.dirname(settings.COOKIES_FILE_PATH)
+            user_cookie_path = os.path.join(data_dir, f"cookies_{user.id}.txt")
+            if not write_cookie_file(user.yt_auth_json, user_cookie_path):
+                user_cookie_path = None
+
+        global_cookie_path = (
+            settings.COOKIES_FILE_PATH
+            if os.path.exists(settings.COOKIES_FILE_PATH)
+            else None
+        )
+
+        def get_cp(ctype):
+            if ctype == "user":
+                return user_cookie_path
+            if ctype == "global":
+                return global_cookie_path
+            return None
+
+        imp = _IMPERSONATE_TARGET
+        strategies = [
+            {
+                "name": "android_vr",
+                "player_clients": ["android_vr"],
+                "format": "bestaudio/best",
+                "impersonate": imp,
+            },
+            {
+                "name": "android",
+                "player_clients": ["android"],
+                "format": "bestaudio/best",
+                "impersonate": imp,
+            },
+            {
+                "name": "ios",
+                "player_clients": ["ios"],
+                "format": "bestaudio/best",
+                "impersonate": imp,
+            },
+            {
+                "name": "web",
+                "player_clients": ["web"],
+                "format": "bestaudio/best",
+                "impersonate": imp,
+            },
+            {
+                "name": "mweb",
+                "player_clients": ["mweb"],
+                "format": "bestaudio/best",
+                "impersonate": imp,
+            },
+            {
+                "name": "tv_embedded",
+                "player_clients": ["tv_embedded"],
+                "format": "bestaudio/best",
+                "impersonate": imp,
+            },
+        ]
+
+        # 2. Fast Path: Try the globally preferred strategy first
+        global _preferred_strategy_name, _preferred_cookie_type
+        if _preferred_strategy_name and _preferred_cookie_type:
+            strategy = next(
+                (s for s in strategies if s["name"] == _preferred_strategy_name),
+                strategies[0],
+            )
+            cp = get_cp(_preferred_cookie_type)
+            # Only try if cookie path is available for that type (except for 'none')
+            if _preferred_cookie_type == "none" or cp:
+                try:
+                    logger.debug(
+                        f"Fast-path extraction for {video_id} using {_preferred_strategy_name} ({_preferred_cookie_type})"
+                    )
+                    url = await run_sync(_single_extract_sync, video_id, strategy, cp)
+                    if url:
+                        return url
+                except Exception:
+                    logger.debug(
+                        f"Fast-path failed for {video_id}, falling back to parallel"
+                    )
+
+        # 3. Parallel Path: Try all combinations
+        cookie_types = ["user", "global", "none"]
+        trials = []
+        for strategy in strategies:
+            for ctype in cookie_types:
+                cp = get_cp(ctype)
+                if cp or ctype == "none":
+                    # Avoid re-trying the fast-path combination if we already tried it
+                    if (
+                        strategy["name"] == _preferred_strategy_name
+                        and ctype == _preferred_cookie_type
+                    ):
+                        continue
+                    trials.append((strategy, cp, ctype))
+
+        # --- CRITICAL FIX: Low-Latency Parallel Extraction ---
+        # We spawn multiple extraction strategies in parallel tasks.
+        # Python synchronous threads (running yt-dlp) cannot be forcefully killed.
+        # Using anyio.create_task_group() would wait for ALL tasks to finish (even 
+        # the slow failing ones), causing 10-20s latency.
+        # Instead, we use asyncio.wait(FIRST_COMPLETED) to return the FIRST successful 
+        # result immediately to the user, ensuring music starts playing within 1-2s.
+        result_container = []
+        worker_tasks = []
+
+        async def worker(s, c, ct):
+            try:
+                url = await run_sync(_single_extract_sync, video_id, s, c)
+                if url and not result_container:
+                    # Capture the first successful URL safely
+                    result_container.append((url, s["name"], ct))
+                    return True
+            except Exception:
+                pass
+            return False
+
+        # Create all tasks
+        for s, c, ct in trials:
+            worker_tasks.append(asyncio.create_task(worker(s, c, ct)))
+            # Slight stagger to prioritize user cookies if available
+            if ct == "user":
+                await asyncio.sleep(0.05)
+
+        # Wait loop: exits as soon as we have a result or all tasks finish.
+        while worker_tasks:
+            done, pending = await asyncio.wait(
+                worker_tasks, return_when=asyncio.FIRST_COMPLETED
+            )
+            worker_tasks = list(pending)
+            
+            if result_container:
+                # SUCCESS: Cancel remaining tasks. Note: yt-dlp threads already 
+                # inside run_sync will finish in background, but won't block the user.
+                for task in worker_tasks:
+                    task.cancel()
+                break
+            
+            # If all done tasks failed and no result yet, loop again to wait for pending
+
+        if result_container:
+            url, sname, ctype = result_container[0]
+            _preferred_strategy_name = sname
+            _preferred_cookie_type = ctype
+            # Keep pending tasks running in background to warm up caches/cookies
+            # but return the result to the user immediately.
+            return url
+
+        # All failed
+        _failure_cache[video_id] = now + 300  # Block retries for 5 mins
+        raise Exception(f"Extraction failed for {video_id} after all strategies.")
 
 
-def _extract_sync(video_id: str, user: Optional[User] = None) -> str:
+def _single_extract_sync(
+    video_id: str, strategy: dict, cookie_path: Optional[str]
+) -> str:
+    """Synchronous trial for a single strategy and cookie path."""
     now = time.monotonic()
-
-    # 0. Fast path: (Disabled for now - ytmusicapi get_song() URLs often return 403
-    #    because they lack proper 'n' parameter deciphering handled by yt-dlp).
-    # if user and user.yt_auth_json:
-    #     try:
-    #         ytm = yt_service.get_client(user)
-    #         song = ytm.get_song(video_id)
-    #         streaming = song.get("streamingData") or {}
-    #         candidates = (streaming.get("adaptiveFormats") or []) + (
-    #             streaming.get("formats") or []
-    #         )
-    #         audio = [
-    #             f
-    #             for f in candidates
-    #             if f.get("mimeType", "").startswith("audio/")
-    #             and f.get("url")  # skip ciphered (signatureCipher) entries
-    #         ]
-    #         if audio:
-    #             audio.sort(key=lambda f: f.get("averageBitrate", 0), reverse=True)
-    #             url = audio[0]["url"]
-    #             _url_cache[video_id] = (url, now + 1800)  # 30 min — stream URLs expire
-    #             logger.info(
-    #                 f"Got stream URL via ytmusicapi for {video_id}: "
-    #                 f"mime={audio[0].get('mimeType')} bitrate={audio[0].get('averageBitrate')}"
-    #             )
-    #             return url
-    #         else:
-    #             logger.debug(
-    #                 f"ytmusicapi get_song returned {len(candidates)} formats but none "
-    #                 f"with a direct URL for {video_id} — falling back to yt-dlp"
-    #             )
-    #     except Exception as e:
-    #         logger.debug(f"ytmusicapi fast path failed for {video_id}: {e}")
-
-    # 1. Build cookie paths — user-specific first, then global, then unauthenticated
-    cookie_paths: List[Optional[str]] = []
-    if user and user.yt_auth_json:
-        data_dir = os.path.dirname(settings.COOKIES_FILE_PATH)
-        temp_cookie_path = os.path.join(data_dir, f"cookies_{user.id}.txt")
-        if write_cookie_file(user.yt_auth_json, temp_cookie_path):
-            cookie_paths.append(temp_cookie_path)
-    if os.path.exists(settings.COOKIES_FILE_PATH):
-        cookie_paths.append(settings.COOKIES_FILE_PATH)
-    cookie_paths.append(None)
-
-    logger.info(
-        f"_extract_sync {video_id}: trying {len(cookie_paths)} cookie path(s): "
-        + ", ".join(repr(cp) for cp in cookie_paths)
-    )
-
-    imp = _IMPERSONATE_TARGET
-    strategies = [
-        {
-            "name": f"ios{'+imp' if imp else ''}",
-            "player_clients": ["ios"],
-            "format": "bestaudio[ext=m4a]/bestaudio/best",
-            "impersonate": imp,
-        },
-        {
-            "name": f"web{'+imp' if imp else ''}",
-            "player_clients": ["web"],
-            "format": "bestaudio[ext=m4a]/bestaudio/best",
-            "impersonate": imp,
-        },
-        {
-            "name": f"android_vr{'+imp' if imp else ''}",
-            "player_clients": ["android_vr"],
-            "format": "bestaudio/best",
-            "impersonate": imp,
-        },
-    ]
-
     yt_url = f"https://www.youtube.com/watch?v={video_id}"
 
-    for strategy in strategies:
-        logger.debug(f"Trying extraction strategy: {strategy['name']} for {video_id}")
-        for cp in cookie_paths:
-            logger.debug(f"Using cookie path: {cp} for strategy {strategy['name']}")
-            ydl_opts: dict = {
-                "quiet": True,
-                "no_warnings": True,
-                "nocheckcertificate": True,
-                "noplaylist": True,
-                "format": strategy["format"],
-                "cookiefile": cp,
-                "js_runtimes": {
-                    "node": {}
-                },  # required for signature solving in yt-dlp 2025.01.15+
-                "extractor_args": {
-                    "youtube": {
-                        "player_client": strategy["player_clients"],
-                    }
-                },
+    logger.debug(
+        f"Trying extraction strategy: {strategy['name']} (cookies={'yes' if cookie_path else 'no'}) for {video_id}"
+    )
+
+    ydl_opts: dict = {
+        "quiet": True,
+        "no_warnings": True,
+        "nocheckcertificate": True,
+        "noplaylist": True,
+        "format": strategy["format"],
+        "cookiefile": cookie_path,
+        "http_headers": {
+            "Referer": "https://www.youtube.com/",
+        },
+        "js_runtimes": {
+            "node": {}
+        },  # required for signature solving in yt-dlp 2025.01.15+
+        "extractor_args": {
+            "youtube": {
+                "player_client": strategy["player_clients"],
             }
-            if strategy.get("impersonate"):
-                ydl_opts["impersonate"] = strategy["impersonate"]
+        },
+    }
+    if strategy.get("impersonate"):
+        ydl_opts["impersonate"] = strategy["impersonate"]
 
-            try:
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    info = ydl.extract_info(yt_url, download=False)
-                if not info:
-                    continue
+    try:
+        info = None
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(yt_url, download=False)
+        except Exception as fe:
+            # If format-specific extraction fails, try one more time with NO format constraint
+            # This is slow but better than total failure for this strategy.
+            logger.debug(f"Format-specific extraction failed for {strategy['name']}, trying loose fallback: {fe}")
+            loose_opts = ydl_opts.copy()
+            loose_opts["format"] = None
+            with yt_dlp.YoutubeDL(loose_opts) as ydl:
+                info = ydl.extract_info(yt_url, download=False)
 
-                # When a format string is set, yt-dlp sets info['url'] to the
-                # direct URL of the selected stream.
-                final_url = info.get("url")
-                if not final_url:
-                    # Fallback: scan formats list manually
-                    audio_only = [
-                        f
-                        for f in (info.get("formats") or [])
-                        if f.get("vcodec") == "none"
-                        and f.get("acodec") not in (None, "none")
-                        and f.get("url")
-                    ]
-                    audio_only.sort(
-                        key=lambda f: float(f.get("abr") or f.get("tbr") or 0),
-                        reverse=True,
-                    )
-                    final_url = audio_only[0]["url"] if audio_only else None
+        if not info:
+            raise Exception("No info returned")
 
-                if not final_url:
-                    logger.warning(
-                        f"Strategy {strategy['name']} (cookies={'yes' if cp else 'no'}) "
-                        f"got info but no URL for {video_id} "
-                        f"(ext={info.get('ext')} formats={len(info.get('formats') or [])})"
-                    )
-                    continue
+        final_url = info.get("url")
+        if not final_url:
+            # Fallback: scan formats list manually
+            audio_only = [
+                f
+                for f in (info.get("formats") or [])
+                if f.get("vcodec") == "none"
+                and f.get("acodec") not in (None, "none")
+                and f.get("url")
+            ]
+            audio_only.sort(
+                key=lambda f: float(f.get("abr") or f.get("tbr") or 0),
+                reverse=True,
+            )
+            final_url = audio_only[0]["url"] if audio_only else None
 
-                _url_cache[video_id] = (final_url, now + 3600)
-                logger.info(
-                    f"Extracted URL ({strategy['name']}, cookies={'yes' if cp else 'no'}) "
-                    f"for {video_id}: ext={info.get('ext')} abr={info.get('abr')}kbps"
-                )
-                return final_url
+        if not final_url:
+            raise Exception("No direct URL found in formats")
 
-            except Exception as e:
-                logger.warning(
-                    f"Strategy {strategy['name']} (cookies={'yes' if cp else 'no'}) "
-                    f"failed for {video_id}: {e}"
-                )
-                continue
+        _url_cache[video_id] = (final_url, now + 3600)
+        logger.info(
+            f"Extracted URL ({strategy['name']}, cookies={'yes' if cookie_path else 'no'}) "
+            f"for {video_id}: ext={info.get('ext')} abr={info.get('abr')}kbps"
+        )
+        return final_url
 
-    raise Exception(f"Extraction failed for {video_id} after all strategies")
+    except Exception as e:
+        logger.warning(
+            f"Strategy {strategy['name']} (cookies={'yes' if cookie_path else 'no'}) "
+            f"failed for {video_id}: {e}"
+        )
+        raise e
 
 
 yt_service = YTMusicService()

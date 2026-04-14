@@ -8,10 +8,16 @@ import '../../blocs/player/player_bloc.dart';
 import '../../widgets/song_tile.dart';
 import '../player/player_screen.dart';
 
+import '../../widgets/skeleton.dart';
+
 class PlaylistScreen extends StatefulWidget {
   final Playlist playlist;
   final bool isAlbum;
-  const PlaylistScreen({super.key, required this.playlist, this.isAlbum = false});
+  const PlaylistScreen({
+    super.key,
+    required this.playlist,
+    this.isAlbum = false,
+  });
 
   @override
   State<PlaylistScreen> createState() => _PlaylistScreenState();
@@ -129,7 +135,7 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
                             child: _playlist.thumbnailUrl != null
                                 ? Image.network(
                                     _playlist.thumbnailUrl!,
-                                    fit: BoxFit.cover,
+                                    fit: BoxFit.fill,
                                     errorBuilder: (_, __, ___) => _fallback(),
                                   )
                                 : _fallback(),
@@ -231,8 +237,11 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
 
           // Songs List
           if (_isLoading)
-            const SliverFillRemaining(
-              child: Center(child: CircularProgressIndicator()),
+            SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, i) => const SkeletonSongTile(),
+                childCount: 15,
+              ),
             )
           else if (_error != null)
             SliverFillRemaining(
@@ -240,44 +249,52 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.error_outline_rounded, size: 48, color: Colors.red),
+                    const Icon(
+                      Icons.error_outline_rounded,
+                      size: 48,
+                      color: Colors.red,
+                    ),
                     const SizedBox(height: 16),
                     Text('Error: $_error'),
-                    TextButton(onPressed: _fetchTracks, child: const Text('Retry')),
+                    TextButton(
+                      onPressed: _fetchTracks,
+                      child: const Text('Retry'),
+                    ),
                   ],
                 ),
               ),
             )
-          else _playlist.songs.isEmpty
-              ? SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 60),
-                    child: Center(
-                      child: Text(
-                        'No songs in this playlist',
-                        style: TextStyle(
-                          color: colorScheme.onSurface.withAlpha(140),
+          else
+            _playlist.songs.isEmpty
+                ? SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 60),
+                      child: Center(
+                        child: Text(
+                          'No songs in this playlist',
+                          style: TextStyle(
+                            color: colorScheme.onSurface.withAlpha(140),
+                          ),
                         ),
                       ),
                     ),
+                  )
+                : SliverPadding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate((context, i) {
+                        final song = _playlist.songs[i];
+                        return SongTile(
+                          song: song,
+                          queue: _playlist.songs,
+                          index: i,
+                        );
+                      }, childCount: _playlist.songs.length),
+                    ),
                   ),
-                )
-              : SliverPadding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate((context, i) {
-                      final song = _playlist.songs[i];
-                      return SongTile(
-                        song: song,
-                        queue: _playlist.songs,
-                        index: i,
-                      );
-                    }, childCount: _playlist.songs.length),
-                  ),
-                ),
 
           const SliverToBoxAdapter(child: SizedBox(height: 100)),
         ],

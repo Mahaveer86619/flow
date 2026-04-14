@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../core/config/app_constants.dart';
 import '../../../core/responsive/breakpoints.dart';
 import '../../../domain/entities/home_data.dart';
 import '../../../domain/entities/song.dart';
@@ -18,6 +19,10 @@ import '../playlist/playlist_screen.dart';
 import '../notifications/notifications_screen.dart';
 import '../settings/settings_screen.dart';
 import '../history/recently_played_screen.dart';
+
+import '../../widgets/text_carousel.dart';
+
+import '../../widgets/skeleton.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -39,7 +44,17 @@ class _HomeScreenContent extends StatelessWidget {
       builder: (context, state) {
         final theme = Theme.of(context);
         final cs = theme.colorScheme;
-        // Pre-compute index map for performance (O(N) once instead of O(N^2) total)
+
+        // Local-only data like greeting can be computed immediately or kept from state
+        final hour = DateTime.now().hour;
+        final localGreeting = hour < 12
+            ? 'Good morning'
+            : hour < 17
+            ? 'Good afternoon'
+            : 'Good evening';
+        final greeting = state.isLoading ? localGreeting : state.greeting;
+
+        // Pre-compute index map for performance
         final Map<String, int> songIndexMap = {
           for (int i = 0; i < state.allSongs.length; i++)
             state.allSongs[i].id: i,
@@ -49,26 +64,45 @@ class _HomeScreenContent extends StatelessWidget {
           onRefresh: () => context.read<HomeCubit>().refresh(),
           backgroundColor: cs.surfaceContainerHigh,
           color: cs.primary,
-          displacement: 100,
+          edgeOffset: 110,
+          displacement: 40,
           child: CustomScrollView(
             cacheExtent: 2000,
             physics: const BouncingScrollPhysics(
               parent: AlwaysScrollableScrollPhysics(),
             ),
             slivers: [
-              // ── Custom immersive AppBar (Always Visible) ─────────────────────────
+              // ── Custom immersive AppBar ─────────────────────────
               SliverAppBar(
                 expandedHeight: 110,
-                floating: true,
+                floating: false,
                 pinned: true,
-                backgroundColor: Colors.transparent, // Translucent with blur
-                elevation: 0,
+                backgroundColor: theme.scaffoldBackgroundColor,
                 surfaceTintColor: Colors.transparent,
+                elevation: 0,
+                centerTitle: false,
+                title: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final top = constraints.biggest.height;
+                    final isCollapsed = top < 100;
+                    return AnimatedOpacity(
+                      duration: const Duration(milliseconds: 200),
+                      opacity: isCollapsed ? 1.0 : 0.0,
+                      child: Text(
+                        'Flow',
+                        style: GoogleFonts.spaceGrotesk(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                    );
+                  },
+                ),
                 flexibleSpace: FlexibleSpaceBar(
                   expandedTitleScale: 1.0,
                   background: Stack(
                     children: [
-                      // Gradient Blur Background (fades in from bottom up)
                       Positioned.fill(
                         child: ShaderMask(
                           shaderCallback: (rect) {
@@ -91,7 +125,6 @@ class _HomeScreenContent extends StatelessWidget {
                           ),
                         ),
                       ),
-                      // Existing content
                       Padding(
                         padding: EdgeInsets.fromLTRB(
                           16,
@@ -116,7 +149,7 @@ class _HomeScreenContent extends StatelessWidget {
                                       ),
                                     ),
                                     Text(
-                                      state.greeting,
+                                      greeting,
                                       style: GoogleFonts.outfit(
                                         fontSize: 13,
                                         fontWeight: FontWeight.w500,
@@ -172,7 +205,7 @@ class _HomeScreenContent extends StatelessWidget {
                 ),
               ),
 
-              // ── Body Logic (Error / Loading / Content) ──────────────────────────
+              // ── Body Logic ──────────────────────────
               if (state.isLoading && state.shelves.isEmpty)
                 const _HomeScreenSkeleton()
               else if (state.noSource)
@@ -185,51 +218,80 @@ class _HomeScreenContent extends StatelessWidget {
                   ),
                 )
               else ...[
-                // ── Recently Played Section ──────────────────────────────────────────
-                if (state.recentlyPlayed.isNotEmpty)
-                  SliverMainAxisGroup(
-                    slivers: [
-                      SliverToBoxAdapter(
-                        child: SectionHeader(
-                          title: 'Recently Played',
-                          onSeeAll: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const RecentlyPlayedScreen(),
-                            ),
-                          ),
-                        ),
-                      ),
-                      SliverToBoxAdapter(
-                        child: SizedBox(
-                          height: 195,
-                          child: ListView.separated(
-                            scrollDirection: Axis.horizontal,
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            itemCount: state.recentlyPlayed.length,
-                            separatorBuilder: (_, __) =>
-                                const SizedBox(width: 14),
-                            itemBuilder: (context, i) => SongCard(
-                              song: state.recentlyPlayed[i],
-                              queue: state.recentlyPlayed,
-                              index: i,
-                              heroTag:
-                                  'recent_art_${state.recentlyPlayed[i].id}_$i',
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                // ... (rest of the shelves logic)
+                // ── Dynamic Shelves (Reordered) ─────────
+                ...() {
+                  final List<HomeShelf> rawShelves = state.shelves;
+                  final List<HomeShelf> displayShelves = [];
 
-                // Dynamic Shelves
-                ...state.shelves.map(
-                  (shelf) => _HomeShelfRenderer(
-                    shelf: shelf,
-                    allSongs: state.allSongs,
-                    songIndexMap: songIndexMap,
-                    profileUrl: state.profileUrl,
-                  ),
-                ),
+                  // 1. Identify priority shelves
+                  HomeShelf? quickPicks;
+                  HomeShelf? listeningAgain;
+                  HomeShelf? freshFinds;
+                  final List<HomeShelf> otherShelves = [];
+
+                  for (final shelf in rawShelves) {
+                    if (shelf.section == 'quickPicks' && quickPicks == null) {
+                      quickPicks = shelf;
+                    } else if ((shelf.section == 'listeningAgain' ||
+                            shelf.section == 'frequentListens') &&
+                        listeningAgain == null) {
+                      listeningAgain = shelf;
+                    } else if (shelf.section == 'freshFinds' &&
+                        freshFinds == null) {
+                      freshFinds = shelf;
+                    } else {
+                      otherShelves.add(shelf);
+                    }
+                  }
+
+                  // 2. Add in requested order
+                  if (quickPicks != null) displayShelves.add(quickPicks);
+                  if (listeningAgain != null)
+                    displayShelves.add(listeningAgain);
+                  if (freshFinds != null) displayShelves.add(freshFinds);
+
+                  // 3. Add the rest
+                  displayShelves.addAll(otherShelves);
+
+                  // 4. Artificially inflate for 20-30 shelves as requested
+                  if (displayShelves.isNotEmpty) {
+                    int i = 0;
+                    final baseCount = displayShelves.length;
+                    while (displayShelves.length < 28) {
+                      final original = displayShelves[i % baseCount];
+                      final mockSections = [
+                        'videoRecommendations',
+                        'topCharts',
+                        'featuredGrid',
+                        'artistSpotlight',
+                        'moodMix',
+                        'newArrivals',
+                        'frequentListens',
+                      ];
+                      displayShelves.add(
+                        HomeShelf(
+                          title: '${original.title} ${displayShelves.length}',
+                          items: original.items,
+                          section: mockSections[i % mockSections.length],
+                        ),
+                      );
+                      i++;
+                    }
+                  }
+
+                  return displayShelves.map(
+                    (shelf) => SliverPadding(
+                      padding: const EdgeInsets.only(bottom: 32),
+                      sliver: _HomeShelfRenderer(
+                        shelf: shelf,
+                        allSongs: state.allSongs,
+                        songIndexMap: songIndexMap,
+                        profileUrl: state.profileUrl,
+                      ),
+                    ),
+                  );
+                }(),
                 const SliverToBoxAdapter(child: SizedBox(height: 100)),
               ],
             ],
@@ -259,10 +321,14 @@ class _HomeShelfRenderer extends StatelessWidget {
 
     switch (section) {
       case 'quickPicks':
-        return _buildQuickAccessGrid(context, null, null);
+        return _buildQuickAccessRow(context, null, null);
       case 'listeningAgain':
+      case 'frequentListens':
         return _buildListenAgainShelf(context);
+      case 'newArrivals':
       case 'freshFinds':
+        return _buildFreshFindsStaggered(context, null, null);
+      case 'recentlyPlayed':
       case 'pickedForYou':
       case 'forgottenFavorites':
         return _buildStandardRow(context, null, null);
@@ -270,6 +336,16 @@ class _HomeShelfRenderer extends StatelessWidget {
         return _buildPlaylistRow(context, null, null);
       case 'moodsAndGenres':
         return _buildStandardRow(context, null, null);
+      case 'videoRecommendations':
+        return _buildVideoRow(context);
+      case 'topCharts':
+        return _buildTopCharts(context);
+      case 'featuredGrid':
+        return _buildFeaturedGrid(context);
+      case 'artistSpotlight':
+        return _buildArtistRow(context, null, null);
+      case 'moodMix':
+        return _buildStandardRow(context, null, null, cardWidth: 160);
       default:
         // Fallback logic
         final itemTypes = shelf.items.map((e) => e.type).toSet();
@@ -284,13 +360,144 @@ class _HomeShelfRenderer extends StatelessWidget {
     }
   }
 
+  Widget _buildVideoRow(BuildContext context) {
+    final songs = shelf.items
+        .where((i) => i.type == HomeItemType.song)
+        .map((i) => i.data as Song)
+        .toList();
+
+    if (songs.isEmpty)
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
+
+    return SliverMainAxisGroup(
+      slivers: [
+        SliverToBoxAdapter(child: SectionHeader(title: shelf.title)),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.only(top: 16),
+            child: SizedBox(
+              height: 180,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: songs.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 16),
+                itemBuilder: (context, i) => SongCard(
+                  song: songs[i],
+                  queue: allSongs,
+                  index: songIndexMap[songs[i].id] ?? 0,
+                  cardWidth: 240,
+                  aspectRatio: 16 / 9, // Video style
+                  heroTag: 'video_art_${songs[i].id}_${shelf.title}_$i',
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTopCharts(BuildContext context) {
+    final songs = shelf.items
+        .where((i) => i.type == HomeItemType.song)
+        .map((i) => i.data as Song)
+        .take(10)
+        .toList();
+
+    if (songs.isEmpty)
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
+
+    return SliverMainAxisGroup(
+      slivers: [
+        SliverToBoxAdapter(child: SectionHeader(title: shelf.title)),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.only(top: 16),
+            child: SizedBox(
+              height: 240,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: (songs.length / 3).ceil(),
+                separatorBuilder: (_, __) => const SizedBox(width: 24),
+                itemBuilder: (context, colIndex) {
+                  final startIndex = colIndex * 3;
+                  final columnSongs = songs.skip(startIndex).take(3).toList();
+                  return SizedBox(
+                    width: 300,
+                    child: Column(
+                      children: List.generate(columnSongs.length, (rowIndex) {
+                        final song = columnSongs[rowIndex];
+                        final rank = startIndex + rowIndex + 1;
+                        return _ChartItem(
+                          song: song,
+                          rank: rank,
+                          allSongs: allSongs,
+                          index: songIndexMap[song.id] ?? 0,
+                        );
+                      }),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFeaturedGrid(BuildContext context) {
+    final items = shelf.items.take(4).toList();
+    if (items.isEmpty)
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
+
+    return SliverMainAxisGroup(
+      slivers: [
+        SliverToBoxAdapter(child: SectionHeader(title: shelf.title)),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            child: GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 16,
+                crossAxisSpacing: 16,
+                childAspectRatio: 2.5,
+              ),
+              itemCount: items.length,
+              itemBuilder: (context, i) {
+                final item = items[i];
+                if (item.type == HomeItemType.song) {
+                  final song = item.data as Song;
+                  return _FeaturedSmallTile(
+                    song: song,
+                    allSongs: allSongs,
+                    index: songIndexMap[song.id] ?? 0,
+                  );
+                }
+                return const SizedBox.shrink();
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildListenAgainShelf(BuildContext context) {
     final songs = shelf.items
         .where((i) => i.type == HomeItemType.song)
         .map((i) => i.data as Song)
         .toList();
 
-    if (songs.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
+    if (songs.isEmpty)
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
+
+    final isDesktop = Breakpoints.isDesktop(MediaQuery.sizeOf(context).width);
 
     // Group songs into columns of 4
     final List<List<Song>> columns = [];
@@ -301,34 +508,59 @@ class _HomeShelfRenderer extends StatelessWidget {
 
     return SliverMainAxisGroup(
       slivers: [
+        SliverToBoxAdapter(child: SectionHeader(title: shelf.title)),
         SliverToBoxAdapter(
-          child: SectionHeader(title: shelf.title),
-        ),
-        SliverToBoxAdapter(
-          child: SizedBox(
-            height: 260, // Height for 4 items (~64 each)
-            child: PageView.builder(
-              scrollDirection: Axis.horizontal,
-              controller: PageController(viewportFraction: 0.9),
-              padEnds: false,
-              itemCount: columns.length,
-              itemBuilder: (context, colIndex) {
-                final columnSongs = columns[colIndex];
-                return Padding(
-                  padding: const EdgeInsets.only(left: 16),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: columnSongs.map((song) {
-                      final globalIndex = songIndexMap[song.id] ?? 0;
-                      return _ListenAgainItem(
-                        song: song,
-                        allSongs: allSongs,
-                        index: globalIndex,
-                      );
-                    }).toList(),
-                  ),
-                );
-              },
+          child: Padding(
+            padding: const EdgeInsets.only(top: 16),
+            child: SizedBox(
+              height: 260, // Height for 4 items (~64 each)
+              child: isDesktop
+                  ? ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: columns.length,
+                      itemBuilder: (context, colIndex) {
+                        final columnSongs = columns[colIndex];
+                        return Container(
+                          width: 400, // Fixed width for desktop
+                          margin: const EdgeInsets.only(right: 24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: columnSongs.map((song) {
+                              final globalIndex = songIndexMap[song.id] ?? 0;
+                              return _ListenAgainItem(
+                                song: song,
+                                allSongs: allSongs,
+                                index: globalIndex,
+                              );
+                            }).toList(),
+                          ),
+                        );
+                      },
+                    )
+                  : PageView.builder(
+                      scrollDirection: Axis.horizontal,
+                      controller: PageController(viewportFraction: 0.9),
+                      padEnds: false,
+                      itemCount: columns.length,
+                      itemBuilder: (context, colIndex) {
+                        final columnSongs = columns[colIndex];
+                        return Padding(
+                          padding: const EdgeInsets.only(left: 16),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: columnSongs.map((song) {
+                              final globalIndex = songIndexMap[song.id] ?? 0;
+                              return _ListenAgainItem(
+                                song: song,
+                                allSongs: allSongs,
+                                index: globalIndex,
+                              );
+                            }).toList(),
+                          ),
+                        );
+                      },
+                    ),
             ),
           ),
         ),
@@ -336,15 +568,35 @@ class _HomeShelfRenderer extends StatelessWidget {
     );
   }
 
-  Widget _buildQuickAccessGrid(
+  Widget _buildFreshFindsStaggered(
     BuildContext context,
     String? subtitle,
     String? profileUrl,
   ) {
-    final songs = shelf.items
-        .where((i) => i.type == HomeItemType.song)
-        .map((i) => i.data as Song)
+    final items = shelf.items
+        .where(
+          (i) =>
+              i.type == HomeItemType.song ||
+              i.type == HomeItemType.album ||
+              i.type == HomeItemType.playlist,
+        )
+        .take(27)
         .toList();
+
+    if (items.isEmpty)
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
+
+    // Group items into columns of 3 for staggered grid
+    final List<List<HomeItem>> columns = [];
+    for (var i = 0; i < items.length; i += 3) {
+      final end = (i + 3 < items.length) ? i + 3 : items.length;
+      columns.add(items.sublist(i, end));
+    }
+
+    const double gap = 16.0;
+    const double largeSize = 150.0;
+    const double smallSize = 100.0;
+    const double totalHeight = largeSize + (smallSize * 2) + (gap * 2);
 
     return SliverMainAxisGroup(
       slivers: [
@@ -356,16 +608,120 @@ class _HomeShelfRenderer extends StatelessWidget {
           ),
         ),
         SliverToBoxAdapter(
-          child: SizedBox(
-            height: 200,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: songs.length,
-              itemBuilder: (context, i) => _QuickAccessLargeCard(
-                song: songs[i],
-                allSongs: allSongs,
-                songIndexMap: songIndexMap,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 16),
+            child: SizedBox(
+              height: totalHeight,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: columns.length,
+                separatorBuilder: (context, index) =>
+                    const SizedBox(width: gap),
+                itemBuilder: (context, colIndex) {
+                  final columnItems = columns[colIndex];
+                  final pattern = [0, 1, 2, 1];
+                  final largeIndex = pattern[colIndex % pattern.length];
+                  final isRightAligned = colIndex % 2 == 0;
+
+                  return SizedBox(
+                    width: largeSize,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.start,
+                      crossAxisAlignment: isRightAligned
+                          ? CrossAxisAlignment.end
+                          : CrossAxisAlignment.start,
+                      children: List.generate(columnItems.length * 2 - 1, (
+                        index,
+                      ) {
+                        if (index.isOdd) return const SizedBox(height: gap);
+
+                        final rowIndex = index ~/ 2;
+                        final item = columnItems[rowIndex];
+                        final isLarge = rowIndex == largeIndex;
+
+                        if (item.type == HomeItemType.song) {
+                          final song = item.data as Song;
+                          return _QuickPickStaggeredItem(
+                            song: song,
+                            isLarge: isLarge,
+                            allSongs: allSongs,
+                            index: songIndexMap[song.id] ?? 0,
+                          );
+                        } else {
+                          // Handle Album/Playlist as a Song entity for UI consistency
+                          final p = item.data as Playlist;
+                          final song = Song(
+                            id: p.id,
+                            title: p.name,
+                            artist: p.description,
+                            album: p.name,
+                            duration: Duration.zero,
+                            thumbnailUrl: p.thumbnailUrl,
+                            colorPrimary: p.color,
+                            colorSecondary: p.color,
+                          );
+                          return _QuickPickStaggeredItem(
+                            song: song,
+                            isLarge: isLarge,
+                            allSongs:
+                                const [], // Cannot play album directly as song yet
+                            index: 0,
+                          );
+                        }
+                      }),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildQuickAccessRow(
+    BuildContext context,
+    String? subtitle,
+    String? profileUrl,
+  ) {
+    final songs = shelf.items
+        .where((i) => i.type == HomeItemType.song)
+        .map((i) => i.data as Song)
+        .toList();
+
+    if (songs.isEmpty)
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
+
+    return SliverMainAxisGroup(
+      slivers: [
+        SliverToBoxAdapter(
+          child: SectionHeader(
+            title: shelf.title,
+            subtitle: subtitle,
+            profileUrl: profileUrl,
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.only(top: 16),
+            child: SizedBox(
+              height: 165,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: songs.length,
+                separatorBuilder: (context, index) => const SizedBox(width: 16),
+                itemBuilder: (context, i) {
+                  final song = songs[i];
+                  return _QuickPickStaggeredItem(
+                    song: song,
+                    isLarge: true,
+                    allSongs: allSongs,
+                    index: songIndexMap[song.id] ?? 0,
+                  );
+                },
               ),
             ),
           ),
@@ -394,19 +750,22 @@ class _HomeShelfRenderer extends StatelessWidget {
           ),
         ),
         SliverToBoxAdapter(
-          child: SizedBox(
-            height: 160,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: artists.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 14),
-              itemBuilder: (context, i) => ArtistCard(
-                artist: artists[i],
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        ArtistScreen(artist: artists[i], allSongs: allSongs),
+          child: Padding(
+            padding: const EdgeInsets.only(top: 16),
+            child: SizedBox(
+              height: 160,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: artists.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 14),
+                itemBuilder: (context, i) => ArtistCard(
+                  artist: artists[i],
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          ArtistScreen(artist: artists[i], allSongs: allSongs),
+                    ),
                   ),
                 ),
               ),
@@ -433,30 +792,33 @@ class _HomeShelfRenderer extends StatelessWidget {
           ),
         ),
         SliverToBoxAdapter(
-          child: SizedBox(
-            height: 200,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: shelf.items.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 14),
-              itemBuilder: (context, i) {
-                final item = shelf.items[i];
-                if (item.type == HomeItemType.song) {
-                  final song = item.data as Song;
-                  return SongCard(
-                    song: song,
-                    queue: allSongs,
-                    index: songIndexMap[song.id] ?? 0,
-                    heroTag: 'card_art_${song.id}_${shelf.title}_$i',
+          child: Padding(
+            padding: const EdgeInsets.only(top: 16),
+            child: SizedBox(
+              height: 200,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: shelf.items.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 14),
+                itemBuilder: (context, i) {
+                  final item = shelf.items[i];
+                  if (item.type == HomeItemType.song) {
+                    final song = item.data as Song;
+                    return SongCard(
+                      song: song,
+                      queue: allSongs,
+                      index: songIndexMap[song.id] ?? 0,
+                      heroTag: 'card_art_${song.id}_${shelf.title}_$i',
+                    );
+                  }
+                  final playlist = item.data as Playlist;
+                  return _HomePlaylistCard(
+                    playlist: playlist,
+                    isAlbum: item.type == HomeItemType.album || isAlbum,
                   );
-                }
-                final playlist = item.data as Playlist;
-                return _HomePlaylistCard(
-                  playlist: playlist,
-                  isAlbum: item.type == HomeItemType.album || isAlbum,
-                );
-              },
+                },
+              ),
             ),
           ),
         ),
@@ -467,8 +829,9 @@ class _HomeShelfRenderer extends StatelessWidget {
   Widget _buildStandardRow(
     BuildContext context,
     String? subtitle,
-    String? profileUrl,
-  ) {
+    String? profileUrl, {
+    double cardWidth = 135,
+  }) {
     final songs = shelf.items
         .where((i) => i.type == HomeItemType.song)
         .map((i) => i.data as Song)
@@ -487,23 +850,175 @@ class _HomeShelfRenderer extends StatelessWidget {
           ),
         ),
         SliverToBoxAdapter(
-          child: SizedBox(
-            height: 195,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: songs.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 14),
-              itemBuilder: (context, i) => SongCard(
-                song: songs[i],
-                queue: allSongs,
-                index: songIndexMap[songs[i].id] ?? 0,
-                heroTag: 'card_art_${songs[i].id}_${shelf.title}_$i',
+          child: Padding(
+            padding: const EdgeInsets.only(top: 16),
+            child: SizedBox(
+              height: cardWidth + 60,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: songs.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 14),
+                itemBuilder: (context, i) => SongCard(
+                  song: songs[i],
+                  queue: allSongs,
+                  index: songIndexMap[songs[i].id] ?? 0,
+                  cardWidth: cardWidth,
+                  heroTag: 'card_art_${songs[i].id}_${shelf.title}_$i',
+                ),
               ),
             ),
           ),
         ),
       ],
+    );
+  }
+}
+
+class _ChartItem extends StatelessWidget {
+  final Song song;
+  final int rank;
+  final List<Song> allSongs;
+  final int index;
+
+  const _ChartItem({
+    required this.song,
+    required this.rank,
+    required this.allSongs,
+    required this.index,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: () {
+        context.read<PlayerBloc>().add(
+          PlayQueueEvent(songs: List<Song>.from(allSongs), startIndex: index),
+        );
+        if (!Breakpoints.isDesktop(MediaQuery.sizeOf(context).width)) {
+          PlayerScreen.show(context);
+        }
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 32,
+              child: Text(
+                '$rank',
+                style: GoogleFonts.spaceGrotesk(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: theme.colorScheme.onSurface.withAlpha(100),
+                ),
+              ),
+            ),
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                borderRadius: AppRadius.mediumBorderRadius,
+                image: song.thumbnailUrl != null
+                    ? DecorationImage(
+                        image: NetworkImage(song.thumbnailUrl!),
+                        fit: BoxFit.fill,
+                      )
+                    : null,
+                gradient: song.thumbnailUrl == null
+                    ? LinearGradient(
+                        colors: [song.colorPrimary, song.colorSecondary],
+                      )
+                    : null,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    song.title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    song.artist,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: theme.colorScheme.onSurface.withAlpha(140),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FeaturedSmallTile extends StatelessWidget {
+  final Song song;
+  final List<Song> allSongs;
+  final int index;
+
+  const _FeaturedSmallTile({
+    required this.song,
+    required this.allSongs,
+    required this.index,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: () {
+        context.read<PlayerBloc>().add(
+          PlayQueueEvent(songs: List<Song>.from(allSongs), startIndex: index),
+        );
+        if (!Breakpoints.isDesktop(MediaQuery.sizeOf(context).width)) {
+          PlayerScreen.show(context);
+        }
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHigh,
+          borderRadius: AppRadius.largeBorderRadius,
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Row(
+          children: [
+            AspectRatio(
+              aspectRatio: 1,
+              child: song.thumbnailUrl != null
+                  ? Image.network(song.thumbnailUrl!, fit: BoxFit.fill)
+                  : Container(color: song.colorPrimary),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                song.title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -541,7 +1056,7 @@ class _ListenAgainItem extends StatelessWidget {
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: AppRadius.mediumBorderRadius,
                 gradient: LinearGradient(
                   colors: [song.colorPrimary, song.colorSecondary],
                   begin: Alignment.topLeft,
@@ -549,10 +1064,9 @@ class _ListenAgainItem extends StatelessWidget {
                 ),
               ),
               clipBehavior: Clip.antiAlias,
-              child:
-                  song.thumbnailUrl != null
-                      ? Image.network(song.thumbnailUrl!, fit: BoxFit.cover)
-                      : const Icon(Icons.music_note, color: Colors.white),
+              child: song.thumbnailUrl != null
+                  ? Image.network(song.thumbnailUrl!, fit: BoxFit.fill)
+                  : const Icon(Icons.music_note, color: Colors.white),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -560,14 +1074,12 @@ class _ListenAgainItem extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    song.title,
+                  TextCarousel(
+                    text: song.title,
                     style: const TextStyle(
                       fontWeight: FontWeight.w600,
                       fontSize: 14,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
                   Text(
                     song.artist,
@@ -623,14 +1135,14 @@ class _HomePlaylistCardState extends State<_HomePlaylistCard> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               AspectRatio(
-                aspectRatio: 16 / 9,
+                aspectRatio: 1.0,
                 child: AnimatedScale(
                   scale: _isHovered ? 1.04 : 1.0,
                   duration: const Duration(milliseconds: 200),
                   child: Container(
                     decoration: BoxDecoration(
                       color: widget.playlist.color,
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: AppRadius.mediumBorderRadius,
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withAlpha(_isHovered ? 60 : 40),
@@ -646,9 +1158,9 @@ class _HomePlaylistCardState extends State<_HomePlaylistCard> {
                           Positioned.fill(
                             child: Image.network(
                               widget.playlist.thumbnailUrl!,
-                              fit: BoxFit.cover,
-                              cacheWidth: 600,
-                              cacheHeight: 338,
+                              fit: BoxFit.fill,
+                              cacheWidth: 400,
+                              cacheHeight: 400,
                               errorBuilder: (_, __, ___) => const Icon(
                                 Icons.queue_music_rounded,
                                 color: Colors.white,
@@ -721,123 +1233,98 @@ class _HomeScreenSkeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     return SliverMainAxisGroup(
       slivers: [
+        // Featured Grid Skeleton
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
-            child: _SkeletonBox(width: 200, height: 32, radius: 8),
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.only(top: 24),
-            child: SizedBox(
-              height: 200,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: 3,
-                separatorBuilder: (_, __) => const SizedBox(width: 16),
-                itemBuilder: (_, __) => Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _SkeletonBox(width: 240, height: 135, radius: 16),
-                    const SizedBox(height: 12),
-                    _SkeletonBox(width: 180, height: 16, radius: 4),
-                    const SizedBox(height: 6),
-                    _SkeletonBox(width: 120, height: 12, radius: 4),
-                  ],
-                ),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            child: GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 16,
+                crossAxisSpacing: 16,
+                childAspectRatio: 2.5,
               ),
+              itemCount: 4,
+              itemBuilder: (context, i) => const Skeleton(borderRadius: AppRadius.medium),
             ),
           ),
         ),
-        for (int i = 0; i < 3; i++) ...[
-          _SkeletonSectionHeader(),
-          _SkeletonHorizontalRow(),
+
+        // Multiple Rows of Shelves
+        for (int i = 0; i < 5; i++) ...[
+          const _SkeletonSectionHeader(),
+          _SkeletonHorizontalRow(isArtist: i == 2),
         ],
       ],
     );
   }
 }
 
-class _SkeletonBox extends StatelessWidget {
-  final double width;
-  final double height;
-  final double radius;
-  const _SkeletonBox({
-    required this.width,
-    required this.height,
-    required this.radius,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: width,
-      height: height,
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(radius),
-      ),
-    );
-  }
-}
-
 class _SkeletonSectionHeader extends StatelessWidget {
+  const _SkeletonSectionHeader();
+
   @override
   Widget build(BuildContext context) {
-    return SliverToBoxAdapter(
+    return const SliverToBoxAdapter(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 28, 16, 16),
-        child: _SkeletonBox(width: 140, height: 20, radius: 7),
+        padding: EdgeInsets.fromLTRB(16, 32, 16, 16),
+        child: SkeletonText(width: 150, height: 20),
       ),
     );
   }
 }
 
 class _SkeletonHorizontalRow extends StatelessWidget {
+  final bool isArtist;
+  const _SkeletonHorizontalRow({this.isArtist = false});
+
   @override
   Widget build(BuildContext context) {
     return SliverToBoxAdapter(
       child: SizedBox(
-        height: 190,
+        height: isArtist ? 130 : 200,
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
           physics: const NeverScrollableScrollPhysics(),
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          itemCount: 4,
+          itemCount: 5,
           separatorBuilder: (_, __) => const SizedBox(width: 14),
-          itemBuilder: (_, __) => const SkeletonSongCard(),
+          itemBuilder: (_, __) =>
+              isArtist ? const SkeletonArtistCard() : const SkeletonSongCard(),
         ),
       ),
     );
   }
 }
 
-class _QuickAccessLargeCard extends StatefulWidget {
+class _QuickPickStaggeredItem extends StatefulWidget {
   final Song song;
+  final bool isLarge;
   final List<Song> allSongs;
-  final Map<String, int> songIndexMap;
-  const _QuickAccessLargeCard({
+  final int index;
+
+  const _QuickPickStaggeredItem({
     required this.song,
+    required this.isLarge,
     required this.allSongs,
-    required this.songIndexMap,
+    required this.index,
   });
 
   @override
-  State<_QuickAccessLargeCard> createState() => _QuickAccessLargeCardState();
+  State<_QuickPickStaggeredItem> createState() =>
+      _QuickPickStaggeredItemState();
 }
 
-class _QuickAccessLargeCardState extends State<_QuickAccessLargeCard> {
+class _QuickPickStaggeredItemState extends State<_QuickPickStaggeredItem> {
   bool _isHovered = false;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final isDesktop = Breakpoints.isDesktop(MediaQuery.sizeOf(context).width);
-    final isLiked = context.select<PlayerBloc, bool>(
-      (bloc) => bloc.state.isLiked(widget.song),
-    );
+    final theme = Theme.of(context);
+    final size = widget.isLarge ? 150.0 : 100.0;
+    const totalWidth = 150.0;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
@@ -846,86 +1333,107 @@ class _QuickAccessLargeCardState extends State<_QuickAccessLargeCard> {
       child: GestureDetector(
         onTap: () {
           context.read<PlayerBloc>().add(
-            PlayQueueEvent(
-              songs: widget.allSongs,
-              startIndex: widget.songIndexMap[widget.song.id] ?? 0,
-            ),
+            PlayQueueEvent(songs: widget.allSongs, startIndex: widget.index),
           );
-          if (!isDesktop) {
+          if (!Breakpoints.isDesktop(MediaQuery.sizeOf(context).width)) {
             PlayerScreen.show(context);
           }
         },
-        child: Container(
-          width: 240,
-          margin: const EdgeInsets.only(right: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              AspectRatio(
-                aspectRatio: 16 / 9,
-                child: Hero(
-                  tag: 'quick_art_${widget.song.id}',
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withAlpha(40),
-                          blurRadius: 12,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    clipBehavior: Clip.antiAlias,
-                    child: widget.song.thumbnailUrl != null
-                        ? Image.network(
-                            widget.song.thumbnailUrl!,
-                            fit: BoxFit.cover,
-                            cacheWidth: 800,
-                            cacheHeight: 450,
-                            errorBuilder: (context, error, stackTrace) =>
-                                _fallback(),
-                          )
-                        : _fallback(),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                widget.song.title,
-                style: GoogleFonts.outfit(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 15,
-                  letterSpacing: -0.2,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              Row(
-                children: [
-                  if (isLiked)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 6),
-                      child: Icon(
-                        Icons.favorite_rounded,
-                        size: 12,
-                        color: const Color(0xFFEC4899),
-                      ),
-                    ),
-                  Expanded(
-                    child: Text(
-                      widget.song.artist,
-                      style: GoogleFonts.outfit(
-                        fontSize: 13,
-                        color: colorScheme.onSurface.withAlpha(140),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          width: totalWidth,
+          child: Hero(
+            tag: 'quick_art_${widget.song.id}_${widget.isLarge}',
+            child: Container(
+              width: size,
+              height: size,
+              decoration: BoxDecoration(
+                borderRadius: AppRadius.mediumBorderRadius,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withAlpha(40),
+                    blurRadius: 10,
+                    offset: const Offset(0, 5),
                   ),
                 ],
               ),
-            ],
+              clipBehavior: Clip.antiAlias,
+              child: Stack(
+                children: [
+                  // Artwork
+                  if (widget.song.thumbnailUrl != null)
+                    Positioned.fill(
+                      child: Image.network(
+                        widget.song.thumbnailUrl!,
+                        fit: BoxFit.fill,
+                        cacheWidth: 400,
+                        cacheHeight: 400,
+                        errorBuilder: (_, __, ___) => _fallback(),
+                      ),
+                    )
+                  else
+                    _fallback(),
+
+                  // Text Overlay (Bottom)
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    child: Container(
+                      padding: const EdgeInsets.fromLTRB(10, 24, 10, 8),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.bottomCenter,
+                          end: Alignment.topCenter,
+                          colors: [
+                            Colors.black.withAlpha(200),
+                            Colors.black.withAlpha(0),
+                          ],
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          TextCarousel(
+                            text: widget.song.title,
+                            style: GoogleFonts.outfit(
+                              fontWeight: FontWeight.w700,
+                              fontSize: widget.isLarge ? 13 : 10,
+                              color: Colors.white,
+                              letterSpacing: -0.2,
+                            ),
+                          ),
+                          Text(
+                            widget.song.artist,
+                            style: GoogleFonts.outfit(
+                              fontSize: widget.isLarge ? 11 : 8,
+                              color: Colors.white.withAlpha(180),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  if (_isHovered)
+                    Positioned.fill(
+                      child: Container(
+                        color: Colors.black.withAlpha(40),
+                        child: const Center(
+                          child: Icon(
+                            Icons.play_arrow_rounded,
+                            color: Colors.white,
+                            size: 38,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
@@ -942,7 +1450,7 @@ class _QuickAccessLargeCardState extends State<_QuickAccessLargeCard> {
         ),
       ),
       child: const Center(
-        child: Icon(Icons.music_note_rounded, color: Colors.white, size: 40),
+        child: Icon(Icons.music_note_rounded, color: Colors.white, size: 32),
       ),
     );
   }

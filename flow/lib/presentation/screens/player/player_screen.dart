@@ -10,6 +10,9 @@ import '../../widgets/like_button.dart';
 import '../../widgets/squiggly_progress_bar.dart';
 import '../queue/queue_screen.dart';
 import 'package:flow/core/network/download_service.dart';
+import 'package:flow/core/config/app_constants.dart';
+
+import '../../widgets/text_carousel.dart';
 
 class PlayerScreen extends StatefulWidget {
   const PlayerScreen({super.key});
@@ -176,14 +179,13 @@ class _MainPlayerSection extends StatelessWidget {
                           letterSpacing: 1.5,
                         ),
                       ),
-                      Text(
-                        song.title,
+                      TextCarousel(
+                        text: song.title,
                         style: GoogleFonts.spaceGrotesk(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
                           color: Colors.white,
                         ),
-                        overflow: TextOverflow.ellipsis,
                         textAlign: TextAlign.center,
                       ),
                     ],
@@ -231,15 +233,14 @@ class _MainPlayerSection extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      song.title,
+                    TextCarousel(
+                      text: song.title,
                       style: GoogleFonts.spaceGrotesk(
                         fontSize: 24,
                         fontWeight: FontWeight.w700,
                         color: Colors.white,
                         letterSpacing: -0.8,
                       ),
-                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 2),
                     Text(
@@ -355,8 +356,8 @@ class _MainPlayerSection extends StatelessWidget {
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF1A1A24),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.large)),
       ),
       builder: (ctx) => SafeArea(
         child: Column(
@@ -601,7 +602,7 @@ class _ArtistCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: cs.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: AppRadius.largeBorderRadius,
       ),
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -615,7 +616,7 @@ class _ArtistCard extends StatelessWidget {
                 ),
                 decoration: BoxDecoration(
                   color: cs.primaryContainer.withAlpha(100),
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: AppRadius.mediumBorderRadius,
                 ),
                 child: Text(
                   'Artist',
@@ -648,7 +649,7 @@ class _ArtistCard extends StatelessWidget {
                 child: song.thumbnailUrl != null
                     ? Image.network(
                         song.thumbnailUrl!,
-                        fit: BoxFit.cover,
+                        fit: BoxFit.fill,
                         errorBuilder: (context, error, stackTrace) =>
                             _ArtistInitials(initials: initials, song: song),
                       )
@@ -722,7 +723,7 @@ class _MetadataCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: AppRadius.largeBorderRadius,
       ),
       padding: const EdgeInsets.all(24),
       child: Column(

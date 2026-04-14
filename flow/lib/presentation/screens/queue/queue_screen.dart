@@ -4,6 +4,8 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../domain/entities/song.dart';
 import '../../blocs/player/player_bloc.dart';
 
+import '../../widgets/text_carousel.dart';
+
 class QueueScreen extends StatelessWidget {
   const QueueScreen({super.key});
 
@@ -230,8 +232,8 @@ class _QueueSongTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    song.title,
+                  TextCarousel(
+                    text: song.title,
                     style: GoogleFonts.outfit(
                       fontWeight: FontWeight.w600,
                       fontSize: 16,
@@ -239,8 +241,6 @@ class _QueueSongTile extends StatelessWidget {
                           ? colorScheme.primary
                           : colorScheme.onSurface,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -367,7 +367,7 @@ class _Artwork extends StatelessWidget {
           if (song.thumbnailUrl != null)
             Image.network(
               song.thumbnailUrl!,
-              fit: BoxFit.cover,
+              fit: BoxFit.fill,
               errorBuilder: (_, __, ___) => _fallback(),
             )
           else
