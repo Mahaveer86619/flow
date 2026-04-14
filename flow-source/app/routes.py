@@ -9,7 +9,7 @@ from typing import List, Optional
 
 import httpx
 import ytmusicapi
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
@@ -826,27 +826,45 @@ async def yt_logout(
 
 
 @router.get("/prefetch/{video_id}")
-async def prefetch_audio(video_id: str, current_user: User = Depends(get_current_user)):
+async def prefetch_audio(
+    video_id: str,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+):
     """
     Proactively trigger extraction for a video_id to warm up the cache.
     """
     logger.info(f"Prefetch request for {video_id}")
-    # Run extraction in the background (extract_audio_url has its own locking)
-    asyncio.create_task(extract_audio_url(video_id, user=current_user))
+    # Run extraction in the background
+    background_tasks.add_task(extract_audio_url, video_id, user=current_user)
     return {"status": "ok", "video_id": video_id}
+
+
+def track_interaction_background(user_id: int, video_id: str):
+    """Background task to track interaction with a new DB session."""
+    from .database import SessionLocal
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if user:
+            yt_service.track_interaction(db, user, video_id)
+    except Exception as e:
+        logger.error(f"Background interaction tracking failed: {e}")
+    finally:
+        db.close()
 
 
 @router.get("/stream/{video_id}")
 async def stream_audio(
     video_id: str,
     request: Request,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
 ):
     logger.info(f"Streaming request for {video_id} from {request.client.host}")
 
-    # Track interaction asynchronously to not block streaming
-    asyncio.create_task(run_sync(yt_service.track_interaction, db, current_user, video_id))
+    # Track interaction in background using a fresh session
+    background_tasks.add_task(track_interaction_background, current_user.id, video_id)
 
     try:
         audio_url = await extract_audio_url(video_id, user=current_user)
