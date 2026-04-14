@@ -232,6 +232,7 @@ async def get_home(
     response: Response,
     limit: int = 25,
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     response.headers["Cache-Control"] = "public, max-age=300"
     logger.debug(
@@ -239,7 +240,7 @@ async def get_home(
     )
     try:
         proxy_base = get_proxy_base(request)
-        data = yt_service.get_home_cached(current_user, limit, proxy_base=proxy_base)
+        data = yt_service.get_home_cached(db, current_user, limit, proxy_base=proxy_base)
 
         # For backward compatibility with specific endpoints/legacy parsers
         quick_picks = []
@@ -339,10 +340,10 @@ async def clear_home_cache(current_user: User = Depends(get_current_user)):
 
 
 @router.get("/feed", response_model=HomeResponse)
-async def get_feed(request: Request):
+async def get_feed(request: Request, db: Session = Depends(get_db)):
     try:
         proxy_base = get_proxy_base(request)
-        return yt_service.get_feed_cached(proxy_base=proxy_base)
+        return yt_service.get_feed_cached(db, proxy_base=proxy_base)
     except Exception as e:
         raise HTTPException(500, str(e))
 
