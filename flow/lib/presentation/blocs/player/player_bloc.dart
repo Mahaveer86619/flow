@@ -38,11 +38,13 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
 
   bool _isChangingSource = false;
   bool _isFetchingRadio = false;
+  int _retryCount = 0;
 
   StreamSubscription<Duration>? _positionSub;
   StreamSubscription<Duration?>? _durationSub;
   StreamSubscription<Duration>? _bufferedSub;
   StreamSubscription<ja.PlayerState>? _playerStateSub;
+  StreamSubscription<ja.PlaybackEvent>? _playbackErrorSub;
   StreamSubscription<int?>? _currentIndexSub;
   StreamSubscription<Map<String, double>>? _downloadSub;
 
@@ -67,6 +69,8 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     on<PlaySingleEvent>(_onPlaySingle);
     on<PlayRadioEvent>(_onPlayRadio);
     on<TogglePlayPauseEvent>(_onTogglePlayPause);
+    on<PlayEvent>(_onPlay);
+    on<PauseEvent>(_onPause);
     on<SeekToEvent>(_onSeekTo);
     on<SkipNextEvent>(_onSkipNext);
     on<SkipPreviousEvent>(_onSkipPrevious);
@@ -100,10 +104,10 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     // Initialise Windows SMTC — no-op on other platforms
     _mediaSession.init(
       onPlay: () {
-        if (!isClosed) add(const TogglePlayPauseEvent());
+        if (!isClosed) add(const PlayEvent());
       },
       onPause: () {
-        if (!isClosed) add(const TogglePlayPauseEvent());
+        if (!isClosed) add(const PauseEvent());
       },
       onNext: () {
         if (!isClosed) add(const SkipNextEvent());
@@ -173,6 +177,29 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
       }
     });
 
+    _playbackErrorSub = _audioPlayer.playbackEventStream.listen(
+      (event) {
+        // This stream also emits regular events, but we care about errors
+      },
+      onError: (Object e, StackTrace st) async {
+        if (isClosed) return;
+        AppLogger.e(_tag, 'Playback error (retry=$_retryCount)', e, st);
+
+        if (_retryCount < 3) {
+          _retryCount++;
+          // Wait a bit before retrying to allow network to recover
+          await Future.delayed(Duration(seconds: _retryCount));
+          if (!isClosed) {
+            _audioPlayer.play();
+          }
+        } else {
+          AppLogger.w(_tag, 'Retry limit reached, skipping to next track');
+          _retryCount = 0;
+          add(const SkipNextEvent());
+        }
+      },
+    );
+
     _currentIndexSub = _audioPlayer.currentIndexStream.listen((idx) {
       if (isClosed ||
           idx == null ||
@@ -196,6 +223,7 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     final newIndex = event.index;
     if (newIndex >= state.queue.length) return;
 
+    _retryCount = 0; // Reset for new track
     final song = state.queue[newIndex];
     AppLogger.i(_tag, 'Auto-advanced to: "${song.title}" (idx=$newIndex)');
 
@@ -325,6 +353,7 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     Emitter<PlayerState> emit,
   ) async {
     if (event.songs.isEmpty) return;
+    _retryCount = 0;
     final idx = event.startIndex.clamp(0, event.songs.length - 1);
 
     final song = event.songs[idx];
@@ -355,6 +384,7 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     PlaySingleEvent event,
     Emitter<PlayerState> emit,
   ) async {
+    _retryCount = 0;
     _songRepository.recordPlay(event.song);
     await _audioPlayer.stop();
 
@@ -380,6 +410,7 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     PlayRadioEvent event,
     Emitter<PlayerState> emit,
   ) async {
+    _retryCount = 0;
     _songRepository.recordPlay(event.song);
     emit(
       state.copyWith(
@@ -566,14 +597,22 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     Emitter<PlayerState> emit,
   ) {
     if (state.isPlaying) {
-      _audioPlayer.pause();
-      _mediaSession.setPlaybackStatus(false);
-      emit(state.copyWith(isPlaying: false));
+      add(const PauseEvent());
     } else {
-      _audioPlayer.play();
-      _mediaSession.setPlaybackStatus(true);
-      emit(state.copyWith(isPlaying: true));
+      add(const PlayEvent());
     }
+  }
+
+  void _onPlay(PlayEvent event, Emitter<PlayerState> emit) {
+    _audioPlayer.play();
+    _mediaSession.setPlaybackStatus(true);
+    // isPlaying state will be updated by _audioPlayer.playerStateStream -> _onBufferingChanged
+  }
+
+  void _onPause(PauseEvent event, Emitter<PlayerState> emit) {
+    _audioPlayer.pause();
+    _mediaSession.setPlaybackStatus(false);
+    // isPlaying state will be updated by _audioPlayer.playerStateStream -> _onBufferingChanged
   }
 
   void _onSeekTo(SeekToEvent event, Emitter<PlayerState> emit) {

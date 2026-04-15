@@ -35,6 +35,16 @@ class TogglePlayPauseEvent extends PlayerEvent {
   const TogglePlayPauseEvent();
 }
 
+/// Explicitly start playback.
+class PlayEvent extends PlayerEvent {
+  const PlayEvent();
+}
+
+/// Explicitly pause playback.
+class PauseEvent extends PlayerEvent {
+  const PauseEvent();
+}
+
 /// Seek to [fraction] (0.0–1.0) of the current song's duration.
 class SeekToEvent extends PlayerEvent {
   final double fraction;

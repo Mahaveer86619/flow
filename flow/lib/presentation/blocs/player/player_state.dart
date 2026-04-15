@@ -7,7 +7,7 @@ part of 'player_bloc.dart';
 // is derived so existing UI code continues to work unchanged.
 // ─────────────────────────────────────────────────────────────────────────────
 
-class PlayerState {
+class PlayerState extends Equatable {
   final Song? currentSong;
   final bool isPlaying;
   final bool isBuffering;
@@ -60,6 +60,29 @@ class PlayerState {
     this.customPrimary,
     this.customSecondary,
   });
+
+  @override
+  List<Object?> get props => [
+    currentSong,
+    isPlaying,
+    isBuffering,
+    isInitialLoading,
+    position,
+    bufferedPosition,
+    actualDuration,
+    isShuffle,
+    isRepeat,
+    isEndlessRadio,
+    volume,
+    likedSongIds,
+    recentlyPlayedIds,
+    recentlyPlayed,
+    queue,
+    queueIndex,
+    downloadProgress,
+    customPrimary,
+    customSecondary,
+  ];
 
   /// 0.0–1.0 fractional progress — derived from [position] / effective duration.
   /// Falls back to 0.0 when duration is unknown.
