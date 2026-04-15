@@ -511,7 +511,8 @@ class _HomeShelfRenderer extends StatelessWidget {
                     song: song,
                     queue: allSongs,
                     index: globalIndex,
-                    cardWidth: 140,
+                    cardWidth: 220,
+                    aspectRatio: 1.6,
                     heroTag: 'listen_again_${song.id}_$i',
                   );
                 },
