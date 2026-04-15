@@ -158,17 +158,6 @@ class _HomeScreenContent extends StatelessWidget {
                                         ),
                                       ),
                                     ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      'lets start with a radio',
-                                      style: GoogleFonts.outfit(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w500,
-                                        color: colorScheme.onSurface.withAlpha(
-                                          100,
-                                        ),
-                                      ),
-                                    ),
                                   ],
                                 ),
                                 const Spacer(),
@@ -236,12 +225,10 @@ class _HomeScreenContent extends StatelessWidget {
                   final List<HomeShelf> displayShelves = [];
 
                   // 1. Identify priority shelves
-                  HomeShelf? quickPicks;
                   HomeShelf? listeningAgain;
+                  HomeShelf? quickPicks;
                   HomeShelf? freshFinds;
-                  HomeShelf? favArtists;
-                  HomeShelf? trendingArtists;
-                  HomeShelf? musicVideos;
+                  HomeShelf? trending;
                   final List<HomeShelf> otherShelves = [];
 
                   for (final shelf in rawShelves) {
@@ -254,26 +241,18 @@ class _HomeScreenContent extends StatelessWidget {
                     } else if (shelf.section == 'freshFinds' &&
                         freshFinds == null) {
                       freshFinds = shelf;
-                    } else if (shelf.section == 'favArtistsSongs') {
-                      favArtists = shelf;
-                    } else if (shelf.section == 'trendingArtists') {
-                      trendingArtists = shelf;
-                    } else if (shelf.section == 'musicVideos' || 
-                               shelf.section == 'videoRecommendations') {
-                      musicVideos = shelf;
+                    } else if (shelf.section == 'trending' && trending == null) {
+                      trending = shelf;
                     } else {
                       otherShelves.add(shelf);
                     }
                   }
 
                   // 2. Add in requested order
+                  if (listeningAgain != null) displayShelves.add(listeningAgain);
                   if (quickPicks != null) displayShelves.add(quickPicks);
-                  if (listeningAgain != null)
-                    displayShelves.add(listeningAgain);
-                  if (musicVideos != null) displayShelves.add(musicVideos);
-                  if (favArtists != null) displayShelves.add(favArtists);
                   if (freshFinds != null) displayShelves.add(freshFinds);
-                  if (trendingArtists != null) displayShelves.add(trendingArtists);
+                  if (trending != null) displayShelves.add(trending);
 
                   // 3. Add the rest
                   displayShelves.addAll(otherShelves);

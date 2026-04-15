@@ -17,7 +17,7 @@ from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
 from .config import settings
-from .models import ArtistResponse, HomeResponse, SongResponse, User
+from .models import ArtistResponse, HomeResponse, SongResponse, User, UserSongInteraction, UserRecommendation
 from .utils import (
     is_artist_item,
     normalize_artist,
@@ -64,8 +64,8 @@ class YTMusicService:
         self.home_cache = {}
         self.home_cache_ttl = 300
         self._shelf_map = [
-            (["quick pick", "top pick", "start radio"], "quickPicks"),
-            (["listen again", "listening again", "continue", "recent"], "listeningAgain"),
+            (["quick pick", "top pick", "start radio", "picks", "suggested"], "quickPicks"),
+            (["listen again", "listening again", "continue", "recent", "replay"], "listeningAgain"),
             (["fresh find", "new release", "latest", "just out", "new arrival"], "freshFinds"),
             (
                 [
@@ -93,36 +93,68 @@ class YTMusicService:
 
     def get_client(self, user: Optional[User] = None):
         if user and user.yt_auth_json:
-            import tempfile
             try:
+                from ytmusicapi.helpers import get_authorization, sapisid_from_cookie
+
                 logger.debug(f"Creating authenticated client for user: {user.username}")
-                
-                # --- CRITICAL FIX: YTMusic Authentication ---
-                # ytmusicapi (as of 1.10+) has a fundamental requirement: if auth is provided as 
-                # a dictionary, it expects a very specific structure. If it's provided as a 
-                # file path, it automatically delegates to the correct parser (Headers vs OAuth).
-                # To support both legacy Header-based JSON and new OAuth JSON (which throws 
-                # 'oauth_credentials not provided' if passed as a dict), we MUST write it 
-                # to a temporary file first. This ensures 100% reliable initialization.
-                with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tmp:
-                    tmp.write(user.yt_auth_json)
-                    tmp_path = tmp.name
-                
-                try:
-                    return ytmusicapi.YTMusic(auth=tmp_path)
-                finally:
-                    if os.path.exists(tmp_path):
-                        os.remove(tmp_path)
+                auth_data = json.loads(user.yt_auth_json)
+
+                # Map common lowercase keys to their expected Title-Case versions
+                # ytmusicapi 1.11.5 determine_auth_type is case-sensitive for 'Authorization' 
+                # and 'Cookie' when checking for BROWSER type.
+                normalization_map = {
+                    "cookie": "Cookie",
+                    "user-agent": "User-Agent",
+                    "x-goog-authuser": "X-Goog-AuthUser",
+                    "authorization": "Authorization",
+                    "origin": "Origin",
+                }
+
+                normalized_auth = {}
+                for k, v in auth_data.items():
+                    norm_key = normalization_map.get(k.lower(), k)
+                    # If not in map and looks like a header, Title-Case it
+                    if k.lower() not in normalization_map and "-" in k:
+                        norm_key = "-".join([p.capitalize() for p in k.split("-")])
+                    normalized_auth[norm_key] = v
+
+                # Ensure Authorization header is present (Crucial for ytmusicapi 1.11.5)
+                # It uses this to distinguish BROWSER type from OAUTH_CUSTOM_CLIENT.
+                if "Cookie" in normalized_auth and "Authorization" not in normalized_auth:
+                    try:
+                        cookie_val = normalized_auth["Cookie"]
+                        sapisid = sapisid_from_cookie(cookie_val)
+                        origin = normalized_auth.get("Origin", "https://music.youtube.com")
+                        normalized_auth["Authorization"] = get_authorization(
+                            sapisid + " " + origin
+                        )
+                        logger.debug(f"Calculated missing Authorization header for {user.username}")
+                    except Exception as e:
+                        logger.warning(f"Failed to calculate Authorization header: {e}")
+
+                # Pass dictionary directly to YTMusic (supported in 1.11.5)
+                # This avoids tempfile overhead and extension-based type detection issues.
+                client = ytmusicapi.YTMusic(auth=normalized_auth)
+                logger.debug(
+                    f"Client initialized for {user.username} (type={getattr(client, 'auth_type', 'unknown')})"
+                )
+                return client
+
             except Exception as e:
-                logger.error(f"Failed to initialize YT auth for user {user.username}: {e}")
-                # Fallback to unauthenticated if parse fails
+                logger.error(
+                    f"Failed to initialize YT auth for user {user.username}: {e}\n{traceback.format_exc()}"
+                )
+                # Fallback to global/unauthenticated if user auth fails
 
         # Check if a global auth file still exists (for backward compatibility or shared dev)
         if os.path.exists(settings.AUTH_FILE_PATH):
             logger.debug(
                 f"Creating authenticated client from global file: {settings.AUTH_FILE_PATH}"
             )
-            return ytmusicapi.YTMusic(settings.AUTH_FILE_PATH)
+            try:
+                return ytmusicapi.YTMusic(settings.AUTH_FILE_PATH)
+            except Exception as e:
+                logger.error(f"Failed to initialize global YT auth: {e}")
 
         logger.debug("Creating unauthenticated YTMusic client")
         return ytmusicapi.YTMusic()
@@ -148,76 +180,173 @@ class YTMusicService:
         except Exception:
             return []
 
-    def _get_fresh_picks(self, ytm, user: User, proxy_base: Optional[str] = None) -> List[dict]:
+    def track_interaction(
+        self,
+        db: Session,
+        user: User,
+        song_id: str,
+        genres: Optional[List[str]] = None,
+    ):
+        interaction = (
+            db.query(UserSongInteraction)
+            .filter(
+                UserSongInteraction.user_id == user.id,
+                UserSongInteraction.song_id == song_id,
+            )
+            .first()
+        )
+
+        if not interaction:
+            interaction = UserSongInteraction(
+                user_id=user.id,
+                song_id=song_id,
+                play_count=1,
+                genre_tags=json.dumps(genres) if genres else None,
+            )
+            db.add(interaction)
+        else:
+            interaction.play_count += 1
+            interaction.last_played_at = datetime.utcnow()
+            if genres:
+                existing_genres = (
+                    json.loads(interaction.genre_tags) if interaction.genre_tags else []
+                )
+                updated_genres = list(set(existing_genres + genres))
+                interaction.genre_tags = json.dumps(updated_genres)
+
+        db.commit()
+
+    def generate_recommendations(
+        self,
+        db: Session,
+        user: User,
+        ytm,
+        proxy_base: Optional[str] = None,
+    ) -> List[SongResponse]:
         """
-        Lightweight recommendation system:
-        1. Takes seeds from recent history (last 3 songs).
-        2. Takes seeds from liked artists (up to 3).
-        3. Fetches related tracks/radio for these seeds.
-        4. Mixes with trending new releases.
+        Sophisticated recommendation engine:
+        1. Seeds from local interactions (most played, most recent).
+        2. Seeds from top genres.
+        3. Seeds from liked artists.
+        4. Mixes related tracks and trends.
         """
         try:
             import random
+
             recommendations = []
             seen_ids = set()
 
-            # 1. Seeds from History
-            try:
-                history = ytm.get_history()
-                history_seeds = [item.get("videoId") for item in history[:3] if item.get("videoId")]
-                for video_id in history_seeds:
-                    related = ytm.get_song_related(video_id)
-                    # get_song_related returns a lot of data, we want tracks
-                    # In newer versions it might be in 'tracks' or similar
-                    # Often we can use get_watch_playlist for a radio-like experience
-                    radio = ytm.get_watch_playlist(videoId=video_id, limit=5)
+            # 1. Identify Seeds
+            # Get top 3 most played
+            top_played = (
+                db.query(UserSongInteraction)
+                .filter(UserSongInteraction.user_id == user.id)
+                .order_by(UserSongInteraction.play_count.desc())
+                .limit(3)
+                .all()
+            )
+            # Get 3 most recent
+            recent_played = (
+                db.query(UserSongInteraction)
+                .filter(UserSongInteraction.user_id == user.id)
+                .order_by(UserSongInteraction.last_played_at.desc())
+                .limit(3)
+                .all()
+            )
+
+            seed_song_ids = list(set([i.song_id for i in top_played + recent_played]))
+
+            # 2. Fetch related for seeds
+            for video_id in seed_song_ids[:5]:  # Limit seeds to avoid latency
+                try:
+                    radio = ytm.get_watch_playlist(videoId=video_id, limit=10)
                     tracks = radio.get("tracks", [])
                     for t in tracks:
                         if t.get("videoId") and t["videoId"] not in seen_ids:
                             song = normalize_song(t, proxy_base)
                             if song:
-                                recommendations.append({"type": "song", "data": song.model_dump()})
-                                seen_ids.add(t["videoId"])
-            except Exception as e:
-                logger.warning(f"RecSys: History seeds failed: {e}")
+                                recommendations.append(song)
+                                seen_ids.add(song.id)
+                except Exception as e:
+                    logger.warning(f"RecSys: Radio for {video_id} failed: {e}")
 
-            # 2. Seeds from Liked Artists
+            # 3. Seeds from Library Artists
             try:
                 liked_artists = ytm.get_library_artists(limit=10)
                 if liked_artists:
-                    random_artists = random.sample(liked_artists, min(len(liked_artists), 3))
+                    random_artists = random.sample(
+                        liked_artists, min(len(liked_artists), 2)
+                    )
                     for artist in random_artists:
-                        artist_data = ytm.get_artist(artist['browseId'])
+                        artist_data = ytm.get_artist(artist["browseId"])
                         songs = artist_data.get("songs", {}).get("results", [])
                         for s in songs[:5]:
                             if s.get("videoId") and s["videoId"] not in seen_ids:
                                 song = normalize_song(s, proxy_base)
                                 if song:
-                                    recommendations.append({"type": "song", "data": song.model_dump()})
-                                    seen_ids.add(s["videoId"])
+                                    recommendations.append(song)
+                                    seen_ids.add(song.id)
             except Exception as e:
                 logger.warning(f"RecSys: Artist seeds failed: {e}")
 
-            # 3. Seeds from Explore (Trending/New)
+            # 4. Mix in Trends (Explore)
             try:
                 explore = ytm.get_explore()
                 new_releases = explore.get("new_releases", [])
-                for item in new_releases[:10]:
+                for item in new_releases[:5]:
                     song = normalize_album_as_song(item, proxy_base)
                     if song and song.id not in seen_ids:
-                        recommendations.append({"type": "song", "data": song.model_dump()})
+                        recommendations.append(song)
                         seen_ids.add(song.id)
             except Exception as e:
                 logger.warning(f"RecSys: Explore seeds failed: {e}")
 
             random.shuffle(recommendations)
-            return recommendations[:30] # Return a healthy chunk
+            final_recs = recommendations[:40]
+
+            # 5. Persist to DB
+            # Clear old recs for this user
+            db.query(UserRecommendation).filter(
+                UserRecommendation.user_id == user.id
+            ).delete()
+
+            for i, song in enumerate(final_recs):
+                rec = UserRecommendation(
+                    user_id=user.id,
+                    song_id=song.id,
+                    data=song.model_dump_json(),
+                    score=1.0 / (i + 1),  # Simple score based on shuffled order
+                    updated_at=datetime.utcnow(),
+                )
+                db.add(rec)
+            db.commit()
+
+            return final_recs
         except Exception as e:
-            logger.error(f"RecSys: Systemic failure: {e}")
+            logger.error(f"RecSys: Systemic failure: {e}\n{traceback.format_exc()}")
             return []
+
+    def _get_fresh_picks_local(
+        self, db: Session, user: User, proxy_base: Optional[str] = None
+    ) -> List[SongResponse]:
+        """Fetch persisted recommendations from DB."""
+        recs = (
+            db.query(UserRecommendation)
+            .filter(UserRecommendation.user_id == user.id)
+            .order_by(UserRecommendation.score.desc())
+            .all()
+        )
+        results = []
+        for r in recs:
+            try:
+                results.append(SongResponse.model_validate_json(r.data))
+            except Exception:
+                continue
+        return results
 
     def build_home_data(
         self,
+        db: Session,
         user: Optional[User] = None,
         limit: int = 30,
         proxy_base: Optional[str] = None,
@@ -233,10 +362,11 @@ class YTMusicService:
             )
             return HomeResponse(shelves=[], trending=[])
 
-        shelves = []
+        shelves_list = []
         seen_ids = set()
         music_videos = []
 
+        # 1. Process Raw Shelves
         for raw_shelf in raw_shelves:
             if not isinstance(raw_shelf, dict):
                 continue
@@ -247,7 +377,6 @@ class YTMusicService:
             for item in contents:
                 if not isinstance(item, dict):
                     continue
-                # Deduplicate songs specifically
                 video_id = item.get("videoId")
                 if video_id:
                     if video_id in seen_ids:
@@ -256,11 +385,8 @@ class YTMusicService:
                     try:
                         song = normalize_song(item, proxy_base)
                         if song:
-                            # Check if it's a music video (heuristic: duration or type)
-                            # ytmusicapi often identifies videos in specific shelves
                             if "Video" in title or item.get("resultType") == "video":
                                 music_videos.append(song)
-                            
                             items.append({"type": "song", "data": song.model_dump()})
                     except Exception as e:
                         logger.warning(f"Failed to normalize song {video_id}: {e}")
@@ -268,13 +394,10 @@ class YTMusicService:
                     try:
                         artist = normalize_artist(item, proxy_base)
                         if artist:
-                            items.append(
-                                {"type": "artist", "data": artist.model_dump()}
-                            )
+                            items.append({"type": "artist", "data": artist.model_dump()})
                     except Exception as e:
                         logger.warning(f"Failed to normalize artist: {e}")
                 elif "playlistId" in item or "browseId" in item:
-                    # Could be playlist or album
                     is_album = str(item.get("browseId", "")).startswith("MPREb")
                     try:
                         playlist = normalize_playlist(item, proxy_base)
@@ -290,184 +413,97 @@ class YTMusicService:
 
             if items:
                 section = self._classify_shelf(title) or "musicForYou"
-                shelves.append({"title": title, "section": section, "items": items})
+                shelves_list.append({"title": title, "section": section, "items": items})
 
-        # --- FRESH PICKS: Lightweight Recommendation System ---
-        fresh_picks = self._get_fresh_picks(ytm, user, proxy_base)
-        if fresh_picks:
-            # Remove any existing freshFinds to replace with our better RecSys
-            shelves = [s for s in shelves if s["section"] != "freshFinds"]
-            # Insert at top (index 0) or after quick access
-            shelves.insert(0, {
-                "title": "Fresh picks for you",
-                "section": "freshFinds",
-                "items": fresh_picks
-            })
+        # 2. Local RecSys ("Fresh Picks")
+        fresh_finds = []
+        if user:
+            # Check if we should trigger a background update
+            last_rec = (
+                db.query(UserRecommendation)
+                .filter(UserRecommendation.user_id == user.id)
+                .first()
+            )
+            if not last_rec or (datetime.utcnow() - last_rec.updated_at).total_seconds() > 3600:
+                # Trigger generation (for now synchronous to ensure immediate result, 
+                # but lightweight seeds help)
+                fresh_finds = self.generate_recommendations(db, user, ytm, proxy_base)
+            else:
+                fresh_finds = self._get_fresh_picks_local(db, user, proxy_base)
 
-        # --- Explicitly fetch Quick Picks (from Liked Songs if missing) ---
-        if not any(s["section"] == "quickPicks" for s in shelves):
+        # 3. Fallbacks for missing essential shelves
+        quick_picks = [i["data"] for s in shelves_list if s["section"] == "quickPicks" for i in s["items"] if i["type"] == "song"]
+        if not quick_picks:
             try:
                 liked = ytm.get_liked_songs(limit=24)
-                liked_tracks = liked.get("tracks", [])
-                quick_pick_items = []
-                for item in liked_tracks:
+                for item in liked.get("tracks", []):
                     song = normalize_song(item, proxy_base)
                     if song:
-                        quick_pick_items.append({"type": "song", "data": song.model_dump()})
-                if quick_pick_items:
-                    shelves.insert(0, {
-                        "title": "Quick picks",
-                        "section": "quickPicks",
-                        "items": quick_pick_items
-                    })
-            except Exception as e:
-                logger.warning(f"Failed to fetch fallback Quick Picks: {e}")
+                        quick_picks.append(song)
+            except Exception:
+                pass
 
-        # --- Explicitly fetch Listen Again (from History if missing) ---
-        if not any(s["section"] == "listeningAgain" for s in shelves):
+        listen_again = [i["data"] for s in shelves_list if s["section"] == "listeningAgain" for i in s["items"] if i["type"] == "song"]
+        if not listen_again:
             try:
                 history = ytm.get_history()
-                listen_again_items = []
-                seen_ids = set()
-                for item in history:
-                    video_id = item.get("videoId")
-                    if video_id and video_id not in seen_ids:
-                        song = normalize_song(item, proxy_base)
-                        if song:
-                            listen_again_items.append({"type": "song", "data": song.model_dump()})
-                            seen_ids.add(video_id)
-                    if len(listen_again_items) >= 20:
-                        break
-                if listen_again_items:
-                    # Insert after Quick Picks
-                    idx = 1 if any(s["section"] == "quickPicks" for s in shelves) else 0
-                    shelves.insert(idx, {
-                        "title": "Listen again",
-                        "section": "listeningAgain",
-                        "items": listen_again_items
-                    })
-            except Exception as e:
-                logger.warning(f"Failed to fetch fallback Listen Again: {e}")
-
-        # --- Explicitly fetch Music Videos ---
-        if not any(s["section"] in ["musicVideos", "videoRecommendations"] for s in shelves):
-            try:
-                explore = ytm.get_explore()
-                trending = explore.get("trending", {})
-                trending_items = trending.get("items", [])
-                video_items = []
-                for item in trending_items:
-                    # Trending items might be songs or videos
+                for item in history[:20]:
                     song = normalize_song(item, proxy_base)
                     if song:
-                        video_items.append({"type": "song", "data": song.model_dump()})
-                if video_items:
-                    shelves.append({
-                        "title": "Music videos for you",
-                        "section": "musicVideos",
-                        "items": video_items
-                    })
-            except Exception as e:
-                logger.warning(f"Failed to fetch music videos: {e}")
-
-        # --- Explicitly fetch New Arrivals (New Releases) ---
-        if not any(s["section"] == "freshFinds" for s in shelves):
-            try:
-                explore = ytm.get_explore()
-                new_releases = explore.get("new_releases", [])
-                new_arrival_items = []
-                for item in new_releases[:12]:
-                    try:
-                        song = normalize_album_as_song(item, proxy_base)
-                        if song:
-                            new_arrival_items.append({
-                                "type": "song",
-                                "data": song.model_dump()
-                            })
-                    except Exception:
-                        continue
-                if new_arrival_items:
-                    shelves.append({
-                        "title": "Fresh Finds",
-                        "section": "freshFinds",
-                        "items": new_arrival_items
-                    })
-            except Exception as e:
-                logger.warning(f"Failed to fetch explicit new releases: {e}")
-
-        # --- Explicitly fetch Popular Artists ---
-        if not any(s["section"] == "trendingArtists" for s in shelves):
-            try:
-                charts = ytm.get_charts(country="ZZ")
-                artists = charts.get("artists", [])
-                artist_items = []
-                for item in artists[:12]:
-                    try:
-                        artist = normalize_artist(item, proxy_base)
-                        if artist:
-                            artist_items.append({
-                                "type": "artist",
-                                "data": artist.model_dump()
-                            })
-                    except Exception:
-                        continue
-                if artist_items:
-                    shelves.append({
-                        "title": "Popular Artists",
-                        "section": "trendingArtists",
-                        "items": artist_items
-                    })
-            except Exception as e:
-                logger.warning(f"Failed to fetch trending artists: {e}")
-
-        # --- Fetch from Favorite Artists ---
-        fav_artists_songs = []
-        try:
-            # Heuristic: find liked artists from library
-            liked_artists = ytm.get_library_artists(limit=5)
-            for artist in liked_artists:
-                browse_id = artist.get("browseId")
-                if browse_id:
-                    artist_data = ytm.get_artist(browse_id)
-                    # Get some songs from artist
-                    for song_item in artist_data.get("songs", {}).get("results", [])[:4]:
-                        song = normalize_song(song_item, proxy_base)
-                        if song and song.id not in seen_ids:
-                            seen_ids.add(song.id)
-                            fav_artists_songs.append(song)
-        except Exception as e:
-            logger.warning(f"Failed to fetch favorite artists songs: {e}")
+                        listen_again.append(song)
+            except Exception:
+                pass
 
         trending = self._get_trending_songs(ytm, proxy_base)
 
-        # --- Explicitly add specialty shelves ---
-        if music_videos:
-            shelves.append({
-                "title": "Recommended Music Videos",
-                "section": "musicVideos",
-                "items": [{"type": "song", "data": s.model_dump()} for s in music_videos[:12]]
+        # 4. Final HomeResponse Construction with Strict Order
+        # We build the 'shelves' list for the frontend
+        ordered_shelves = []
+        
+        if quick_picks:
+            ordered_shelves.append({
+                "title": "Quick picks",
+                "section": "quickPicks",
+                "items": [{"type": "song", "data": s if isinstance(s, dict) else s.model_dump()} for s in quick_picks]
             })
         
-        if fav_artists_songs:
-            shelves.append({
-                "title": "From Your Favorite Artists",
-                "section": "favArtistsSongs",
-                "items": [{"type": "song", "data": s.model_dump()} for s in fav_artists_songs[:12]]
+        if listen_again:
+            ordered_shelves.append({
+                "title": "Listen again",
+                "section": "listeningAgain",
+                "items": [{"type": "song", "data": s if isinstance(s, dict) else s.model_dump()} for s in listen_again]
             })
 
-        profile_url = user.yt_avatar_url if user and user.yt_avatar_url else f"https://api.dicebear.com/7.x/avataaars/svg?seed={user.username if user else 'anon'}"
-        if not user.yt_avatar_url and proxy_base:
-            profile_url = (
-                f"https://i.pravatar.cc/150?u={user.username if user else 'anon'}"
-            )
+        if fresh_finds:
+            ordered_shelves.append({
+                "title": "Fresh picks for you",
+                "section": "freshFinds",
+                "items": [{"type": "song", "data": s if isinstance(s, dict) else s.model_dump()} for s in fresh_finds]
+            })
 
+        if trending:
+            ordered_shelves.append({
+                "title": "Trending",
+                "section": "trending",
+                "items": [{"type": "song", "data": s if isinstance(s, dict) else s.model_dump()} for s in trending]
+            })
+
+        # Append remaining shelves from original list
+        seen_sections = {"quickPicks", "listeningAgain", "freshFinds", "trending"}
+        for s in shelves_list:
+            if s["section"] not in seen_sections:
+                ordered_shelves.append(s)
+
+        profile_url = user.yt_avatar_url if user and user.yt_avatar_url else f"https://api.dicebear.com/7.x/avataaars/svg?seed={user.username if user else 'anon'}"
+        
         return HomeResponse(
-            shelves=shelves, 
-            trending=trending, 
+            shelves=ordered_shelves,
+            trending=trending,
             profileUrl=profile_url,
             yt_name=user.yt_name if user else None,
-            musicVideos=music_videos,
-            favArtistsSongs=fav_artists_songs
+            quickAccess=[s if isinstance(s, SongResponse) else SongResponse.model_validate(s) for s in quick_picks],
+            listeningAgain=[s if isinstance(s, SongResponse) else SongResponse.model_validate(s) for s in listen_again],
+            freshFinds=[s if isinstance(s, SongResponse) else SongResponse.model_validate(s) for s in fresh_finds],
         )
 
     def get_user_profile(self, user: User) -> dict:
@@ -493,6 +529,7 @@ class YTMusicService:
 
     def get_home_cached(
         self,
+        db: Session,
         user: Optional[User] = None,
         limit: int = 25,
         proxy_base: Optional[str] = None,
@@ -508,11 +545,11 @@ class YTMusicService:
         ):
             return self.home_cache[cache_key]["data"]
 
-        data = self.build_home_data(user, limit, proxy_base)
+        data = self.build_home_data(db, user, limit, proxy_base)
         self.home_cache[cache_key] = {"ts": now, "data": data}
         return data
 
-    def build_feed_data(self, proxy_base: Optional[str] = None) -> HomeResponse:
+    def build_feed_data(self, db: Session, proxy_base: Optional[str] = None) -> HomeResponse:
         ytm = ytmusicapi.YTMusic()
         trending = self._get_trending_songs(ytm, proxy_base)
         shelves = []
@@ -550,12 +587,12 @@ class YTMusicService:
             trending=trending,
         )
 
-    def get_feed_cached(self, proxy_base: Optional[str] = None) -> HomeResponse:
+    def get_feed_cached(self, db: Session, proxy_base: Optional[str] = None) -> HomeResponse:
         now = time.monotonic()
         cached = self.home_cache.get("feed")
         if cached and cached.get("ts", 0) + self.home_cache_ttl > now:
             return cached["data"]
-        data = self.build_feed_data(proxy_base)
+        data = self.build_feed_data(db, proxy_base)
         self.home_cache["feed"] = {"ts": now, "data": data}
         return data
 

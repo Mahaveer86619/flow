@@ -23,13 +23,14 @@ class Skeleton extends StatelessWidget {
     return Shimmer.fromColors(
       baseColor: isDark ? Colors.grey[900]! : Colors.grey[300]!,
       highlightColor: isDark ? Colors.grey[800]! : Colors.grey[100]!,
-      child: child ??
+      child:
+          child ??
           Container(
             width: width,
             height: height,
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: borderRadius != 0
+              borderRadius: borderRadius > 0
                   ? BorderRadius.circular(borderRadius)
                   : null,
               shape: borderRadius == -1 ? BoxShape.circle : BoxShape.rectangle,
@@ -46,11 +47,7 @@ class SkeletonText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Skeleton(
-      width: width,
-      height: height,
-      borderRadius: height / 2,
-    );
+    return Skeleton(width: width, height: height, borderRadius: height / 2);
   }
 }
 
@@ -60,22 +57,14 @@ class SkeletonCircle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Skeleton(
-      width: size,
-      height: size,
-      borderRadius: -1,
-    );
+    return Skeleton(width: size, height: size, borderRadius: -1);
   }
 }
 
 class SkeletonSongCard extends StatelessWidget {
   final double width;
   final double aspectRatio;
-  const SkeletonSongCard({
-    super.key,
-    this.width = 135,
-    this.aspectRatio = 1.0,
-  });
+  const SkeletonSongCard({super.key, this.width = 135, this.aspectRatio = 1.0});
 
   @override
   Widget build(BuildContext context) {

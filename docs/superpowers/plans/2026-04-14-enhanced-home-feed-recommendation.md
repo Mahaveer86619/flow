@@ -15,7 +15,7 @@
 **Files:**
 - Modify: `flow-source/app/models.py`
 
-- [ ] **Step 1: Add new models for tracking interactions and recommendations**
+- [x] **Step 1: Add new models for tracking interactions and recommendations**
 
 ```python
 class UserSongInteraction(Base):
@@ -48,12 +48,12 @@ class UserRecommendation(Base):
 #     recommendations = relationship("UserRecommendation", back_populates="user", cascade="all, delete-orphan")
 ```
 
-- [ ] **Step 2: Run the app to trigger `Base.metadata.create_all`**
+- [x] **Step 2: Run the app to trigger `Base.metadata.create_all`**
 
 Run: `cd flow-source && python -m app.main`
 Expected: "Database tables initialized." in logs.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add flow-source/app/models.py
@@ -68,7 +68,7 @@ git commit -m "feat: add user song interaction and recommendation models"
 - Modify: `flow-source/app/services.py`
 - Modify: `flow-source/app/routes.py`
 
-- [ ] **Step 1: Implement `track_interaction` in `YTMusicService`**
+- [x] **Step 1: Implement `track_interaction` in `YTMusicService`**
 
 ```python
 def track_interaction(self, db: Session, user: User, song_id: str, genres: Optional[List[str]] = None):
@@ -96,11 +96,11 @@ def track_interaction(self, db: Session, user: User, song_id: str, genres: Optio
     db.commit()
 ```
 
-- [ ] **Step 2: Call `track_interaction` when a song is played/streamed**
+- [x] **Step 2: Call `track_interaction` when a song is played/streamed**
 
 Find playback endpoints in `routes.py` and ensure interaction is recorded.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add flow-source/app/services.py flow-source/app/routes.py
@@ -114,7 +114,7 @@ git commit -m "feat: implement user interaction tracking"
 **Files:**
 - Modify: `flow-source/app/services.py`
 
-- [ ] **Step 1: Enhance `_classify_shelf` with better keyword matching**
+- [x] **Step 1: Enhance `_classify_shelf` with better keyword matching**
 
 ```python
 # Add more robust keywords to self._shelf_map
@@ -122,11 +122,11 @@ git commit -m "feat: implement user interaction tracking"
 (["listen again", "listening again", "continue", "recent", "replay"], "listeningAgain"),
 ```
 
-- [ ] **Step 2: Robust fallback for missing shelves in `build_home_data`**
+- [x] **Step 2: Robust fallback for missing shelves in `build_home_data`**
 
 Ensure `quickPicks` and `listeningAgain` are ALWAYS populated using library/history if `ytm.get_home()` doesn't provide them.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add flow-source/app/services.py
@@ -140,7 +140,7 @@ git commit -m "fix: improve home feed shelf classification and fallbacks"
 **Files:**
 - Modify: `flow-source/app/services.py`
 
-- [ ] **Step 1: Implement `generate_recommendations` in `YTMusicService`**
+- [x] **Step 1: Implement `generate_recommendations` in `YTMusicService`**
 
 ```python
 def generate_recommendations(self, db: Session, user: User, ytm, proxy_base: Optional[str] = None):
@@ -151,9 +151,9 @@ def generate_recommendations(self, db: Session, user: User, ytm, proxy_base: Opt
     # 5. Persist to UserRecommendation table
 ```
 
-- [ ] **Step 2: Update `_get_fresh_picks` to use the new engine**
+- [x] **Step 2: Update `_get_fresh_picks` to use the new engine**
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add flow-source/app/services.py
@@ -167,7 +167,7 @@ git commit -m "feat: implement advanced recommendation engine"
 **Files:**
 - Modify: `flow/lib/presentation/screens/home/home_screen.dart`
 
-- [ ] **Step 1: Enforce shelf order in `_HomeScreenContent`**
+- [x] **Step 1: Enforce shelf order in `_HomeScreenContent`**
 
 ```dart
 // Update reordering logic to ensure:
@@ -177,7 +177,7 @@ git commit -m "feat: implement advanced recommendation engine"
 // 4. trending
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add flow/lib/presentation/screens/home/home_screen.dart
