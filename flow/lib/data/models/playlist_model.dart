@@ -17,6 +17,10 @@ class PlaylistModel {
   final String? thumbnailUrl;
   final int trackCount;
   final Color color;
+  final String type;
+  final bool isAlbum;
+  final String? artistName;
+  final String? ownerCode;
 
   const PlaylistModel({
     required this.id,
@@ -25,6 +29,10 @@ class PlaylistModel {
     this.thumbnailUrl,
     this.trackCount = 0,
     required this.color,
+    this.type = 'yt',
+    this.isAlbum = false,
+    this.artistName,
+    this.ownerCode,
   });
 
   // ── JSON ─────────────────────────────────────────────────────────────────────
@@ -40,6 +48,10 @@ class PlaylistModel {
       color: json['color'] != null
           ? Color(json['color'] as int)
           : _colorForId(id),
+      type: json['type'] as String? ?? 'yt',
+      isAlbum: json['isAlbum'] as bool? ?? false,
+      artistName: json['artistName'] as String?,
+      ownerCode: json['ownerCode'] as String?,
     );
   }
 
@@ -50,6 +62,10 @@ class PlaylistModel {
         'thumbnailUrl': thumbnailUrl,
         'trackCount': trackCount,
         'color': color.value,
+        'type': type,
+        'isAlbum': isAlbum,
+        'artistName': artistName,
+        'ownerCode': ownerCode,
       };
 
   // ── Domain mapping ────────────────────────────────────────────────────────────
@@ -61,6 +77,10 @@ class PlaylistModel {
         songs: const [],
         color: color,
         thumbnailUrl: thumbnailUrl,
+        type: type,
+        isAlbum: isAlbum,
+        artistName: artistName,
+        ownerCode: ownerCode,
       );
 
   // ── Color derivation ──────────────────────────────────────────────────────────

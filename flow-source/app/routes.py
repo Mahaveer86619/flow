@@ -24,12 +24,19 @@ from .models import (
     ArtistResponse,
     CreatePlaylistRequest,
     EditPlaylistRequest,
+    FlowCollaboratorRequest,
+    FlowPlaylistAddTrackRequest,
+    FlowPlaylistCreateRequest,
+    FlowPlaylistUpdateRequest,
     HistoryEntryResponse,
     HistoryResponse,
     HomeResponse,
     LibraryResponse,
     PlayHistory,
+    Playlist,
+    PlaylistCollaborator,
     PlaylistResponse,
+    PlaylistTrack,
     RemovePlaylistItemsRequest,
     SongResponse,
     Token,
@@ -126,10 +133,12 @@ async def signup(user_in: UserCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Username already registered")
 
     hashed_password = auth_service.get_password_hash(user_in.password)
+    user_code = auth_service.generate_user_code(user_in.username, db)
     new_user = User(
         username=user_in.username,
         email=user_in.email,
         hashed_password=hashed_password,
+        user_code=user_code,
     )
     db.add(new_user)
     db.commit()
@@ -391,14 +400,38 @@ async def get_search_suggestions(
 
 
 @router.get("/library", response_model=LibraryResponse)
-async def get_library(request: Request, current_user: User = Depends(get_current_user)):
+async def get_library(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     _require_yt_auth(current_user)
     try:
         proxy_base = get_proxy_base(request)
-        raw = yt_service.get_client(current_user).get_library_playlists(limit=100)
-        return LibraryResponse(
-            playlists=[normalize_playlist(p, proxy_base) for p in raw]
-        )
+
+        # YT playlists
+        raw_yt = yt_service.get_client(current_user).get_library_playlists(limit=100)
+        yt_playlists = [
+            normalize_playlist(p, proxy_base, playlist_type="yt") for p in raw_yt
+        ]
+
+        # Flow playlists stored in the DB
+        flow_db = db.query(Playlist).filter(Playlist.owner_id == current_user.id).all()
+        flow_playlists = [
+            PlaylistResponse(
+                id=p.id,
+                name=p.title,
+                description=p.description or "",
+                thumbnailUrl=p.thumbnail_url,
+                trackCount=len(p.tracks),
+                type="flow",
+                isAlbum=False,
+                ownerCode=current_user.user_code,
+            )
+            for p in flow_db
+        ]
+
+        return LibraryResponse(playlists=flow_playlists + yt_playlists)
     except Exception as e:
         raise HTTPException(500, str(e))
 
@@ -539,9 +572,24 @@ async def get_album(
     try:
         proxy_base = get_proxy_base(request)
         data = yt_service.get_client(current_user).get_album(browseId=browse_id)
+        
+        # Album tracks often don't have their own thumbnails. Inherit from the album.
+        album_thumbnails = data.get("thumbnails") or data.get("thumbnail") or []
+        album_thumb_url = None
+        if isinstance(album_thumbnails, dict):
+            album_thumbnails = album_thumbnails.get("thumbnails", [])
+        if album_thumbnails and isinstance(album_thumbnails, list) and len(album_thumbnails) > 0:
+            album_thumb_url = album_thumbnails[-1].get("url") if isinstance(album_thumbnails[-1], dict) else None
+
         tracks = data.get("tracks") or []
+        for track in tracks:
+            # If the track doesn't have thumbnails, inject the album's thumbnail
+            if album_thumb_url and not track.get("thumbnails") and not track.get("thumbnail"):
+                track["thumbnails"] = [{"url": album_thumb_url}]
+
         return [s for item in tracks if (s := normalize_song(item, proxy_base))]
     except Exception as e:
+        logger.exception(f"Failed to fetch album {browse_id}: {e}")
         raise HTTPException(500, str(e))
 
 
@@ -734,6 +782,209 @@ async def remove_playlist_items(
         return {"status": res}
     except Exception as e:
         raise HTTPException(500, str(e))
+
+
+# --- Flow Playlist CRUD ---
+
+
+import uuid as _uuid
+
+
+@router.post("/flow/playlists", response_model=PlaylistResponse, status_code=201)
+async def create_flow_playlist(
+    req: FlowPlaylistCreateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    new_playlist = Playlist(
+        id=str(_uuid.uuid4()),
+        title=req.title,
+        description=req.description,
+        is_public=req.is_public,
+        owner_id=current_user.id,
+        type="flow",
+    )
+    db.add(new_playlist)
+    db.commit()
+    db.refresh(new_playlist)
+    return PlaylistResponse(
+        id=new_playlist.id,
+        name=new_playlist.title,
+        description=new_playlist.description or "",
+        thumbnailUrl=new_playlist.thumbnail_url,
+        trackCount=0,
+        type="flow",
+        isAlbum=False,
+        ownerCode=current_user.user_code,
+    )
+
+
+@router.patch("/flow/playlists/{playlist_id}", response_model=PlaylistResponse)
+async def update_flow_playlist(
+    playlist_id: str,
+    req: FlowPlaylistUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    playlist = db.query(Playlist).filter(
+        Playlist.id == playlist_id, Playlist.owner_id == current_user.id
+    ).first()
+    if not playlist:
+        raise HTTPException(404, "Playlist not found")
+    if req.title is not None:
+        playlist.title = req.title
+    if req.description is not None:
+        playlist.description = req.description
+    if req.is_public is not None:
+        playlist.is_public = req.is_public
+    db.commit()
+    db.refresh(playlist)
+    return PlaylistResponse(
+        id=playlist.id,
+        name=playlist.title,
+        description=playlist.description or "",
+        thumbnailUrl=playlist.thumbnail_url,
+        trackCount=len(playlist.tracks),
+        type="flow",
+        isAlbum=False,
+        ownerCode=current_user.user_code,
+    )
+
+
+@router.delete("/flow/playlists/{playlist_id}", status_code=204)
+async def delete_flow_playlist(
+    playlist_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    playlist = db.query(Playlist).filter(
+        Playlist.id == playlist_id, Playlist.owner_id == current_user.id
+    ).first()
+    if not playlist:
+        raise HTTPException(404, "Playlist not found")
+    db.delete(playlist)
+    db.commit()
+
+
+@router.post("/flow/playlists/{playlist_id}/tracks", status_code=201)
+async def add_track_to_flow_playlist(
+    playlist_id: str,
+    req: FlowPlaylistAddTrackRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    playlist = db.query(Playlist).filter(
+        Playlist.id == playlist_id
+    ).first()
+    if not playlist:
+        raise HTTPException(404, "Playlist not found")
+    # Allow owner and collaborators to add tracks
+    is_owner = playlist.owner_id == current_user.id
+    is_collab = db.query(PlaylistCollaborator).filter(
+        PlaylistCollaborator.playlist_id == playlist_id,
+        PlaylistCollaborator.user_id == current_user.id,
+    ).first() is not None
+    if not is_owner and not is_collab:
+        raise HTTPException(403, "Not authorized")
+
+    max_idx = db.query(PlaylistTrack).filter(
+        PlaylistTrack.playlist_id == playlist_id
+    ).count()
+    track = PlaylistTrack(
+        playlist_id=playlist_id,
+        song_data=json.dumps(req.song_data),
+        sort_index=max_idx,
+    )
+    db.add(track)
+    db.commit()
+    db.refresh(track)
+    return {"id": track.id, "sort_index": track.sort_index}
+
+
+@router.delete("/flow/playlists/{playlist_id}/tracks/{track_id}", status_code=204)
+async def remove_track_from_flow_playlist(
+    playlist_id: str,
+    track_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    playlist = db.query(Playlist).filter(Playlist.id == playlist_id).first()
+    if not playlist:
+        raise HTTPException(404, "Playlist not found")
+    is_owner = playlist.owner_id == current_user.id
+    is_collab = db.query(PlaylistCollaborator).filter(
+        PlaylistCollaborator.playlist_id == playlist_id,
+        PlaylistCollaborator.user_id == current_user.id,
+    ).first() is not None
+    if not is_owner and not is_collab:
+        raise HTTPException(403, "Not authorized")
+
+    track = db.query(PlaylistTrack).filter(
+        PlaylistTrack.id == track_id, PlaylistTrack.playlist_id == playlist_id
+    ).first()
+    if not track:
+        raise HTTPException(404, "Track not found")
+    db.delete(track)
+    db.commit()
+
+
+@router.post("/flow/playlists/{playlist_id}/collaborators", status_code=201)
+async def add_collaborator(
+    playlist_id: str,
+    req: FlowCollaboratorRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    playlist = db.query(Playlist).filter(
+        Playlist.id == playlist_id, Playlist.owner_id == current_user.id
+    ).first()
+    if not playlist:
+        raise HTTPException(404, "Playlist not found or not owner")
+
+    target = db.query(User).filter(User.user_code == req.user_code).first()
+    if not target:
+        raise HTTPException(404, f"No user with code '{req.user_code}'")
+
+    existing = db.query(PlaylistCollaborator).filter(
+        PlaylistCollaborator.playlist_id == playlist_id,
+        PlaylistCollaborator.user_id == target.id,
+    ).first()
+    if existing:
+        return {"status": "already_collaborator"}
+
+    collab = PlaylistCollaborator(
+        playlist_id=playlist_id, user_id=target.id, role="editor"
+    )
+    db.add(collab)
+    db.commit()
+    return {"status": "added", "user_code": req.user_code}
+
+
+@router.delete("/flow/playlists/{playlist_id}/collaborators/{user_code}", status_code=204)
+async def remove_collaborator(
+    playlist_id: str,
+    user_code: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    playlist = db.query(Playlist).filter(
+        Playlist.id == playlist_id, Playlist.owner_id == current_user.id
+    ).first()
+    if not playlist:
+        raise HTTPException(404, "Playlist not found or not owner")
+
+    target = db.query(User).filter(User.user_code == user_code).first()
+    if not target:
+        raise HTTPException(404, f"No user with code '{user_code}'")
+
+    collab = db.query(PlaylistCollaborator).filter(
+        PlaylistCollaborator.playlist_id == playlist_id,
+        PlaylistCollaborator.user_id == target.id,
+    ).first()
+    if not collab:
+        raise HTTPException(404, "Collaborator not found")
+    db.delete(collab)
+    db.commit()
 
 
 # --- YT Music Connection Management (Per User) ---

@@ -307,6 +307,22 @@ class _EmptyPlayerPanel extends StatelessWidget {
               color: Colors.white.withAlpha(50),
             ),
           ),
+          const SizedBox(height: 24),
+          OutlinedButton.icon(
+            onPressed: () =>
+                context.read<PlayerBloc>().add(const ResetPlayerEvent()),
+            icon: const Icon(Icons.refresh_rounded, size: 18),
+            label: const Text('Clean player state'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.orangeAccent.withAlpha(200),
+              side: BorderSide(color: Colors.orangeAccent.withAlpha(100)),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              textStyle: GoogleFonts.outfit(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -375,6 +391,11 @@ class _MoreOptionsButton extends StatelessWidget {
     return PopupMenuButton<String>(
       icon: Icon(Icons.more_vert_rounded, color: Colors.white.withAlpha(200)),
       onSelected: (value) {
+        if (value == 'reset') {
+          context.read<PlayerBloc>().add(const ResetPlayerEvent());
+          return;
+        }
+
         if (song == null) return;
         if (value == 'radio') {
           context.read<PlayerBloc>().add(PlayRadioEvent(song!));
@@ -383,6 +404,7 @@ class _MoreOptionsButton extends StatelessWidget {
       itemBuilder: (context) => [
         PopupMenuItem(
           value: 'radio',
+          enabled: song != null,
           child: Row(
             children: [
               const Icon(Icons.radio_rounded, size: 20),
@@ -392,7 +414,25 @@ class _MoreOptionsButton extends StatelessWidget {
           ),
         ),
         PopupMenuItem(
+          value: 'reset',
+          child: Row(
+            children: [
+              const Icon(
+                Icons.refresh_rounded,
+                size: 20,
+                color: Colors.orangeAccent,
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'Clean state',
+                style: TextStyle(color: Colors.orangeAccent),
+              ),
+            ],
+          ),
+        ),
+        PopupMenuItem(
           value: 'playlist',
+          enabled: song != null,
           child: Row(
             children: [
               const Icon(Icons.playlist_add_rounded, size: 20),
@@ -403,6 +443,7 @@ class _MoreOptionsButton extends StatelessWidget {
         ),
         PopupMenuItem(
           value: 'share',
+          enabled: song != null,
           child: Row(
             children: [
               const Icon(Icons.share_outlined, size: 20),
@@ -413,6 +454,7 @@ class _MoreOptionsButton extends StatelessWidget {
         ),
         PopupMenuItem(
           value: 'artist',
+          enabled: song != null,
           child: Row(
             children: [
               const Icon(Icons.person_outline_rounded, size: 20),
@@ -430,7 +472,9 @@ class _MoreOptionsButton extends StatelessWidget {
       context: context,
       backgroundColor: const Color(0xFF1A1A24),
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.large)),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppRadius.large),
+        ),
       ),
       builder: (ctx) => SafeArea(
         child: Column(
@@ -454,6 +498,20 @@ class _MoreOptionsButton extends StatelessWidget {
               ),
               onTap: () {
                 context.read<PlayerBloc>().add(PlayRadioEvent(song));
+                Navigator.pop(ctx);
+              },
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.refresh_rounded,
+                color: Colors.orangeAccent,
+              ),
+              title: const Text(
+                'Clean state',
+                style: TextStyle(color: Colors.orangeAccent),
+              ),
+              onTap: () {
+                context.read<PlayerBloc>().add(const ResetPlayerEvent());
                 Navigator.pop(ctx);
               },
             ),

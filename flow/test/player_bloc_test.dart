@@ -2,7 +2,9 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:just_audio/just_audio.dart' hide PlayerState, ProcessingState;
-import 'package:just_audio/just_audio.dart' as ja show PlayerState, ProcessingState;
+import 'package:just_audio/just_audio.dart'
+    as ja
+    show PlayerState, ProcessingState;
 import 'package:flow/presentation/blocs/player/player_bloc.dart';
 import 'package:flow/domain/entities/song.dart';
 import 'mocks.dart';
@@ -21,16 +23,36 @@ void main() {
     mockSongRepository = MockSongRepository();
 
     // Stub AudioPlayer streams
-    when(() => mockAudioPlayer.positionStream).thenAnswer((_) => const Stream.empty());
-    when(() => mockAudioPlayer.bufferedPositionStream).thenAnswer((_) => const Stream.empty());
-    when(() => mockAudioPlayer.playerStateStream).thenAnswer((_) => Stream.value(ja.PlayerState(false, ja.ProcessingState.idle)));
-    when(() => mockAudioPlayer.durationStream).thenAnswer((_) => const Stream.empty());
-    when(() => mockAudioPlayer.currentIndexStream).thenAnswer((_) => const Stream.empty());
-    when(() => mockAudioPlayer.sequenceStateStream).thenAnswer((_) => const Stream.empty());
+    when(
+      () => mockAudioPlayer.positionStream,
+    ).thenAnswer((_) => const Stream.empty());
+    when(
+      () => mockAudioPlayer.bufferedPositionStream,
+    ).thenAnswer((_) => const Stream.empty());
+    when(() => mockAudioPlayer.playerStateStream).thenAnswer(
+      (_) => Stream.value(ja.PlayerState(false, ja.ProcessingState.idle)),
+    );
+    when(
+      () => mockAudioPlayer.durationStream,
+    ).thenAnswer((_) => const Stream.empty());
+    when(
+      () => mockAudioPlayer.currentIndexStream,
+    ).thenAnswer((_) => const Stream.empty());
+    when(
+      () => mockAudioPlayer.playbackEventStream,
+    ).thenAnswer((_) => const Stream.empty());
+    when(
+      () => mockAudioPlayer.sequenceStateStream,
+    ).thenAnswer((_) => const Stream.empty());
     when(() => mockAudioPlayer.volume).thenReturn(1.0);
     when(() => mockAudioPlayer.setVolume(any())).thenAnswer((_) async => {});
-    when(() => mockAudioPlayer.setAudioSource(any(), initialIndex: any(named: 'initialIndex'), initialPosition: any(named: 'initialPosition')))
-        .thenAnswer((_) async => null);
+    when(
+      () => mockAudioPlayer.setAudioSource(
+        any(),
+        initialIndex: any(named: 'initialIndex'),
+        initialPosition: any(named: 'initialPosition'),
+      ),
+    ).thenAnswer((_) async => null);
     when(() => mockAudioPlayer.play()).thenAnswer((_) async => {});
 
     // Stub LocalStorage
@@ -42,24 +64,32 @@ void main() {
     when(() => mockLocalStorage.recentSearches).thenReturn([]);
 
     // Stub MediaSession
-    when(() => mockMediaSession.init(
-      onPlay: any(named: 'onPlay'),
-      onPause: any(named: 'onPause'),
-      onNext: any(named: 'onNext'),
-      onPrevious: any(named: 'onPrevious'),
-      onFastForward: any(named: 'onFastForward'),
-      onRewind: any(named: 'onRewind'),
-    )).thenAnswer((_) async => {});
+    when(
+      () => mockMediaSession.init(
+        onPlay: any(named: 'onPlay'),
+        onPause: any(named: 'onPause'),
+        onNext: any(named: 'onNext'),
+        onPrevious: any(named: 'onPrevious'),
+        onFastForward: any(named: 'onFastForward'),
+        onRewind: any(named: 'onRewind'),
+      ),
+    ).thenAnswer((_) async => {});
     when(() => mockMediaSession.updateSong(any())).thenAnswer((_) async => {});
-    when(() => mockMediaSession.setPlaybackStatus(any())).thenAnswer((_) async => {});
-    when(() => mockMediaSession.updateTimeline(any(), any())).thenAnswer((_) async => {});
+    when(
+      () => mockMediaSession.setPlaybackStatus(any()),
+    ).thenAnswer((_) async => {});
+    when(
+      () => mockMediaSession.updateTimeline(any(), any()),
+    ).thenAnswer((_) async => {});
   });
 
   group('PlayerBloc - PlayRadioEvent', () {
     blocTest<PlayerBloc, PlayerState>(
       'starts radio and fetches tracks',
       build: () {
-        when(() => mockSongRepository.getRadioTracks(any())).thenAnswer((_) async => [testSong2]);
+        when(
+          () => mockSongRepository.getRadioTracks(any()),
+        ).thenAnswer((_) async => [testSong2]);
         return PlayerBloc(
           songRepository: mockSongRepository,
           audioPlayer: mockAudioPlayer,
@@ -71,6 +101,41 @@ void main() {
       verify: (bloc) {
         verify(() => mockSongRepository.getRadioTracks(testSong.id)).called(1);
         expect(bloc.state.queue, contains(testSong));
+      },
+    );
+  });
+
+  group('PlayerBloc - ResetPlayerEvent', () {
+    blocTest<PlayerBloc, PlayerState>(
+      'stops audio player and clears state',
+      build: () {
+        when(() => mockAudioPlayer.stop()).thenAnswer((_) async => {});
+        return PlayerBloc(
+          songRepository: mockSongRepository,
+          audioPlayer: mockAudioPlayer,
+          storage: mockLocalStorage,
+          mediaSession: mockMediaSession,
+        );
+      },
+      seed: () => PlayerState(
+        currentSong: testSong,
+        isPlaying: true,
+        queue: [testSong],
+        queueIndex: 0,
+      ),
+      act: (bloc) => bloc.add(const ResetPlayerEvent()),
+      expect: () => [
+        isA<PlayerState>()
+            .having((s) => s.currentSong, 'currentSong', isNull)
+            .having((s) => s.isPlaying, 'isPlaying', isFalse)
+            .having((s) => s.queue, 'queue', isEmpty)
+            .having((s) => s.queueIndex, 'queueIndex', -1)
+            .having((s) => s.isInitialLoading, 'isInitialLoading', isFalse)
+            .having((s) => s.isBuffering, 'isBuffering', isFalse),
+      ],
+      verify: (_) {
+        verify(() => mockAudioPlayer.stop()).called(1);
+        verify(() => mockMediaSession.setStopped()).called(1);
       },
     );
   });

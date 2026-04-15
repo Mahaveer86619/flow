@@ -194,7 +194,10 @@ def normalize_artist(
 
 
 def normalize_playlist(
-    item: dict, proxy_base: Optional[str] = None
+    item: dict,
+    proxy_base: Optional[str] = None,
+    playlist_type: str = "yt",
+    owner_code: Optional[str] = None,
 ) -> PlaylistResponse:
     # Robust thumbnail extraction
     thumbnails_data = item.get("thumbnails") or item.get("thumbnail") or []
@@ -218,12 +221,26 @@ def normalize_playlist(
     if parts and parts[0].isdigit():
         track_count = int(parts[0])
 
+    # Detect album vs playlist
+    item_type_raw = str(item.get("type") or item.get("resultType") or "").lower()
+    is_album = item_type_raw in ("album", "single", "ep")
+
+    # Artist name (present on album results)
+    artists = item.get("artists") or []
+    artist_name: Optional[str] = None
+    if artists:
+        artist_name = ", ".join(a["name"] for a in artists if a.get("name")) or None
+
     return PlaylistResponse(
-        id=item.get("playlistId") or item.get("id", ""),
+        id=item.get("playlistId") or item.get("browseId") or item.get("id", ""),
         name=item.get("title") or item.get("name") or "Unknown",
         description=description,
         thumbnailUrl=fix_thumbnail_url(raw_url, proxy_base),
         trackCount=track_count,
+        type=playlist_type,
+        isAlbum=is_album,
+        artistName=artist_name,
+        ownerCode=owner_code,
     )
 
 

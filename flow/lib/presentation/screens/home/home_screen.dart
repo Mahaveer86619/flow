@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -241,7 +242,8 @@ class _HomeScreenContent extends StatelessWidget {
                     } else if (shelf.section == 'freshFinds' &&
                         freshFinds == null) {
                       freshFinds = shelf;
-                    } else if (shelf.section == 'trending' && trending == null) {
+                    } else if (shelf.section == 'trending' &&
+                        trending == null) {
                       trending = shelf;
                     } else {
                       otherShelves.add(shelf);
@@ -249,7 +251,8 @@ class _HomeScreenContent extends StatelessWidget {
                   }
 
                   // 2. Add in requested order
-                  if (listeningAgain != null) displayShelves.add(listeningAgain);
+                  if (listeningAgain != null)
+                    displayShelves.add(listeningAgain);
                   if (quickPicks != null) displayShelves.add(quickPicks);
                   if (freshFinds != null) displayShelves.add(freshFinds);
                   if (trending != null) displayShelves.add(trending);
@@ -365,19 +368,24 @@ class _HomeShelfRenderer extends StatelessWidget {
             padding: const EdgeInsets.only(top: 8),
             child: SizedBox(
               height: 180,
-              child: ListView.separated(
+              child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 itemCount: songs.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 16),
-                itemBuilder: (context, i) => SongCard(
-                  song: songs[i],
-                  queue: allSongs,
-                  index: songIndexMap[songs[i].id] ?? 0,
-                  cardWidth: 240,
-                  aspectRatio: 16 / 9, // Video style
-                  heroTag: 'video_art_${songs[i].id}_${shelf.title}_$i',
-                ),
+                addRepaintBoundaries: true,
+                itemBuilder: (context, i) {
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 16),
+                    child: SongCard(
+                      song: songs[i],
+                      queue: allSongs,
+                      index: songIndexMap[songs[i].id] ?? 0,
+                      cardWidth: 240,
+                      aspectRatio: 16 / 9, // Video style
+                      heroTag: 'video_art_${songs[i].id}_${shelf.title}_$i',
+                    ),
+                  );
+                },
               ),
             ),
           ),
@@ -404,27 +412,30 @@ class _HomeShelfRenderer extends StatelessWidget {
             padding: const EdgeInsets.only(top: 8),
             child: SizedBox(
               height: 240,
-              child: ListView.separated(
+              child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 itemCount: (songs.length / 3).ceil(),
-                separatorBuilder: (_, __) => const SizedBox(width: 24),
+                addRepaintBoundaries: true,
                 itemBuilder: (context, colIndex) {
                   final startIndex = colIndex * 3;
                   final columnSongs = songs.skip(startIndex).take(3).toList();
-                  return SizedBox(
-                    width: 300,
-                    child: Column(
-                      children: List.generate(columnSongs.length, (rowIndex) {
-                        final song = columnSongs[rowIndex];
-                        final rank = startIndex + rowIndex + 1;
-                        return _ChartItem(
-                          song: song,
-                          rank: rank,
-                          allSongs: allSongs,
-                          index: songIndexMap[song.id] ?? 0,
-                        );
-                      }),
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 24),
+                    child: SizedBox(
+                      width: 300,
+                      child: Column(
+                        children: List.generate(columnSongs.length, (rowIndex) {
+                          final song = columnSongs[rowIndex];
+                          final rank = startIndex + rowIndex + 1;
+                          return _ChartItem(
+                            song: song,
+                            rank: rank,
+                            allSongs: allSongs,
+                            index: songIndexMap[song.id] ?? 0,
+                          );
+                        }),
+                      ),
                     ),
                   );
                 },
@@ -498,22 +509,25 @@ class _HomeShelfRenderer extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.only(top: 8),
             child: SizedBox(
-              height: 200, 
-              child: ListView.separated(
+              height: 200,
+              child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 itemCount: songs.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 16),
+                addRepaintBoundaries: true,
                 itemBuilder: (context, i) {
                   final song = songs[i];
                   final globalIndex = songIndexMap[song.id] ?? 0;
-                  return SongCard(
-                    song: song,
-                    queue: allSongs,
-                    index: globalIndex,
-                    cardWidth: 220,
-                    aspectRatio: 1.6,
-                    heroTag: 'listen_again_${song.id}_$i',
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 16),
+                    child: SongCard(
+                      song: song,
+                      queue: allSongs,
+                      index: globalIndex,
+                      cardWidth: 220,
+                      aspectRatio: 1.6,
+                      heroTag: 'listen_again_${song.id}_$i',
+                    ),
                   );
                 },
               ),
@@ -568,64 +582,66 @@ class _HomeShelfRenderer extends StatelessWidget {
             padding: const EdgeInsets.only(top: 8),
             child: SizedBox(
               height: totalHeight,
-              child: ListView.separated(
+              child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 itemCount: columns.length,
-                separatorBuilder: (context, index) =>
-                    const SizedBox(width: gap),
+                addRepaintBoundaries: true,
                 itemBuilder: (context, colIndex) {
                   final columnItems = columns[colIndex];
                   final pattern = [0, 1, 2, 1];
                   final largeIndex = pattern[colIndex % pattern.length];
                   final isRightAligned = colIndex % 2 == 0;
 
-                  return SizedBox(
-                    width: largeSize,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.start,
-                      crossAxisAlignment: isRightAligned
-                          ? CrossAxisAlignment.end
-                          : CrossAxisAlignment.start,
-                      children: List.generate(columnItems.length * 2 - 1, (
-                        index,
-                      ) {
-                        if (index.isOdd) return const SizedBox(height: gap);
+                  return Padding(
+                    padding: const EdgeInsets.only(right: gap),
+                    child: SizedBox(
+                      width: largeSize,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.start,
+                        crossAxisAlignment: isRightAligned
+                            ? CrossAxisAlignment.end
+                            : CrossAxisAlignment.start,
+                        children: List.generate(columnItems.length * 2 - 1, (
+                          index,
+                        ) {
+                          if (index.isOdd) return const SizedBox(height: gap);
 
-                        final rowIndex = index ~/ 2;
-                        final item = columnItems[rowIndex];
-                        final isLarge = rowIndex == largeIndex;
+                          final rowIndex = index ~/ 2;
+                          final item = columnItems[rowIndex];
+                          final isLarge = rowIndex == largeIndex;
 
-                        if (item.type == HomeItemType.song) {
-                          final song = item.data as Song;
-                          return _QuickPickStaggeredItem(
-                            song: song,
-                            isLarge: isLarge,
-                            allSongs: allSongs,
-                            index: songIndexMap[song.id] ?? 0,
-                          );
-                        } else {
-                          // Handle Album/Playlist as a Song entity for UI consistency
-                          final p = item.data as Playlist;
-                          final song = Song(
-                            id: p.id,
-                            title: p.name,
-                            artist: p.description,
-                            album: p.name,
-                            duration: Duration.zero,
-                            thumbnailUrl: p.thumbnailUrl,
-                            colorPrimary: p.color,
-                            colorSecondary: p.color,
-                          );
-                          return _QuickPickStaggeredItem(
-                            song: song,
-                            isLarge: isLarge,
-                            allSongs:
-                                const [], // Cannot play album directly as song yet
-                            index: 0,
-                          );
-                        }
-                      }),
+                          if (item.type == HomeItemType.song) {
+                            final song = item.data as Song;
+                            return _QuickPickStaggeredItem(
+                              song: song,
+                              isLarge: isLarge,
+                              allSongs: allSongs,
+                              index: songIndexMap[song.id] ?? 0,
+                            );
+                          } else {
+                            // Handle Album/Playlist as a Song entity for UI consistency
+                            final p = item.data as Playlist;
+                            final song = Song(
+                              id: p.id,
+                              title: p.name,
+                              artist: p.description,
+                              album: p.name,
+                              duration: Duration.zero,
+                              thumbnailUrl: p.thumbnailUrl,
+                              colorPrimary: p.color,
+                              colorSecondary: p.color,
+                            );
+                            return _QuickPickStaggeredItem(
+                              song: song,
+                              isLarge: isLarge,
+                              allSongs:
+                                  const [], // Cannot play album directly as song yet
+                              index: 0,
+                            );
+                          }
+                        }),
+                      ),
                     ),
                   );
                 },
@@ -667,25 +683,31 @@ class _HomeShelfRenderer extends StatelessWidget {
             padding: const EdgeInsets.only(top: 8),
             child: SizedBox(
               height: 260, // Height for 4 items (~60 each)
-              child: ListView.separated(
+              child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 itemCount: (displaySongs.length / 4).ceil(),
-                separatorBuilder: (_, __) => const SizedBox(width: 24),
+                addRepaintBoundaries: true,
                 itemBuilder: (context, colIndex) {
                   final startIndex = colIndex * 4;
-                  final columnSongs = displaySongs.skip(startIndex).take(4).toList();
-                  return SizedBox(
-                    width: 300,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: columnSongs.map((song) {
-                        return _QuickPickListTile(
-                          song: song,
-                          allSongs: allSongs,
-                          index: songIndexMap[song.id] ?? 0,
-                        );
-                      }).toList(),
+                  final columnSongs = displaySongs
+                      .skip(startIndex)
+                      .take(4)
+                      .toList();
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 24),
+                    child: SizedBox(
+                      width: 300,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: columnSongs.map((song) {
+                          return _QuickPickListTile(
+                            song: song,
+                            allSongs: allSongs,
+                            index: songIndexMap[song.id] ?? 0,
+                          );
+                        }).toList(),
+                      ),
                     ),
                   );
                 },
@@ -711,11 +733,7 @@ class _HomeShelfRenderer extends StatelessWidget {
 
     return SliverMainAxisGroup(
       slivers: [
-        SliverToBoxAdapter(
-          child: SectionHeader(
-            title: shelf.title,
-          ),
-        ),
+        SliverToBoxAdapter(child: SectionHeader(title: shelf.title)),
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.only(top: 8),
@@ -728,8 +746,10 @@ class _HomeShelfRenderer extends StatelessWidget {
                 separatorBuilder: (_, __) => const SizedBox(width: 16),
                 itemBuilder: (context, colIndex) {
                   final startIndex = colIndex * 4;
-                  final columnSongs =
-                      displaySongs.skip(startIndex).take(4).toList();
+                  final columnSongs = displaySongs
+                      .skip(startIndex)
+                      .take(4)
+                      .toList();
                   return SizedBox(
                     width: 150,
                     child: Column(
@@ -780,20 +800,27 @@ class _HomeShelfRenderer extends StatelessWidget {
             padding: const EdgeInsets.only(top: 8),
             child: SizedBox(
               height: 160,
-              child: ListView.separated(
+              child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 itemCount: artists.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 14),
-                itemBuilder: (context, i) => ArtistCard(
-                  artist: artists[i],
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          ArtistScreen(artist: artists[i], allSongs: allSongs),
+                addRepaintBoundaries: true,
+                itemBuilder: (context, i) {
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 14),
+                    child: ArtistCard(
+                      artist: artists[i],
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => ArtistScreen(
+                            artist: artists[i],
+                            allSongs: allSongs,
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
+                  );
+                },
               ),
             ),
           ),
@@ -822,26 +849,33 @@ class _HomeShelfRenderer extends StatelessWidget {
             padding: const EdgeInsets.only(top: 16),
             child: SizedBox(
               height: 200,
-              child: ListView.separated(
+              child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 itemCount: shelf.items.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 14),
+                addRepaintBoundaries: true,
                 itemBuilder: (context, i) {
                   final item = shelf.items[i];
-                  if (item.type == HomeItemType.song) {
-                    final song = item.data as Song;
-                    return SongCard(
-                      song: song,
-                      queue: allSongs,
-                      index: songIndexMap[song.id] ?? 0,
-                      heroTag: 'card_art_${song.id}_${shelf.title}_$i',
-                    );
-                  }
-                  final playlist = item.data as Playlist;
-                  return _HomePlaylistCard(
-                    playlist: playlist,
-                    isAlbum: item.type == HomeItemType.album || isAlbum,
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 14),
+                    child: Builder(
+                      builder: (context) {
+                        if (item.type == HomeItemType.song) {
+                          final song = item.data as Song;
+                          return SongCard(
+                            song: song,
+                            queue: allSongs,
+                            index: songIndexMap[song.id] ?? 0,
+                            heroTag: 'card_art_${song.id}_${shelf.title}_$i',
+                          );
+                        }
+                        final playlist = item.data as Playlist;
+                        return _HomePlaylistCard(
+                          playlist: playlist,
+                          isAlbum: item.type == HomeItemType.album || isAlbum,
+                        );
+                      },
+                    ),
                   );
                 },
               ),
@@ -880,18 +914,23 @@ class _HomeShelfRenderer extends StatelessWidget {
             padding: const EdgeInsets.only(top: 8),
             child: SizedBox(
               height: cardWidth + 60,
-              child: ListView.separated(
+              child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 itemCount: songs.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 14),
-                itemBuilder: (context, i) => SongCard(
-                  song: songs[i],
-                  queue: allSongs,
-                  index: songIndexMap[songs[i].id] ?? 0,
-                  cardWidth: cardWidth,
-                  heroTag: 'card_art_${songs[i].id}_${shelf.title}_$i',
-                ),
+                addRepaintBoundaries: true,
+                itemBuilder: (context, i) {
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 14),
+                    child: SongCard(
+                      song: songs[i],
+                      queue: allSongs,
+                      index: songIndexMap[songs[i].id] ?? 0,
+                      cardWidth: cardWidth,
+                      heroTag: 'card_art_${songs[i].id}_${shelf.title}_$i',
+                    ),
+                  );
+                },
               ),
             ),
           ),
@@ -917,75 +956,103 @@ class _ChartItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return InkWell(
-      onTap: () {
-        context.read<PlayerBloc>().add(
-          PlayQueueEvent(songs: List<Song>.from(allSongs), startIndex: index),
-        );
-        if (!Breakpoints.isDesktop(MediaQuery.sizeOf(context).width)) {
-          PlayerScreen.show(context);
-        }
-      },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 32,
-              child: Text(
-                '$rank',
-                style: GoogleFonts.spaceGrotesk(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: theme.colorScheme.onSurface.withAlpha(100),
+    final cacheSize = (56 * MediaQuery.devicePixelRatioOf(context)).round();
+
+    return RepaintBoundary(
+      child: InkWell(
+        onTap: () {
+          context.read<PlayerBloc>().add(
+            PlayQueueEvent(songs: List<Song>.from(allSongs), startIndex: index),
+          );
+          if (!Breakpoints.isDesktop(MediaQuery.sizeOf(context).width)) {
+            PlayerScreen.show(context);
+          }
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 32,
+                child: Text(
+                  '$rank',
+                  style: GoogleFonts.spaceGrotesk(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: theme.colorScheme.onSurface.withAlpha(100),
+                  ),
                 ),
               ),
-            ),
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                borderRadius: AppRadius.mediumBorderRadius,
-                image: song.thumbnailUrl != null
-                    ? DecorationImage(
-                        image: NetworkImage(song.thumbnailUrl!),
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  borderRadius: AppRadius.mediumBorderRadius,
+                  color: theme.colorScheme.surfaceContainerHigh,
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: song.thumbnailUrl != null
+                    ? CachedNetworkImage(
+                        imageUrl: song.thumbnailUrl!,
                         fit: BoxFit.fill,
+                        maxWidthDiskCache: cacheSize,
+                        maxHeightDiskCache: cacheSize,
+                        placeholder: (context, url) => _fallback(),
+                        errorWidget: (context, url, error) => _fallback(),
                       )
-                    : null,
-                gradient: song.thumbnailUrl == null
-                    ? LinearGradient(
-                        colors: [song.colorPrimary, song.colorSecondary],
-                      )
-                    : null,
+                    : _fallback(),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    song.title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      song.title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(
-                    song.artist,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: theme.colorScheme.onSurface.withAlpha(140),
+                    Text(
+                      song.artist,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: theme.colorScheme.onSurface.withAlpha(140),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _fallback() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [song.colorPrimary, song.colorSecondary],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Center(
+        child: Text(
+          'f',
+          style: GoogleFonts.spaceGrotesk(
+            fontSize: 24,
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+            height: 1.0,
+          ),
         ),
       ),
     );
@@ -1006,43 +1073,56 @@ class _FeaturedSmallTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return InkWell(
-      onTap: () {
-        context.read<PlayerBloc>().add(
-          PlayQueueEvent(songs: List<Song>.from(allSongs), startIndex: index),
-        );
-        if (!Breakpoints.isDesktop(MediaQuery.sizeOf(context).width)) {
-          PlayerScreen.show(context);
-        }
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHigh,
-          borderRadius: AppRadius.largeBorderRadius,
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Row(
-          children: [
-            AspectRatio(
-              aspectRatio: 1,
-              child: song.thumbnailUrl != null
-                  ? Image.network(song.thumbnailUrl!, fit: BoxFit.fill)
-                  : Container(color: song.colorPrimary),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                song.title,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+    final cacheSize = (80 * MediaQuery.devicePixelRatioOf(context)).round();
+
+    return RepaintBoundary(
+      child: InkWell(
+        onTap: () {
+          context.read<PlayerBloc>().add(
+            PlayQueueEvent(songs: List<Song>.from(allSongs), startIndex: index),
+          );
+          if (!Breakpoints.isDesktop(MediaQuery.sizeOf(context).width)) {
+            PlayerScreen.show(context);
+          }
+        },
+        child: Container(
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHigh,
+            borderRadius: AppRadius.largeBorderRadius,
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Row(
+            children: [
+              AspectRatio(
+                aspectRatio: 1,
+                child: song.thumbnailUrl != null
+                    ? CachedNetworkImage(
+                        imageUrl: song.thumbnailUrl!,
+                        fit: BoxFit.fill,
+                        maxWidthDiskCache: cacheSize,
+                        maxHeightDiskCache: cacheSize,
+                        placeholder: (context, url) =>
+                            Container(color: song.colorPrimary.withAlpha(50)),
+                        errorWidget: (context, url, error) =>
+                            Container(color: song.colorPrimary),
+                      )
+                    : Container(color: song.colorPrimary),
               ),
-            ),
-            const SizedBox(width: 8),
-          ],
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  song.title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
+          ),
         ),
       ),
     );
@@ -1064,62 +1144,91 @@ class _ListenAgainItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final isDesktop = Breakpoints.isDesktop(MediaQuery.sizeOf(context).width);
+    final cacheSize = (48 * MediaQuery.devicePixelRatioOf(context)).round();
 
-    return InkWell(
-      onTap: () {
-        context.read<PlayerBloc>().add(
-          PlayQueueEvent(songs: List<Song>.from(allSongs), startIndex: index),
-        );
-        if (!isDesktop) {
-          PlayerScreen.show(context);
-        }
-      },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                borderRadius: AppRadius.mediumBorderRadius,
-                gradient: LinearGradient(
-                  colors: [song.colorPrimary, song.colorSecondary],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+    return RepaintBoundary(
+      child: InkWell(
+        onTap: () {
+          context.read<PlayerBloc>().add(
+            PlayQueueEvent(songs: List<Song>.from(allSongs), startIndex: index),
+          );
+          if (!isDesktop) {
+            PlayerScreen.show(context);
+          }
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  borderRadius: AppRadius.mediumBorderRadius,
+                  color: colorScheme.surfaceContainerHigh,
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: song.thumbnailUrl != null
+                    ? CachedNetworkImage(
+                        imageUrl: song.thumbnailUrl!,
+                        fit: BoxFit.fill,
+                        maxWidthDiskCache: cacheSize,
+                        maxHeightDiskCache: cacheSize,
+                        placeholder: (context, url) => _fallback(),
+                        errorWidget: (context, url, error) => _fallback(),
+                      )
+                    : _fallback(),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextCarousel(
+                      text: song.title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                    ),
+                    Text(
+                      song.artist,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colorScheme.onSurface.withAlpha(140),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
               ),
-              clipBehavior: Clip.antiAlias,
-              child: song.thumbnailUrl != null
-                  ? Image.network(song.thumbnailUrl!, fit: BoxFit.fill)
-                  : const Icon(Icons.music_note, color: Colors.white),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextCarousel(
-                    text: song.title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                    ),
-                  ),
-                  Text(
-                    song.artist,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: colorScheme.onSurface.withAlpha(140),
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-          ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _fallback() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [song.colorPrimary, song.colorSecondary],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Center(
+        child: Text(
+          'f',
+          style: GoogleFonts.spaceGrotesk(
+            fontSize: 48,
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+            height: 1.0,
+          ),
         ),
       ),
     );
@@ -1141,109 +1250,110 @@ class _HomePlaylistCardState extends State<_HomePlaylistCard> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final cacheSize = (280 * MediaQuery.devicePixelRatioOf(context)).round();
 
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => PlaylistScreen(
-              playlist: widget.playlist,
-              isAlbum: widget.isAlbum,
+    return RepaintBoundary(
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => PlaylistScreen(
+                playlist: widget.playlist,
+                isAlbum: widget.isAlbum,
+              ),
             ),
           ),
-        ),
-        child: SizedBox(
-          width: 140,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              AspectRatio(
-                aspectRatio: 1.0,
-                child: AnimatedScale(
-                  scale: _isHovered ? 1.04 : 1.0,
-                  duration: const Duration(milliseconds: 200),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: widget.playlist.color,
-                      borderRadius: AppRadius.mediumBorderRadius,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withAlpha(_isHovered ? 60 : 40),
-                          blurRadius: _isHovered ? 20 : 12,
-                          offset: Offset(0, _isHovered ? 8 : 4),
-                        ),
-                      ],
-                    ),
-                    clipBehavior: Clip.antiAlias,
-                    child: Stack(
-                      children: [
-                        if (widget.playlist.thumbnailUrl != null)
-                          Positioned.fill(
-                            child: Image.network(
-                              widget.playlist.thumbnailUrl!,
-                              fit: BoxFit.fill,
-                              cacheWidth: 400,
-                              cacheHeight: 400,
-                              errorBuilder: (_, __, ___) => const Icon(
-                                Icons.queue_music_rounded,
-                                color: Colors.white,
-                                size: 48,
-                              ),
-                            ),
-                          )
-                        else
-                          const Center(
-                            child: Icon(
-                              Icons.queue_music_rounded,
-                              color: Colors.white,
-                              size: 48,
-                            ),
+          child: SizedBox(
+            width: 140,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AspectRatio(
+                  aspectRatio: 1.0,
+                  child: AnimatedScale(
+                    scale: _isHovered ? 1.04 : 1.0,
+                    duration: const Duration(milliseconds: 200),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: widget.playlist.color,
+                        borderRadius: AppRadius.mediumBorderRadius,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withAlpha(_isHovered ? 60 : 40),
+                            blurRadius: _isHovered ? 20 : 12,
+                            offset: Offset(0, _isHovered ? 8 : 4),
                           ),
+                        ],
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: Stack(
+                        children: [
+                          if (widget.playlist.thumbnailUrl != null)
+                            Positioned.fill(
+                              child: CachedNetworkImage(
+                                imageUrl: widget.playlist.thumbnailUrl!,
+                                fit: BoxFit.fill,
+                                maxWidthDiskCache: cacheSize,
+                                maxHeightDiskCache: cacheSize,
+                                placeholder: (context, url) => _fallbackIcon(),
+                                errorWidget: (context, url, error) =>
+                                    _fallbackIcon(),
+                              ),
+                            )
+                          else
+                            _fallbackIcon(),
 
-                        if (_isHovered)
-                          Positioned.fill(
-                            child: Container(
-                              color: Colors.black.withAlpha(30),
-                              child: const Center(
-                                child: Icon(
-                                  Icons.play_arrow_rounded,
-                                  color: Colors.white,
-                                  size: 42,
+                          if (_isHovered)
+                            Positioned.fill(
+                              child: Container(
+                                color: Colors.black.withAlpha(30),
+                                child: const Center(
+                                  child: Icon(
+                                    Icons.play_arrow_rounded,
+                                    color: Colors.white,
+                                    size: 42,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                widget.playlist.name,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
+                const SizedBox(height: 10),
+                Text(
+                  widget.playlist.name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-              ),
-              Text(
-                widget.playlist.description,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: cs.onSurface.withAlpha(140),
+                Text(
+                  widget.playlist.description,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: cs.onSurface.withAlpha(140),
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _fallbackIcon() {
+    return const Center(
+      child: Icon(Icons.queue_music_rounded, color: Colors.white, size: 48),
     );
   }
 }
@@ -1273,7 +1383,8 @@ class _HomeScreenSkeleton extends StatelessWidget {
                 childAspectRatio: 2.5,
               ),
               itemCount: 4,
-              itemBuilder: (context, i) => const Skeleton(borderRadius: AppRadius.medium),
+              itemBuilder: (context, i) =>
+                  const Skeleton(borderRadius: AppRadius.medium),
             ),
           ),
         ),
@@ -1351,113 +1462,117 @@ class _QuickPickStaggeredItemState extends State<_QuickPickStaggeredItem> {
     final theme = Theme.of(context);
     final size = widget.isLarge ? 150.0 : 100.0;
     const totalWidth = 150.0;
+    final cacheSize = (size * MediaQuery.devicePixelRatioOf(context)).round();
 
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: () {
-          context.read<PlayerBloc>().add(
-            PlayQueueEvent(songs: widget.allSongs, startIndex: widget.index),
-          );
-          if (!Breakpoints.isDesktop(MediaQuery.sizeOf(context).width)) {
-            PlayerScreen.show(context);
-          }
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          width: totalWidth,
-          child: Hero(
-            tag: 'quick_art_${widget.song.id}_${widget.isLarge}',
-            child: Container(
-              width: size,
-              height: size,
-              decoration: BoxDecoration(
-                borderRadius: AppRadius.mediumBorderRadius,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withAlpha(40),
-                    blurRadius: 10,
-                    offset: const Offset(0, 5),
-                  ),
-                ],
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: Stack(
-                children: [
-                  // Artwork
-                  if (widget.song.thumbnailUrl != null)
-                    Positioned.fill(
-                      child: Image.network(
-                        widget.song.thumbnailUrl!,
-                        fit: BoxFit.fill,
-                        cacheWidth: 400,
-                        cacheHeight: 400,
-                        errorBuilder: (_, __, ___) => _fallback(),
-                      ),
-                    )
-                  else
-                    _fallback(),
+    return RepaintBoundary(
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: () {
+            context.read<PlayerBloc>().add(
+              PlayQueueEvent(songs: widget.allSongs, startIndex: widget.index),
+            );
+            if (!Breakpoints.isDesktop(MediaQuery.sizeOf(context).width)) {
+              PlayerScreen.show(context);
+            }
+          },
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: totalWidth,
+            child: Hero(
+              tag: 'quick_art_${widget.song.id}_${widget.isLarge}',
+              child: Container(
+                width: size,
+                height: size,
+                decoration: BoxDecoration(
+                  borderRadius: AppRadius.mediumBorderRadius,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withAlpha(40),
+                      blurRadius: 10,
+                      offset: const Offset(0, 5),
+                    ),
+                  ],
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Stack(
+                  children: [
+                    // Artwork
+                    if (widget.song.thumbnailUrl != null)
+                      Positioned.fill(
+                        child: CachedNetworkImage(
+                          imageUrl: widget.song.thumbnailUrl!,
+                          fit: BoxFit.fill,
+                          maxWidthDiskCache: cacheSize,
+                          maxHeightDiskCache: cacheSize,
+                          placeholder: (context, url) => _fallback(),
+                          errorWidget: (context, url, error) => _fallback(),
+                        ),
+                      )
+                    else
+                      _fallback(),
 
-                  // Text Overlay (Bottom)
-                  Positioned(
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    child: Container(
-                      padding: const EdgeInsets.fromLTRB(10, 24, 10, 8),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.bottomCenter,
-                          end: Alignment.topCenter,
-                          colors: [
-                            Colors.black.withAlpha(200),
-                            Colors.black.withAlpha(0),
+                    // Text Overlay (Bottom)
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      child: Container(
+                        padding: const EdgeInsets.fromLTRB(10, 24, 10, 8),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.bottomCenter,
+                            end: Alignment.topCenter,
+                            colors: [
+                              Colors.black.withAlpha(200),
+                              Colors.black.withAlpha(0),
+                            ],
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            TextCarousel(
+                              text: widget.song.title,
+                              style: GoogleFonts.outfit(
+                                fontWeight: FontWeight.w700,
+                                fontSize: widget.isLarge ? 13 : 10,
+                                color: Colors.white,
+                                letterSpacing: -0.2,
+                              ),
+                            ),
+                            Text(
+                              widget.song.artist,
+                              style: GoogleFonts.outfit(
+                                fontSize: widget.isLarge ? 11 : 8,
+                                color: Colors.white.withAlpha(180),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ],
                         ),
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          TextCarousel(
-                            text: widget.song.title,
-                            style: GoogleFonts.outfit(
-                              fontWeight: FontWeight.w700,
-                              fontSize: widget.isLarge ? 13 : 10,
-                              color: Colors.white,
-                              letterSpacing: -0.2,
-                            ),
-                          ),
-                          Text(
-                            widget.song.artist,
-                            style: GoogleFonts.outfit(
-                              fontSize: widget.isLarge ? 11 : 8,
-                              color: Colors.white.withAlpha(180),
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
                     ),
-                  ),
 
-                  if (_isHovered)
-                    Positioned.fill(
-                      child: Container(
-                        color: Colors.black.withAlpha(40),
-                        child: const Center(
-                          child: Icon(
-                            Icons.play_arrow_rounded,
-                            color: Colors.white,
-                            size: 38,
+                    if (_isHovered)
+                      Positioned.fill(
+                        child: Container(
+                          color: Colors.black.withAlpha(40),
+                          child: const Center(
+                            child: Icon(
+                              Icons.play_arrow_rounded,
+                              color: Colors.white,
+                              size: 38,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -1496,66 +1611,84 @@ class _QuickPickListTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return InkWell(
-      onTap: () {
-        context.read<PlayerBloc>().add(
-          PlayQueueEvent(songs: List<Song>.from(allSongs), startIndex: index),
-        );
-        if (!Breakpoints.isDesktop(MediaQuery.sizeOf(context).width)) {
-          PlayerScreen.show(context);
-        }
-      },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                borderRadius: AppRadius.smallBorderRadius,
-                image: song.thumbnailUrl != null
-                    ? DecorationImage(
-                        image: NetworkImage(song.thumbnailUrl!),
+    final cacheSize = (48 * MediaQuery.devicePixelRatioOf(context)).round();
+
+    return RepaintBoundary(
+      child: InkWell(
+        onTap: () {
+          context.read<PlayerBloc>().add(
+            PlayQueueEvent(songs: List<Song>.from(allSongs), startIndex: index),
+          );
+          if (!Breakpoints.isDesktop(MediaQuery.sizeOf(context).width)) {
+            PlayerScreen.show(context);
+          }
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  borderRadius: AppRadius.smallBorderRadius,
+                  color: theme.colorScheme.surfaceContainerHigh,
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: song.thumbnailUrl != null
+                    ? CachedNetworkImage(
+                        imageUrl: song.thumbnailUrl!,
                         fit: BoxFit.fill,
+                        maxWidthDiskCache: cacheSize,
+                        maxHeightDiskCache: cacheSize,
+                        placeholder: (context, url) => _fallback(),
+                        errorWidget: (context, url, error) => _fallback(),
                       )
-                    : null,
-                gradient: song.thumbnailUrl == null
-                    ? LinearGradient(
-                        colors: [song.colorPrimary, song.colorSecondary],
-                      )
-                    : null,
+                    : _fallback(),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    song.title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      song.title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(
-                    song.artist,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: theme.colorScheme.onSurface.withAlpha(140),
+                    Text(
+                      song.artist,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: theme.colorScheme.onSurface.withAlpha(140),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
+      ),
+    );
+  }
+
+  Widget _fallback() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [song.colorPrimary, song.colorSecondary],
+        ),
+      ),
+      child: const Center(
+        child: Icon(Icons.music_note_rounded, color: Colors.white24, size: 20),
       ),
     );
   }

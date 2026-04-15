@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:hive_flutter/hive_flutter.dart';
 import '../logger/app_logger.dart';
 import 'hive_keys.dart';
@@ -15,7 +16,11 @@ import 'hive_keys.dart';
 
 class LocalStorage {
   LocalStorage._();
-  static final LocalStorage instance = LocalStorage._();
+  static LocalStorage? _instance;
+  static LocalStorage get instance => _instance ??= LocalStorage._();
+
+  @visibleForTesting
+  static set instance(LocalStorage mock) => _instance = mock;
 
   late final Box _player;
   late final Box _search;
@@ -155,7 +160,10 @@ class LocalStorage {
   /// Clears search history and player state, but preserves critical settings
   /// (Server URL, Theme, Downloads path) and Auth.
   Future<void> clearCache() async {
-    AppLogger.w('LocalStorage', 'Clearing local cache (player, search, metadata cache)...');
+    AppLogger.w(
+      'LocalStorage',
+      'Clearing local cache (player, search, metadata cache)...',
+    );
     await _player.clear();
     await _search.clear();
     await _songMetadataCache.clear();

@@ -389,4 +389,54 @@ class MockSongDataSource implements SongDataSource {
 
   @override
   Future<void> unlikeArtist(String channelId) async {}
+
+  // --- Flow Playlist CRUD (no-op stubs for mock) ---
+
+  @override
+  Future<PlaylistModel> createFlowPlaylist({
+    required String title,
+    String description = '',
+    bool isPublic = false,
+  }) async =>
+      PlaylistModel(
+        id: 'mock',
+        name: title,
+        description: description,
+        color: const Color(0xFF7C3AED),
+      );
+
+  @override
+  Future<PlaylistModel> updateFlowPlaylist(
+    String playlistId, {
+    String? title,
+    String? description,
+    bool? isPublic,
+  }) async =>
+      PlaylistModel(
+        id: playlistId,
+        name: title ?? '',
+        description: description ?? '',
+        color: const Color(0xFF7C3AED),
+      );
+
+  @override
+  Future<void> deleteFlowPlaylist(String playlistId) async {}
+
+  @override
+  Future<void> addTrackToFlowPlaylist(
+    String playlistId,
+    Map<String, dynamic> songData,
+  ) async {}
+
+  @override
+  Future<void> removeTrackFromFlowPlaylist(
+    String playlistId,
+    int trackId,
+  ) async {}
+
+  @override
+  Future<void> addCollaborator(String playlistId, String userCode) async {}
+
+  @override
+  Future<void> removeCollaborator(String playlistId, String userCode) async {}
 }

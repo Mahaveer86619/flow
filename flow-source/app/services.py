@@ -63,6 +63,24 @@ class AuthService:
         )
         return encoded_jwt
 
+    @staticmethod
+    def generate_user_code(username: str, db: Session) -> str:
+        """Generate a unique user code like username#1234."""
+        import random
+        
+        # Clean username (remove spaces, etc if needed, but let's keep it simple for now)
+        base = username.replace(" ", "").lower()
+        
+        for _ in range(10):  # Try 10 times to find a unique code
+            code = f"{base}#{random.randint(1000, 9999)}"
+            # Check DB for uniqueness
+            existing = db.query(User).filter(User.user_code == code).first()
+            if not existing:
+                return code
+        
+        # Fallback to a longer code if collisions persist
+        return f"{base}#{random.randint(100000, 999999)}"
+
 
 class YTMusicService:
     def __init__(self):

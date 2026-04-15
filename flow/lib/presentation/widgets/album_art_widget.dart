@@ -1,10 +1,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // AlbumArtWidget — shows a network thumbnail when available, otherwise falls
-// back to the vinyl-style gradient placeholder.
+// back to the minimal 'f' placeholder.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class AlbumArtWidget extends StatelessWidget {
   /// Side length of the square artwork tile in logical pixels.
@@ -15,8 +17,7 @@ class AlbumArtWidget extends StatelessWidget {
   /// Corner radius of the surrounding rounded rectangle.
   final double borderRadius;
 
-  /// Remote thumbnail URL. When non-null, a network image is shown instead of
-  /// the gradient placeholder. Falls back to the placeholder on error.
+  /// Remote thumbnail URL or local file path.
   final String? thumbnailUrl;
 
   const AlbumArtWidget({
@@ -35,27 +36,41 @@ class AlbumArtWidget extends StatelessWidget {
       return RepaintBoundary(
         child: ClipRRect(
           borderRadius: BorderRadius.circular(borderRadius),
-          child: CachedNetworkImage(
-            imageUrl: thumbnailUrl!,
-            width: size,
-            height: size,
-            fit: BoxFit.fill,
-            maxWidthDiskCache: cacheSize,
-            maxHeightDiskCache: cacheSize,
-            httpHeaders: const {
-              'User-Agent':
-                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-            },
-            placeholder: (context, url) => _buildVinyl(),
-            errorWidget: (context, url, error) => _buildVinyl(),
-          ),
+          child: thumbnailUrl!.startsWith('http')
+              ? CachedNetworkImage(
+                  imageUrl: thumbnailUrl!,
+                  width: size,
+                  height: size,
+                  fit: BoxFit.fill,
+                  maxWidthDiskCache: cacheSize,
+                  maxHeightDiskCache: cacheSize,
+                  httpHeaders: const {
+                    'User-Agent':
+                        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+                  },
+                  placeholder: (context, url) => _buildPlaceholder(),
+                  errorWidget: (context, url, error) => _buildPlaceholder(),
+                )
+              : Image.file(
+                  File(thumbnailUrl!),
+                  width: size,
+                  height: size,
+                  fit: BoxFit.fill,
+                  errorBuilder: (context, error, stackTrace) =>
+                      _buildPlaceholder(),
+                ),
         ),
       );
     }
-    return RepaintBoundary(child: _buildVinyl());
+    return RepaintBoundary(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(borderRadius),
+        child: _buildPlaceholder(),
+      ),
+    );
   }
 
-  Widget _buildVinyl() {
+  Widget _buildPlaceholder() {
     return Container(
       width: size,
       height: size,
@@ -65,63 +80,17 @@ class AlbumArtWidget extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: [colorPrimary, colorSecondary],
         ),
-        borderRadius: BorderRadius.circular(borderRadius),
-        boxShadow: [
-          BoxShadow(
-            color: colorPrimary.withAlpha(100),
-            blurRadius: 50,
-            offset: const Offset(0, 24),
-          ),
-        ],
       ),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Positioned(
-            right: size * 0.06,
-            top: size * 0.06,
-            child: Container(
-              width: size * 0.22,
-              height: size * 0.22,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withAlpha(14),
-              ),
-            ),
+      child: Center(
+        child: Text(
+          'f',
+          style: GoogleFonts.spaceGrotesk(
+            fontSize: size * 0.6,
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+            height: 1.0,
           ),
-          Container(
-            width: size * 0.78,
-            height: size * 0.78,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.black.withAlpha(20),
-              border: Border.all(color: Colors.white.withAlpha(18), width: 1.5),
-            ),
-          ),
-          Container(
-            width: size * 0.52,
-            height: size * 0.52,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.black.withAlpha(40),
-              border: Border.all(color: Colors.white.withAlpha(14), width: 1),
-            ),
-          ),
-          Container(
-            width: size * 0.26,
-            height: size * 0.26,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.black.withAlpha(60),
-              border: Border.all(color: Colors.white.withAlpha(30), width: 1),
-            ),
-            child: Icon(
-              Icons.music_note_rounded,
-              size: size * 0.13,
-              color: Colors.white.withAlpha(210),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

@@ -50,4 +50,36 @@ abstract class SongRepository {
 
   /// Static browse categories — synchronous, never needs the network.
   List<Map<String, dynamic>> getCategories();
+
+  // ── Flow Playlist CRUD ────────────────────────────────────────────────────────
+
+  /// Create a new Flow playlist owned by the current user.
+  Future<Playlist> createFlowPlaylist({
+    required String title,
+    String description = '',
+    bool isPublic = false,
+  });
+
+  /// Update title/description/visibility of a Flow playlist.
+  Future<Playlist> updateFlowPlaylist(
+    String playlistId, {
+    String? title,
+    String? description,
+    bool? isPublic,
+  });
+
+  /// Permanently delete a Flow playlist (owner only).
+  Future<void> deleteFlowPlaylist(String playlistId);
+
+  /// Add a song to a Flow playlist (owner or collaborator).
+  Future<void> addTrackToFlowPlaylist(String playlistId, Song song);
+
+  /// Remove a track from a Flow playlist by its DB track id.
+  Future<void> removeTrackFromFlowPlaylist(String playlistId, int trackId);
+
+  /// Add a collaborator by their user code (e.g. "mahaveer#1234").
+  Future<void> addCollaborator(String playlistId, String userCode);
+
+  /// Remove a collaborator by their user code.
+  Future<void> removeCollaborator(String playlistId, String userCode);
 }

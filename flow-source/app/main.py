@@ -12,6 +12,43 @@ from .routes import close_shared_client, router
 from .utils import write_cookie_file
 
 
+# ── Incremental DB migrations ─────────────────────────────────────────────────
+# SQLAlchemy's create_all() creates missing tables but never adds columns to
+# existing ones. This function closes that gap for SQLite by issuing
+# ALTER TABLE … ADD COLUMN for any column that is in the ORM model but absent
+# from the live table.
+_MIGRATIONS: list[tuple[str, str, str]] = [
+    # (table_name, column_name, column_definition)
+    ("users",     "user_code",     "VARCHAR UNIQUE"),
+    ("playlists", "type",          "VARCHAR DEFAULT 'flow'"),
+    ("playlists", "is_public",     "BOOLEAN DEFAULT 0"),
+    ("playlists", "yt_playlist_id","VARCHAR"),
+    ("playlists", "updated_at",    "DATETIME"),
+]
+
+
+def _run_migrations(logger: logging.Logger) -> None:
+    with engine.connect() as conn:
+        for table, column, col_def in _MIGRATIONS:
+            try:
+                existing = {
+                    row[1]
+                    for row in conn.execute(
+                        __import__("sqlalchemy").text(f"PRAGMA table_info({table})")
+                    )
+                }
+                if column not in existing:
+                    conn.execute(
+                        __import__("sqlalchemy").text(
+                            f"ALTER TABLE {table} ADD COLUMN {column} {col_def}"
+                        )
+                    )
+                    conn.commit()
+                    logger.info(f"Migration: added {table}.{column}")
+            except Exception as exc:
+                logger.warning(f"Migration skipped {table}.{column}: {exc}")
+
+
 def setup_logging():
     log_level = logging.DEBUG if settings.DEBUG else logging.INFO
     logging.basicConfig(
@@ -80,6 +117,13 @@ def create_app() -> FastAPI:
             logger.info("Database tables initialized.")
         except Exception as e:
             logger.error(f"Database initialization failed: {e}")
+
+        # Run incremental column migrations for SQLite (ALTER TABLE ADD COLUMN is
+        # idempotent-safe because we check existing columns first).
+        try:
+            _run_migrations(logger)
+        except Exception as e:
+            logger.error(f"Migration failed: {e}")
 
         # Ensure global cookie file is written if the master auth.json exists
         if write_cookie_file(settings.AUTH_FILE_PATH, settings.COOKIES_FILE_PATH):

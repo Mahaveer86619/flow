@@ -136,8 +136,16 @@ class SongTile extends StatelessWidget {
   }
 
   Widget _fallback() {
-    return const Center(
-      child: Icon(Icons.music_note_rounded, color: Colors.white, size: 20),
+    return Center(
+      child: Text(
+        'f',
+        style: GoogleFonts.spaceGrotesk(
+          fontSize: 24,
+          fontWeight: FontWeight.w800,
+          color: Colors.white,
+          height: 1.0,
+        ),
+      ),
     );
   }
 }

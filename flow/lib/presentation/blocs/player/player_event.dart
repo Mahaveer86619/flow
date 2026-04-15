@@ -110,6 +110,12 @@ class SetVolumeEvent extends PlayerEvent {
   const SetVolumeEvent(this.volume);
 }
 
+/// Reset the player state, stop playback, and clear queue.
+/// Useful when the player gets stuck or for a "state clean" functionality.
+class ResetPlayerEvent extends PlayerEvent {
+  const ResetPlayerEvent();
+}
+
 // ── Internal events ─────────────────────────────────────────────────────────────
 
 class _RestoreStateEvent extends PlayerEvent {

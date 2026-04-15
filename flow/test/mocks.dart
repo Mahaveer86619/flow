@@ -18,11 +18,14 @@ class MockAudioPlayer extends Mock implements AudioPlayer {
   @override
   Future<void> dispose() async {}
 }
+
 class MockLocalStorage extends Mock implements LocalStorage {}
+
 class MockWindowsMediaSession extends Mock implements WindowsMediaSession {
   @override
   Future<void> dispose() async {}
 }
+
 class MockSongRepository extends Mock implements SongRepository {
   @override
   Future<void> recordPlay(Song song) async {}
@@ -37,15 +40,23 @@ class MockSongRepository extends Mock implements SongRepository {
     );
   }
 }
-class MockConcatenatingAudioSource extends Mock implements ConcatenatingAudioSource {}
+
+class MockConcatenatingAudioSource extends Mock
+    implements ConcatenatingAudioSource {}
+
 class MockDownloadService extends Mock implements DownloadService {}
 
-class MockPlayerBloc extends MockBloc<PlayerEvent, PlayerState> implements PlayerBloc {}
+class MockPlayerBloc extends MockBloc<PlayerEvent, PlayerState>
+    implements PlayerBloc {}
+
 class MockSearchCubit extends MockCubit<SearchState> implements SearchCubit {}
 
 class FakePlayerState extends Fake implements PlayerState {}
+
 class FakePlayerEvent extends Fake implements PlayerEvent {}
+
 class FakeSong extends Fake implements Song {}
+
 class FakeAudioSource extends Fake implements AudioSource {}
 
 void setupMocks() {
@@ -53,6 +64,20 @@ void setupMocks() {
     dotenv.testLoad(fileInput: 'DEBUG=true');
     AppLogger.init();
   } catch (_) {}
+
+  final mockStorage = MockLocalStorage();
+  // Stub common methods used by widgets to avoid LateInitializationError
+  when(() => mockStorage.likedSongIds).thenReturn([]);
+  when(() => mockStorage.getDownloadMetadata(any())).thenReturn(null);
+  when(() => mockStorage.jwtToken).thenReturn(null);
+  when(() => mockStorage.serverUrl).thenReturn('http://test.com');
+  when(() => mockStorage.volume).thenReturn(0.7);
+  when(() => mockStorage.isShuffle).thenReturn(false);
+  when(() => mockStorage.isRepeat).thenReturn(false);
+  when(() => mockStorage.recentSearches).thenReturn([]);
+  when(() => mockStorage.recentlyPlayedIds).thenReturn([]);
+
+  LocalStorage.instance = mockStorage;
 
   // We can't easily mock the singleton instance field itself if it's 'static final'.
   // However, ServerConfig.init reads LocalStorage.instance.serverUrl.

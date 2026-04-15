@@ -79,6 +79,18 @@ class Playlist {
   /// Remote thumbnail URL from the backend.
   final String? thumbnailUrl;
 
+  /// 'flow' for user-created playlists stored in our DB, 'yt' for YouTube Music playlists.
+  final String type;
+
+  /// True when this entry represents a YT Music album/single/EP rather than a playlist.
+  final bool isAlbum;
+
+  /// Primary artist name — populated for albums.
+  final String? artistName;
+
+  /// The owner's user code (e.g. "mahaveer#1234") — populated for Flow playlists.
+  final String? ownerCode;
+
   const Playlist({
     required this.id,
     required this.name,
@@ -86,5 +98,9 @@ class Playlist {
     required this.songs,
     required this.color,
     this.thumbnailUrl,
+    this.type = 'yt',
+    this.isAlbum = false,
+    this.artistName,
+    this.ownerCode,
   });
 }

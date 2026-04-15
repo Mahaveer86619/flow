@@ -85,6 +85,7 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     on<ToggleLikeEvent>(_onToggleLike);
     on<ToggleDownloadEvent>(_onToggleDownload);
     on<SetVolumeEvent>(_onSetVolume);
+    on<ResetPlayerEvent>(_onResetPlayer);
     on<_PositionUpdateEvent>(_onPositionUpdate);
     on<_BufferedPositionChangedEvent>(_onBufferedPositionChanged);
     on<_BufferingChangedEvent>(_onBufferingChanged);
@@ -457,7 +458,73 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
   }
 
   void _onQueueUpdated(_QueueUpdatedEvent event, Emitter<PlayerState> emit) {
+    // SYNC FIX (Bug 1): If the AudioPlayer advanced to a new track while we were
+    // adding to the playlist, we need to manually trigger _TrackChangedEvent
+    // because the _currentIndexSub stream might have ignored it if state.queue
+    // was still at its old length.
+    final playerIdx = _audioPlayer.currentIndex;
+    if (playerIdx != null &&
+        playerIdx != state.queueIndex &&
+        playerIdx < event.queue.length) {
+      AppLogger.w(
+        _tag,
+        'Queue updated - Syncing with player index: $playerIdx (current state was ${state.queueIndex})',
+      );
+      add(_TrackChangedEvent(playerIdx));
+    }
+
     emit(state.copyWith(queue: event.queue));
+
+    // SYNC FIX (Bug 2): If the last song in the queue finished while the radio
+    // fetch was already in-flight (triggered by the "near end" prefetch in
+    // _onTrackChanged), _onTrackCompleted's call to _fetchMoreRadioTracks()
+    // was a no-op. The player is now stuck in `completed` state at the last
+    // index. Now that new tracks are in _playlist, manually advance it.
+    if (_audioPlayer.processingState == ja.ProcessingState.completed &&
+        _audioPlayer.hasNext) {
+      AppLogger.i(
+        _tag,
+        'Player completed while radio fetch was in-flight — auto-advancing to next track',
+      );
+      _audioPlayer.seekToNext();
+      _audioPlayer.play();
+    }
+  }
+
+  Future<void> _onResetPlayer(
+    ResetPlayerEvent event,
+    Emitter<PlayerState> emit,
+  ) async {
+    AppLogger.w(_tag, 'Emergency Reset Triggered - Clearing player state');
+
+    _isChangingSource = true;
+    _isFetchingRadio = false;
+    _retryCount = 0;
+
+    try {
+      await _audioPlayer.stop();
+      await _playlist.clear();
+      _mediaSession.setStopped();
+    } catch (e) {
+      AppLogger.e(_tag, 'Failed to stop or clear player during reset', e);
+    } finally {
+      _isChangingSource = false;
+    }
+
+    emit(
+      state.copyWith(
+        isPlaying: false,
+        isBuffering: false,
+        isInitialLoading: false,
+        position: Duration.zero,
+        bufferedPosition: Duration.zero,
+        queue: [],
+        queueIndex: -1,
+        currentSong: null,
+        clearActualDuration: true,
+        clearCustomColors: true,
+      ),
+    );
   }
 
   Future<void> _updatePlaylist(List<Song> songs, {int initialIndex = 0}) async {

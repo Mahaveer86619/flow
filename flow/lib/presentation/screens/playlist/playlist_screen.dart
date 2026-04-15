@@ -45,8 +45,9 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
 
     try {
       final repo = context.read<SongRepository>();
+      final bool isAlbum = _playlist.isAlbum || widget.isAlbum;
       final List<Song> tracks;
-      if (widget.isAlbum) {
+      if (isAlbum) {
         tracks = await repo.getAlbumTracks(_playlist.id);
       } else {
         tracks = await repo.getPlaylistTracks(_playlist.id);
@@ -61,6 +62,10 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
             color: _playlist.color,
             thumbnailUrl: _playlist.thumbnailUrl,
             songs: tracks,
+            type: _playlist.type,
+            isAlbum: _playlist.isAlbum,
+            artistName: _playlist.artistName,
+            ownerCode: _playlist.ownerCode,
           );
           _isLoading = false;
         });
@@ -152,6 +157,22 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
                             letterSpacing: -0.5,
                           ),
                         ),
+                        if (_playlist.isAlbum || widget.isAlbum)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Text(
+                              _playlist.artistName != null
+                                  ? 'Album \u2022 ${_playlist.artistName}'
+                                  : 'Album',
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.outfit(
+                                fontSize: 13,
+                                color: Colors.white.withAlpha(200),
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                          ),
                         if (_playlist.description.isNotEmpty)
                           Padding(
                             padding: const EdgeInsets.symmetric(
@@ -304,9 +325,23 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
 
   Widget _fallback() {
     return Container(
-      color: _playlist.color,
-      child: const Center(
-        child: Icon(Icons.queue_music_rounded, color: Colors.white, size: 80),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [_playlist.color, _playlist.color.withAlpha(150)],
+        ),
+      ),
+      child: Center(
+        child: Text(
+          'f',
+          style: GoogleFonts.spaceGrotesk(
+            fontSize: 120,
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+            height: 1.0,
+          ),
+        ),
       ),
     );
   }

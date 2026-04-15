@@ -309,6 +309,76 @@ class ApiSongDataSource implements SongDataSource {
     await _postJson('/v1/artists/$channelId/unlike');
   }
 
+  // --- Flow Playlist CRUD ---
+
+  @override
+  Future<PlaylistModel> createFlowPlaylist({
+    required String title,
+    String description = '',
+    bool isPublic = false,
+  }) async {
+    final resp = await _postJson('/v1/flow/playlists', body: {
+      'title': title,
+      'description': description,
+      'is_public': isPublic,
+    }) as Map<String, dynamic>;
+    return PlaylistModel.fromJson(resp);
+  }
+
+  @override
+  Future<PlaylistModel> updateFlowPlaylist(
+    String playlistId, {
+    String? title,
+    String? description,
+    bool? isPublic,
+  }) async {
+    final resp = await _patchJson('/v1/flow/playlists/$playlistId', body: {
+      if (title != null) 'title': title,
+      if (description != null) 'description': description,
+      if (isPublic != null) 'is_public': isPublic,
+    }) as Map<String, dynamic>;
+    return PlaylistModel.fromJson(resp);
+  }
+
+  @override
+  Future<void> deleteFlowPlaylist(String playlistId) async {
+    await _deleteJson('/v1/flow/playlists/$playlistId');
+  }
+
+  @override
+  Future<void> addTrackToFlowPlaylist(
+    String playlistId,
+    Map<String, dynamic> songData,
+  ) async {
+    await _postJson(
+      '/v1/flow/playlists/$playlistId/tracks',
+      body: {'song_data': songData},
+    );
+  }
+
+  @override
+  Future<void> removeTrackFromFlowPlaylist(
+    String playlistId,
+    int trackId,
+  ) async {
+    await _deleteJson('/v1/flow/playlists/$playlistId/tracks/$trackId');
+  }
+
+  @override
+  Future<void> addCollaborator(String playlistId, String userCode) async {
+    await _postJson(
+      '/v1/flow/playlists/$playlistId/collaborators',
+      body: {'user_code': userCode},
+    );
+  }
+
+  @override
+  Future<void> removeCollaborator(String playlistId, String userCode) async {
+    await _deleteJson(
+      '/v1/flow/playlists/$playlistId/collaborators/$userCode',
+    );
+  }
+
   // ── HTTP helpers ──────────────────────────────────────────────────────────────
 
   /// Wraps the original thumbnail URL into a local proxy URL using the current

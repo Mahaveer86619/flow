@@ -1,6 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flow/core/storage/local_storage.dart';
 import '../../../domain/entities/song.dart';
 import '../../blocs/player/player_bloc.dart';
 
@@ -146,7 +148,9 @@ class QueueScreen extends StatelessWidget {
                               isPlaying: false,
                               onTap: () {
                                 context.read<PlayerBloc>().add(
-                                  SkipToQueueIndexEvent(state.queueIndex + 1 + index),
+                                  SkipToQueueIndexEvent(
+                                    state.queueIndex + 1 + index,
+                                  ),
                                 );
                               },
                             ),
@@ -343,6 +347,12 @@ class _Artwork extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    String? thumbUrl = song.thumbnailUrl;
+    final metadata = LocalStorage.instance.getDownloadMetadata(song.id);
+    if (metadata != null && metadata['thumbnailUrl'] != null) {
+      thumbUrl = metadata['thumbnailUrl'] as String;
+    }
+
     return Container(
       width: 54,
       height: 54,
@@ -361,15 +371,20 @@ class _Artwork extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          if (song.thumbnailUrl != null)
-            Image.network(
-              song.thumbnailUrl!,
-              fit: BoxFit.fill,
-              errorBuilder: (_, __, ___) => _fallback(),
-            )
+          if (thumbUrl != null)
+            thumbUrl.startsWith('http')
+                ? Image.network(
+                    thumbUrl,
+                    fit: BoxFit.fill,
+                    errorBuilder: (_, __, ___) => _fallback(),
+                  )
+                : Image.file(
+                    File(thumbUrl),
+                    fit: BoxFit.fill,
+                    errorBuilder: (_, __, ___) => _fallback(),
+                  )
           else
             _fallback(),
-
           if (isPlaying)
             Container(
               color: Colors.black38,
@@ -395,10 +410,16 @@ class _Artwork extends StatelessWidget {
           end: Alignment.bottomRight,
         ),
       ),
-      child: const Icon(
-        Icons.music_note_rounded,
-        color: Colors.white,
-        size: 24,
+      child: Center(
+        child: Text(
+          'f',
+          style: GoogleFonts.spaceGrotesk(
+            fontSize: 32,
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+            height: 1.0,
+          ),
+        ),
       ),
     );
   }

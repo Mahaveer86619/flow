@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -12,6 +11,7 @@ import '../queue/queue_screen.dart';
 import 'package:flow/core/network/download_service.dart';
 import 'package:flow/core/config/app_constants.dart';
 
+import 'package:flow/core/storage/local_storage.dart';
 import '../../widgets/text_carousel.dart';
 
 class PlayerScreen extends StatefulWidget {
@@ -210,6 +210,15 @@ class _MainPlayerSection extends StatelessWidget {
                 final size = constraints.maxHeight < constraints.maxWidth
                     ? constraints.maxHeight
                     : constraints.maxWidth;
+
+                String? thumbUrl = song.thumbnailUrl;
+                final metadata = LocalStorage.instance.getDownloadMetadata(
+                  song.id,
+                );
+                if (metadata != null && metadata['thumbnailUrl'] != null) {
+                  thumbUrl = metadata['thumbnailUrl'] as String;
+                }
+
                 return Center(
                   child: Hero(
                     tag: 'active_art_${song.id}',
@@ -217,7 +226,7 @@ class _MainPlayerSection extends StatelessWidget {
                       size: size,
                       colorPrimary: song.colorPrimary,
                       colorSecondary: song.colorSecondary,
-                      thumbnailUrl: song.thumbnailUrl,
+                      thumbnailUrl: thumbUrl,
                     ),
                   ),
                 );
@@ -357,7 +366,9 @@ class _MainPlayerSection extends StatelessWidget {
       context: context,
       backgroundColor: const Color(0xFF1A1A24),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.large)),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppRadius.large),
+        ),
       ),
       builder: (ctx) => SafeArea(
         child: Column(

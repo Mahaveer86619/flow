@@ -91,4 +91,32 @@ abstract class SongDataSource {
 
   /// Unlike/Unsubscribe from an artist.
   Future<void> unlikeArtist(String channelId);
+
+  // --- Flow Playlist CRUD ---
+
+  Future<PlaylistModel> createFlowPlaylist({
+    required String title,
+    String description = '',
+    bool isPublic = false,
+  });
+
+  Future<PlaylistModel> updateFlowPlaylist(
+    String playlistId, {
+    String? title,
+    String? description,
+    bool? isPublic,
+  });
+
+  Future<void> deleteFlowPlaylist(String playlistId);
+
+  Future<void> addTrackToFlowPlaylist(
+    String playlistId,
+    Map<String, dynamic> songData,
+  );
+
+  Future<void> removeTrackFromFlowPlaylist(String playlistId, int trackId);
+
+  Future<void> addCollaborator(String playlistId, String userCode);
+
+  Future<void> removeCollaborator(String playlistId, String userCode);
 }

@@ -390,4 +390,123 @@ class SongRepositoryImpl implements SongRepository {
     AppLogger.d(_tag, 'getCategories: ${cats.length}');
     return cats;
   }
+
+  // ── Flow Playlist CRUD ────────────────────────────────────────────────────────
+
+  @override
+  Future<Playlist> createFlowPlaylist({
+    required String title,
+    String description = '',
+    bool isPublic = false,
+  }) async {
+    try {
+      final model = await _source.createFlowPlaylist(
+        title: title,
+        description: description,
+        isPublic: isPublic,
+      );
+      return model.toEntity();
+    } on AppException {
+      rethrow;
+    } catch (e, st) {
+      AppLogger.e(_tag, 'createFlowPlaylist failed', e, st);
+      throw toAppException(e);
+    }
+  }
+
+  @override
+  Future<Playlist> updateFlowPlaylist(
+    String playlistId, {
+    String? title,
+    String? description,
+    bool? isPublic,
+  }) async {
+    try {
+      final model = await _source.updateFlowPlaylist(
+        playlistId,
+        title: title,
+        description: description,
+        isPublic: isPublic,
+      );
+      return model.toEntity();
+    } on AppException {
+      rethrow;
+    } catch (e, st) {
+      AppLogger.e(_tag, 'updateFlowPlaylist failed', e, st);
+      throw toAppException(e);
+    }
+  }
+
+  @override
+  Future<void> deleteFlowPlaylist(String playlistId) async {
+    try {
+      await _source.deleteFlowPlaylist(playlistId);
+    } on AppException {
+      rethrow;
+    } catch (e, st) {
+      AppLogger.e(_tag, 'deleteFlowPlaylist failed', e, st);
+      throw toAppException(e);
+    }
+  }
+
+  @override
+  Future<void> addTrackToFlowPlaylist(String playlistId, Song song) async {
+    try {
+      final songData = SongModel(
+        id: song.id,
+        title: song.title,
+        artist: song.artist,
+        album: song.album,
+        duration: song.duration,
+        thumbnailUrl: song.thumbnailUrl,
+        colorPrimary: song.colorPrimary,
+        colorSecondary: song.colorSecondary,
+      ).toJson();
+      await _source.addTrackToFlowPlaylist(playlistId, songData);
+    } on AppException {
+      rethrow;
+    } catch (e, st) {
+      AppLogger.e(_tag, 'addTrackToFlowPlaylist failed', e, st);
+      throw toAppException(e);
+    }
+  }
+
+  @override
+  Future<void> removeTrackFromFlowPlaylist(
+    String playlistId,
+    int trackId,
+  ) async {
+    try {
+      await _source.removeTrackFromFlowPlaylist(playlistId, trackId);
+    } on AppException {
+      rethrow;
+    } catch (e, st) {
+      AppLogger.e(_tag, 'removeTrackFromFlowPlaylist failed', e, st);
+      throw toAppException(e);
+    }
+  }
+
+  @override
+  Future<void> addCollaborator(String playlistId, String userCode) async {
+    try {
+      await _source.addCollaborator(playlistId, userCode);
+    } on AppException {
+      rethrow;
+    } catch (e, st) {
+      AppLogger.e(_tag, 'addCollaborator failed', e, st);
+      throw toAppException(e);
+    }
+  }
+
+  @override
+  Future<void> removeCollaborator(String playlistId, String userCode) async {
+    try {
+      await _source.removeCollaborator(playlistId, userCode);
+    } on AppException {
+      rethrow;
+    } catch (e, st) {
+      AppLogger.e(_tag, 'removeCollaborator failed', e, st);
+      throw toAppException(e);
+    }
+  }
 }

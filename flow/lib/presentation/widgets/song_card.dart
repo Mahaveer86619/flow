@@ -4,6 +4,7 @@
 
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/config/app_constants.dart';
 import '../../core/responsive/breakpoints.dart';
@@ -248,10 +249,16 @@ class _Artwork extends StatelessWidget {
           colors: [song.colorPrimary, song.colorSecondary],
         ),
       ),
-      child: Icon(
-        Icons.music_note_rounded,
-        size: size * 0.25,
-        color: Colors.white.withAlpha(45),
+      child: Center(
+        child: Text(
+          'f',
+          style: GoogleFonts.spaceGrotesk(
+            fontSize: size * 0.45,
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+            height: 1.0,
+          ),
+        ),
       ),
     );
   }

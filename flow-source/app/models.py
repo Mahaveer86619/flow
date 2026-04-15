@@ -15,6 +15,7 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True)
+    user_code = Column(String, unique=True, index=True) # e.g. username#1234
     email = Column(String, unique=True, index=True)
     hashed_password = Column(String)
     is_active = Column(Boolean, default=True)
@@ -37,6 +38,52 @@ class User(Base):
     recommendations = relationship(
         "UserRecommendation", back_populates="user", cascade="all, delete-orphan"
     )
+    playlists = relationship(
+        "Playlist", back_populates="owner", cascade="all, delete-orphan"
+    )
+
+
+class Playlist(Base):
+    __tablename__ = "playlists"
+
+    id = Column(String, primary_key=True, index=True) # UUID
+    title = Column(String, index=True)
+    description = Column(Text, nullable=True)
+    thumbnail_url = Column(Text, nullable=True)
+    owner_id = Column(Integer, ForeignKey("users.id"))
+    yt_playlist_id = Column(String, nullable=True) # For syncing
+    is_public = Column(Boolean, default=False)
+    type = Column(String, default="flow") # 'flow' or 'yt'
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    owner = relationship("User", back_populates="playlists")
+    tracks = relationship("PlaylistTrack", back_populates="playlist", cascade="all, delete-orphan")
+    collaborators = relationship("PlaylistCollaborator", back_populates="playlist", cascade="all, delete-orphan")
+
+
+class PlaylistTrack(Base):
+    __tablename__ = "playlist_tracks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    playlist_id = Column(String, ForeignKey("playlists.id", ondelete="CASCADE"))
+    song_data = Column(Text) # JSON blob of normalize_song output
+    sort_index = Column(Integer, default=0)
+    added_at = Column(DateTime, default=datetime.utcnow)
+
+    playlist = relationship("Playlist", back_populates="tracks")
+
+
+class PlaylistCollaborator(Base):
+    __tablename__ = "playlist_collaborators"
+
+    id = Column(Integer, primary_key=True, index=True)
+    playlist_id = Column(String, ForeignKey("playlists.id", ondelete="CASCADE"))
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
+    role = Column(String, default="editor") # 'editor' or 'viewer'
+    added_at = Column(DateTime, default=datetime.utcnow)
+
+    playlist = relationship("Playlist", back_populates="collaborators")
 
 
 class PlayHistory(Base):
@@ -103,6 +150,7 @@ class UserSettingsUpdate(BaseModel):
 
 class UserResponse(UserBase):
     id: int
+    user_code: Optional[str] = None
     is_active: bool
     has_yt_auth: bool = False
     yt_name: Optional[str] = None
@@ -155,6 +203,10 @@ class PlaylistResponse(BaseModel):
     description: str
     thumbnailUrl: Optional[str] = None
     trackCount: int
+    type: str = "flow"  # 'flow' or 'yt'
+    isAlbum: bool = False
+    artistName: Optional[str] = None
+    ownerCode: Optional[str] = None
 
 
 class HomeResponse(BaseModel):
@@ -205,3 +257,27 @@ class RemovePlaylistItemsRequest(BaseModel):
 
 class YTCookiesPayload(BaseModel):
     cookies: Dict[str, str]
+
+
+# --- Flow Playlist Request Models ---
+
+
+class FlowPlaylistCreateRequest(BaseModel):
+    title: str
+    description: str = ""
+    is_public: bool = False
+
+
+class FlowPlaylistUpdateRequest(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    is_public: Optional[bool] = None
+
+
+class FlowPlaylistAddTrackRequest(BaseModel):
+    """song_data is a SongResponse-shaped dict — stored as JSON."""
+    song_data: Dict[str, Any]
+
+
+class FlowCollaboratorRequest(BaseModel):
+    user_code: str  # e.g. "mahaveer#1234"
