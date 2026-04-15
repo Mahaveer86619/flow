@@ -259,7 +259,7 @@ class _HomeScreenContent extends StatelessWidget {
 
                   return displayShelves.map(
                     (shelf) => SliverPadding(
-                      padding: const EdgeInsets.only(bottom: 32),
+                      padding: const EdgeInsets.only(bottom: 18),
                       sliver: _HomeShelfRenderer(
                         shelf: shelf,
                         allSongs: state.allSongs,
@@ -362,7 +362,7 @@ class _HomeShelfRenderer extends StatelessWidget {
         SliverToBoxAdapter(child: SectionHeader(title: shelf.title)),
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.only(top: 16),
+            padding: const EdgeInsets.only(top: 8),
             child: SizedBox(
               height: 180,
               child: ListView.separated(
@@ -401,7 +401,7 @@ class _HomeShelfRenderer extends StatelessWidget {
         SliverToBoxAdapter(child: SectionHeader(title: shelf.title)),
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.only(top: 16),
+            padding: const EdgeInsets.only(top: 8),
             child: SizedBox(
               height: 240,
               child: ListView.separated(
@@ -496,7 +496,7 @@ class _HomeShelfRenderer extends StatelessWidget {
         ),
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.only(top: 16),
+            padding: const EdgeInsets.only(top: 8),
             child: SizedBox(
               height: 200, 
               child: ListView.separated(
@@ -565,7 +565,7 @@ class _HomeShelfRenderer extends StatelessWidget {
         ),
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.only(top: 16),
+            padding: const EdgeInsets.only(top: 8),
             child: SizedBox(
               height: totalHeight,
               child: ListView.separated(
@@ -664,7 +664,7 @@ class _HomeShelfRenderer extends StatelessWidget {
         ),
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.only(top: 16),
+            padding: const EdgeInsets.only(top: 8),
             child: SizedBox(
               height: 260, // Height for 4 items (~60 each)
               child: ListView.separated(
@@ -718,7 +718,7 @@ class _HomeShelfRenderer extends StatelessWidget {
         ),
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.only(top: 16),
+            padding: const EdgeInsets.only(top: 8),
             child: SizedBox(
               height: 480, // Height for 4 square cards (~110 each + gap)
               child: ListView.separated(
@@ -777,7 +777,7 @@ class _HomeShelfRenderer extends StatelessWidget {
         ),
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.only(top: 16),
+            padding: const EdgeInsets.only(top: 8),
             child: SizedBox(
               height: 160,
               child: ListView.separated(
@@ -877,7 +877,7 @@ class _HomeShelfRenderer extends StatelessWidget {
         ),
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.only(top: 16),
+            padding: const EdgeInsets.only(top: 8),
             child: SizedBox(
               height: cardWidth + 60,
               child: ListView.separated(

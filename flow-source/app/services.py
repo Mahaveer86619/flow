@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import json
 import logging
 import os
@@ -8,6 +9,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
 import anyio
+import diskcache
 import yt_dlp
 import ytmusicapi
 from anyio.to_thread import run_sync
@@ -28,6 +30,10 @@ from .utils import (
 )
 
 logger = logging.getLogger("flow.services")
+
+# ── API Cache ─────────────────────────────────────────────────────────────────
+# Robust persistent cache for expensive API responses
+_api_cache = diskcache.Cache(os.path.join("./data", "api_cache"))
 
 # Password hashing — bcrypt disabled for now (passlib/bcrypt version mismatch)
 # pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -344,33 +350,68 @@ class YTMusicService:
                 continue
         return results
 
-    def build_home_data(
+    async def build_home_data(
         self,
         db: Session,
         user: Optional[User] = None,
         limit: int = 30,
         proxy_base: Optional[str] = None,
     ) -> HomeResponse:
-        logger.info(f"Building home data for user: {user.username if user else 'anon'}")
+        logger.info(f"Building home data (parallel) for user: {user.username if user else 'anon'}")
+        
         try:
             ytm = self.get_client(user)
-            raw_shelves = ytm.get_home(limit=limit)
-            logger.debug(f"Fetched {len(raw_shelves)} raw shelves from YTMusic")
         except Exception as e:
-            logger.error(
-                f"ytmusicapi.get_home failed for user {user.username if user else 'anon'}: {e}"
-            )
-            return HomeResponse(shelves=[], trending=[])
+            logger.error(f"Failed to get client: {e}")
+            raise HTTPException(status_code=401, detail="YouTube Music not connected")
+
+        # ── Parallel Fetching ───────────────────────────────────────────────────
+        # Use asyncio.gather to fetch all shelves in parallel via worker threads
+        
+        async def fetch_home():
+            try:
+                return await run_sync(ytm.get_home, limit)
+            except Exception as e:
+                logger.warning(f"Failed to fetch home shelves: {e}")
+                return []
+
+        async def fetch_liked():
+            try:
+                return await run_sync(ytm.get_liked_songs, 24)
+            except Exception as e:
+                logger.warning(f"Failed to fetch liked songs: {e}")
+                return {"tracks": []}
+
+        async def fetch_history():
+            try:
+                return await run_sync(ytm.get_history)
+            except Exception as e:
+                logger.warning(f"Failed to fetch history: {e}")
+                return []
+
+        async def fetch_trending():
+            try:
+                return await run_sync(self._get_trending_songs, ytm, proxy_base)
+            except Exception as e:
+                logger.warning(f"Failed to fetch trending: {e}")
+                return []
+
+        # Trigger all calls concurrently
+        home_task, liked_task, history_task, trending_task = await asyncio.gather(
+            fetch_home(),
+            fetch_liked(),
+            fetch_history(),
+            fetch_trending()
+        )
 
         shelves_list = []
         seen_ids = set()
-        music_videos = []
 
-        # 1. Process Raw Shelves
-        for raw_shelf in raw_shelves:
+        # 1. Process Home Shelves
+        for raw_shelf in home_task:
             if not isinstance(raw_shelf, dict):
                 continue
-            title = raw_shelf.get("title") or "Recommended"
+            title = raw_shelf.get("title", "Untitled")
             contents = raw_shelf.get("contents") or []
 
             items = []
@@ -385,31 +426,27 @@ class YTMusicService:
                     try:
                         song = normalize_song(item, proxy_base)
                         if song:
-                            if "Video" in title or item.get("resultType") == "video":
-                                music_videos.append(song)
                             items.append({"type": "song", "data": song.model_dump()})
-                    except Exception as e:
-                        logger.warning(f"Failed to normalize song {video_id}: {e}")
+                    except Exception:
+                        pass
                 elif is_artist_item(item):
                     try:
                         artist = normalize_artist(item, proxy_base)
                         if artist:
                             items.append({"type": "artist", "data": artist.model_dump()})
-                    except Exception as e:
-                        logger.warning(f"Failed to normalize artist: {e}")
+                    except Exception:
+                        pass
                 elif "playlistId" in item or "browseId" in item:
                     is_album = str(item.get("browseId", "")).startswith("MPREb")
                     try:
                         playlist = normalize_playlist(item, proxy_base)
                         if playlist:
-                            items.append(
-                                {
-                                    "type": "album" if is_album else "playlist",
-                                    "data": playlist.model_dump(),
-                                }
-                            )
-                    except Exception as e:
-                        logger.warning(f"Failed to normalize playlist/album: {e}")
+                            items.append({
+                                "type": "album" if is_album else "playlist",
+                                "data": playlist.model_dump(),
+                            })
+                    except Exception:
+                        pass
 
             if items:
                 section = self._classify_shelf(title) or "musicForYou"
@@ -418,69 +455,49 @@ class YTMusicService:
         # 2. Local RecSys ("Fresh Picks")
         fresh_finds = []
         if user:
-            # Check if we should trigger a background update
-            last_rec = (
-                db.query(UserRecommendation)
-                .filter(UserRecommendation.user_id == user.id)
-                .first()
-            )
-            if not last_rec or (datetime.utcnow() - last_rec.updated_at).total_seconds() > 3600:
-                # Trigger generation (for now synchronous to ensure immediate result, 
-                # but lightweight seeds help)
+            # lightweight sync check
+            fresh_finds = self._get_fresh_picks_local(db, user, proxy_base)
+            if not fresh_finds:
+                # Synchronous fallback if missing
                 fresh_finds = self.generate_recommendations(db, user, ytm, proxy_base)
-            else:
-                fresh_finds = self._get_fresh_picks_local(db, user, proxy_base)
 
-        # 3. Fallbacks for missing essential shelves
+        # 3. Post-Process Fallbacks
         quick_picks = [i["data"] for s in shelves_list if s["section"] == "quickPicks" for i in s["items"] if i["type"] == "song"]
         if not quick_picks:
-            try:
-                liked = ytm.get_liked_songs(limit=24)
-                for item in liked.get("tracks", []):
-                    song = normalize_song(item, proxy_base)
-                    if song:
-                        quick_picks.append(song)
-            except Exception:
-                pass
+            for item in liked_task.get("tracks", []):
+                song = normalize_song(item, proxy_base)
+                if song:
+                    quick_picks.append(song)
 
         listen_again = [i["data"] for s in shelves_list if s["section"] == "listeningAgain" for i in s["items"] if i["type"] == "song"]
         if not listen_again:
-            try:
-                history = ytm.get_history()
-                for item in history[:20]:
-                    song = normalize_song(item, proxy_base)
-                    if song:
-                        listen_again.append(song)
-            except Exception:
-                pass
+            for item in history_task[:20]:
+                song = normalize_song(item, proxy_base)
+                if song:
+                    listen_again.append(song)
 
-        trending = self._get_trending_songs(ytm, proxy_base)
+        trending = trending_task
 
-        # 4. Final HomeResponse Construction with Strict Order
-        # We build the 'shelves' list for the frontend
+        # 4. Final HomeResponse Construction
         ordered_shelves = []
-        
         if quick_picks:
             ordered_shelves.append({
                 "title": "Quick picks",
                 "section": "quickPicks",
                 "items": [{"type": "song", "data": s if isinstance(s, dict) else s.model_dump()} for s in quick_picks]
             })
-        
         if listen_again:
             ordered_shelves.append({
                 "title": "Listen again",
                 "section": "listeningAgain",
                 "items": [{"type": "song", "data": s if isinstance(s, dict) else s.model_dump()} for s in listen_again]
             })
-
         if fresh_finds:
             ordered_shelves.append({
                 "title": "Fresh picks for you",
                 "section": "freshFinds",
                 "items": [{"type": "song", "data": s if isinstance(s, dict) else s.model_dump()} for s in fresh_finds]
             })
-
         if trending:
             ordered_shelves.append({
                 "title": "Trending",
@@ -488,7 +505,6 @@ class YTMusicService:
                 "items": [{"type": "song", "data": s if isinstance(s, dict) else s.model_dump()} for s in trending]
             })
 
-        # Append remaining shelves from original list
         seen_sections = {"quickPicks", "listeningAgain", "freshFinds", "trending"}
         for s in shelves_list:
             if s["section"] not in seen_sections:
@@ -527,27 +543,51 @@ class YTMusicService:
             logger.error(f"Failed to get user profile: {e}")
             return {}
 
-    def get_home_cached(
+    async def get_home_cached(
         self,
         db: Session,
         user: Optional[User] = None,
         limit: int = 25,
         proxy_base: Optional[str] = None,
     ) -> HomeResponse:
-        now = time.monotonic()
         # Per-user cache key
         user_id = user.id if user else "anon"
-        cache_key = f"home_{user_id}"
+        cache_key = f"home_{user_id}_{limit}"
 
+        # 1. Try Memory Cache
+        now = time.monotonic()
         if (
             self.home_cache.get(cache_key)
             and self.home_cache[cache_key].get("ts", 0) + self.home_cache_ttl > now
         ):
+            logger.debug(f"Home data memory cache hit for {user_id}")
             return self.home_cache[cache_key]["data"]
 
-        data = self.build_home_data(db, user, limit, proxy_base)
+        # 2. Try Disk Cache
+        cached_data = _api_cache.get(cache_key)
+        if cached_data:
+            logger.debug(f"Home data disk cache hit for {user_id}")
+            response = HomeResponse.model_validate(cached_data)
+            self.home_cache[cache_key] = {"ts": now, "data": response}
+            return response
+
+        # 3. Build Fresh
+        data = await self.build_home_data(db, user, limit, proxy_base)
+        
+        # Save to both caches
         self.home_cache[cache_key] = {"ts": now, "data": data}
+        _api_cache.set(cache_key, data.model_dump(), expire=self.home_cache_ttl)
+        
         return data
+
+    async def warm_up_user_cache(self, db: Session, user: User, proxy_base: str):
+        """Background task to refresh the user's home data."""
+        try:
+            logger.info(f"Warming up cache for user: {user.username}")
+            # This will trigger build_home_data and update both caches
+            await self.get_home_cached(db, user, limit=30, proxy_base=proxy_base)
+        except Exception as e:
+            logger.error(f"Cache warm up failed for {user.username}: {e}")
 
     def build_feed_data(self, db: Session, proxy_base: Optional[str] = None) -> HomeResponse:
         ytm = ytmusicapi.YTMusic()

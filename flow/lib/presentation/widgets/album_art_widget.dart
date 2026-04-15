@@ -4,6 +4,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class AlbumArtWidget extends StatelessWidget {
   /// Side length of the square artwork tile in logical pixels.
@@ -34,20 +35,19 @@ class AlbumArtWidget extends StatelessWidget {
       return RepaintBoundary(
         child: ClipRRect(
           borderRadius: BorderRadius.circular(borderRadius),
-          child: Image.network(
-            thumbnailUrl!,
+          child: CachedNetworkImage(
+            imageUrl: thumbnailUrl!,
             width: size,
             height: size,
             fit: BoxFit.fill,
-            cacheWidth: cacheSize,
-            cacheHeight: cacheSize,
-            headers: const {
+            maxWidthDiskCache: cacheSize,
+            maxHeightDiskCache: cacheSize,
+            httpHeaders: const {
               'User-Agent':
                   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
             },
-            loadingBuilder: (context, child, progress) =>
-                progress == null ? child : _buildVinyl(),
-            errorBuilder: (context, error, stackTrace) => _buildVinyl(),
+            placeholder: (context, url) => _buildVinyl(),
+            errorWidget: (context, url, error) => _buildVinyl(),
           ),
         ),
       );

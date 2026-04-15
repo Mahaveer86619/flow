@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     # Static Files
     STATIC_DIR: str = "./static"
     PROXIED_IMAGE_URL: str = ""
+    IMAGE_CACHE_DIR: str = "./data/image_cache"
+    MAX_IMAGE_CACHE_SIZE_MB: int = 500  # LRU limit
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
@@ -38,3 +40,4 @@ settings = Settings()
 # Ensure directories exist
 os.makedirs(os.path.dirname(settings.AUTH_FILE_PATH), exist_ok=True)
 os.makedirs(settings.STATIC_DIR, exist_ok=True)
+os.makedirs(settings.IMAGE_CACHE_DIR, exist_ok=True)

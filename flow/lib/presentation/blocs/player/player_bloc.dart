@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:equatable/equatable.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart' show Color, NetworkImage;
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -526,25 +527,40 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     final token = _storage.jwtToken;
     final isLiked = isLikedOverride ?? state.likedSongIds.contains(song.id);
 
-    // 1. Check if downloaded (Quick sync check first)
-    final isDownloadedSync = DownloadService.instance.isDownloadedSync(song.id);
+    // 1. Check if downloaded (Check metadata and physical file)
+    final downloadMetadata = _storage.getDownloadMetadata(song.id);
+    final downloadedPath = _storage.getDownloadedPath(song.id);
+
     bool useLocal = false;
     File? localFile;
+    String? effectiveThumbnailUrl = song.thumbnailUrl;
 
-    if (isDownloadedSync) {
-      localFile = await DownloadService.instance.getLocalFile(song.id);
-      if (localFile != null && await localFile.exists()) {
+    if (downloadedPath != null) {
+      localFile = File(downloadedPath);
+      if (await localFile.exists()) {
         useLocal = true;
+        // Use local thumb if available in metadata
+        if (downloadMetadata != null &&
+            downloadMetadata['thumbnailUrl'] != null) {
+          effectiveThumbnailUrl = downloadMetadata['thumbnailUrl'] as String;
+        }
       }
     }
 
     Uri? artUri;
-    if (song.thumbnailUrl != null) {
-      if (song.thumbnailUrl!.startsWith('http')) {
-        artUri = Uri.parse(song.thumbnailUrl!);
+    if (effectiveThumbnailUrl != null) {
+      if (effectiveThumbnailUrl.startsWith('http')) {
+        artUri = Uri.parse(effectiveThumbnailUrl);
       } else {
         // Local path
-        artUri = Uri.file(song.thumbnailUrl!);
+        final thumbFile = File(effectiveThumbnailUrl);
+        if (await thumbFile.exists()) {
+          artUri = Uri.file(effectiveThumbnailUrl);
+        } else if (song.thumbnailUrl != null &&
+            song.thumbnailUrl!.startsWith('http')) {
+          // Fallback to remote if local thumb is missing but remote is known
+          artUri = Uri.parse(song.thumbnailUrl!);
+        }
       }
     }
 
@@ -567,7 +583,10 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     );
 
     if (useLocal && localFile != null) {
-      AppLogger.i(_tag, 'Building local AudioSource for: ${song.title}');
+      AppLogger.i(
+        _tag,
+        'Building local AudioSource for: ${song.title} (Path: ${localFile.path})',
+      );
       return AudioSource.file(localFile.path, tag: mediaItem);
     } else {
       final streamUrl = '${ServerConfig.instance.baseUrl}/v1/stream/${song.id}';

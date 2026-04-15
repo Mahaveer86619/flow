@@ -1,7 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/config/app_constants.dart';
+import '../../core/storage/local_storage.dart';
 import '../../domain/entities/song.dart';
 import '../blocs/player/player_bloc.dart';
 import '../screens/player/player_screen.dart';
@@ -58,8 +60,38 @@ class SongTile extends StatelessWidget {
             ),
           ),
           clipBehavior: Clip.antiAlias,
-          child: song.thumbnailUrl != null
-              ? Image.network(
+          child: () {
+            String? thumbUrl = song.thumbnailUrl;
+            final metadata = LocalStorage.instance.getDownloadMetadata(song.id);
+            if (metadata != null && metadata['thumbnailUrl'] != null) {
+              thumbUrl = metadata['thumbnailUrl'] as String;
+            }
+
+            if (thumbUrl == null) return _fallback();
+
+            if (thumbUrl.startsWith('http')) {
+              return Image.network(
+                thumbUrl,
+                fit: BoxFit.fill,
+                headers: const {
+                  'User-Agent':
+                      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+                },
+                errorBuilder: (_, __, ___) => _fallback(),
+              );
+            } else {
+              final file = File(thumbUrl);
+              if (file.existsSync()) {
+                return Image.file(
+                  file,
+                  fit: BoxFit.fill,
+                  errorBuilder: (_, __, ___) => _fallback(),
+                );
+              }
+              // Final fallback to remote URL from original song if local file is missing
+              if (song.thumbnailUrl != null &&
+                  song.thumbnailUrl!.startsWith('http')) {
+                return Image.network(
                   song.thumbnailUrl!,
                   fit: BoxFit.fill,
                   headers: const {
@@ -67,8 +99,11 @@ class SongTile extends StatelessWidget {
                         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
                   },
                   errorBuilder: (_, __, ___) => _fallback(),
-                )
-              : _fallback(),
+                );
+              }
+              return _fallback();
+            }
+          }(),
         ),
       ),
       title: TextCarousel(
@@ -195,7 +230,9 @@ class _SongOptionsButton extends StatelessWidget {
       builder: (ctx) => Container(
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadius.large)),
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(AppRadius.large),
+          ),
         ),
         child: SafeArea(
           child: Column(

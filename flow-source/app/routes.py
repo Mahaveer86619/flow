@@ -1,7 +1,9 @@
 import asyncio
+import hashlib
 import json
 import logging
 import os
+import pathlib
 import tempfile
 import urllib.parse
 from datetime import datetime, timedelta
@@ -230,6 +232,7 @@ def get_proxy_base(request: Request) -> str:
 async def get_home(
     request: Request,
     response: Response,
+    background_tasks: BackgroundTasks,
     limit: int = 25,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -240,7 +243,11 @@ async def get_home(
     )
     try:
         proxy_base = get_proxy_base(request)
-        data = yt_service.get_home_cached(db, current_user, limit, proxy_base=proxy_base)
+        # 1. Fetch from Cache (or compute if miss)
+        data = await yt_service.get_home_cached(db, current_user, limit, proxy_base=proxy_base)
+
+        # 2. Trigger background warm up for next time (proactive)
+        background_tasks.add_task(yt_service.warm_up_user_cache, db, current_user, proxy_base)
 
         # For backward compatibility with specific endpoints/legacy parsers
         quick_picks = []
@@ -983,29 +990,99 @@ async def stream_audio(
         raise HTTPException(status_code=502, detail=f"Upstream error: {e}")
 
 
+def _rotate_image_cache():
+    """Maintain the image cache size under the configured limit (LRU)."""
+    try:
+        cache_dir = pathlib.Path(settings.IMAGE_CACHE_DIR)
+        max_size_bytes = settings.MAX_IMAGE_CACHE_SIZE_MB * 1024 * 1024
+        
+        # Get all files with their size and last access time
+        files = []
+        total_size = 0
+        for f in cache_dir.glob("*"):
+            if f.is_file():
+                stat = f.stat()
+                files.append({
+                    "path": f,
+                    "size": stat.st_size,
+                    "atime": stat.st_atime
+                })
+                total_size += stat.st_size
+        
+        if total_size <= max_size_bytes:
+            return
+
+        # Sort by access time (oldest first)
+        files.sort(key=lambda x: x["atime"])
+        
+        for f in files:
+            if total_size <= max_size_bytes * 0.9: # Give some breathing room
+                break
+            try:
+                f["path"].unlink()
+                total_size -= f["size"]
+                logger.debug(f"Cache rotation: Deleted {f['path'].name}")
+            except Exception as e:
+                logger.warning(f"Failed to delete {f['path']}: {e}")
+                
+    except Exception as e:
+        logger.error(f"Cache rotation failed: {e}")
+
+
 @router.get("/proxy-image")
-async def proxy_image(url: str):
-    logger.debug(f"Proxying image: {url}")
+async def proxy_image(url: str, background_tasks: BackgroundTasks):
     try:
         decoded_url = urllib.parse.unquote(url)
-        # Ensure we have a valid URL
         if not decoded_url.startswith("http"):
             raise HTTPException(400, "Invalid image URL")
 
+        # 1. Generate Cache Key
+        url_hash = hashlib.sha256(decoded_url.encode()).hexdigest()
+        cache_path = pathlib.Path(settings.IMAGE_CACHE_DIR) / url_hash
+        meta_path = pathlib.Path(settings.IMAGE_CACHE_DIR) / f"{url_hash}.meta"
+
+        # 2. Check Cache
+        if cache_path.exists() and meta_path.exists():
+            try:
+                content = cache_path.read_bytes()
+                media_type = meta_path.read_text().strip()
+                logger.debug(f"Image proxy cache hit: {url_hash}")
+                # Update atime for LRU
+                cache_path.touch()
+                return Response(
+                    content=content,
+                    media_type=media_type,
+                    headers={"Cache-Control": "public, max-age=31536000"},
+                )
+            except Exception as e:
+                logger.warning(f"Cache read failed for {url_hash}: {e}")
+
+        # 3. Cache Miss - Fetch from Upstream
         client = get_shared_client()
-        # Use a standard browser UA to avoid 403s from Google/YT
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
         }
         resp = await client.get(decoded_url, headers=headers, timeout=10.0)
 
         if resp.status_code != 200:
-            logger.warning(f"Image proxy failed for {decoded_url}: {resp.status_code}")
+            logger.warning(f"Image proxy fetch failed for {decoded_url}: {resp.status_code}")
             return Response(status_code=resp.status_code)
 
+        content = resp.content
+        media_type = resp.headers.get("Content-Type", "image/jpeg")
+
+        # 4. Save to Cache
+        try:
+            cache_path.write_bytes(content)
+            meta_path.write_text(media_type)
+            # Trigger rotation in background
+            background_tasks.add_task(_rotate_image_cache)
+        except Exception as e:
+            logger.error(f"Failed to write image cache for {url_hash}: {e}")
+
         return Response(
-            content=resp.content,
-            media_type=resp.headers.get("Content-Type", "image/jpeg"),
+            content=content,
+            media_type=media_type,
             headers={"Cache-Control": "public, max-age=31536000"},
         )
     except Exception as e:

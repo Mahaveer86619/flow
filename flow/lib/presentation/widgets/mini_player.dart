@@ -1,6 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/config/app_constants.dart';
+import '../../core/storage/local_storage.dart';
 import '../blocs/player/player_bloc.dart';
 import '../screens/player/player_screen.dart';
 import '../../domain/entities/song.dart';
@@ -63,16 +65,54 @@ class MiniPlayer extends StatelessWidget {
                         ),
                         clipBehavior: Clip.antiAlias,
                         child: RepaintBoundary(
-                          child: song.thumbnailUrl != null
-                              ? Image.network(
+                          child: () {
+                            String? thumbUrl = song.thumbnailUrl;
+                            final metadata = LocalStorage.instance
+                                .getDownloadMetadata(song.id);
+                            if (metadata != null &&
+                                metadata['thumbnailUrl'] != null) {
+                              thumbUrl = metadata['thumbnailUrl'] as String;
+                            }
+
+                            if (thumbUrl == null)
+                              return _ArtFallback(song: song);
+
+                            if (thumbUrl.startsWith('http')) {
+                              return Image.network(
+                                thumbUrl,
+                                fit: BoxFit.fill,
+                                cacheWidth: 150,
+                                cacheHeight: 150,
+                                errorBuilder: (_, __, ___) =>
+                                    _ArtFallback(song: song),
+                              );
+                            } else {
+                              final file = File(thumbUrl);
+                              if (file.existsSync()) {
+                                return Image.file(
+                                  file,
+                                  fit: BoxFit.fill,
+                                  cacheWidth: 150,
+                                  cacheHeight: 150,
+                                  errorBuilder: (_, __, ___) =>
+                                      _ArtFallback(song: song),
+                                );
+                              }
+                              // Final fallback to remote URL from original song if local file is missing
+                              if (song.thumbnailUrl != null &&
+                                  song.thumbnailUrl!.startsWith('http')) {
+                                return Image.network(
                                   song.thumbnailUrl!,
                                   fit: BoxFit.fill,
                                   cacheWidth: 150,
                                   cacheHeight: 150,
                                   errorBuilder: (_, __, ___) =>
                                       _ArtFallback(song: song),
-                                )
-                              : _ArtFallback(song: song),
+                                );
+                              }
+                              return _ArtFallback(song: song);
+                            }
+                          }(),
                         ),
                       ),
                     ),
