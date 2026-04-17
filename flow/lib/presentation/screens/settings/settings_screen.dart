@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../core/auth/auth_cubit.dart';
 import '../../../core/config/server_config.dart';
 import '../../../core/storage/local_storage.dart';
+import '../../../core/ui/app_snack_bar.dart';
 import '../../../data/sources/auth_data_source.dart';
 import '../../cubits/home/home_cubit.dart';
 import '../../cubits/settings/settings_cubit.dart';
@@ -13,6 +14,7 @@ import 'sub_screens/appearance_screen.dart';
 import 'sub_screens/downloads_screen.dart';
 import 'sub_screens/equalizer_screen.dart';
 import 'sub_screens/server_screen.dart';
+import 'sub_screens/server_browser_screen.dart';
 import 'sub_screens/yt_connect_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -68,6 +70,12 @@ class SettingsScreen extends StatelessWidget {
                 onTap: () => authState.hasYtAuth
                     ? _disconnectYT(context)
                     : _push(context, const YTConnectScreen()),
+              ),
+              _Tile(
+                icon: Icons.public_rounded,
+                title: 'Server Browser Login',
+                subtitle: 'Log in via server IP to fix bot detection',
+                onTap: () => _push(context, const ServerBrowserScreen()),
               ),
             ],
           ),
@@ -179,14 +187,9 @@ class SettingsScreen extends StatelessWidget {
           behavior: SnackBarBehavior.floating,
         ),
       );
-    } catch (e) {
+    } catch (e, st) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to disconnect: $e'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      AppSnackBar.showError(context, e, stackTrace: st, logTag: 'SettingsScreen');
     }
   }
 }

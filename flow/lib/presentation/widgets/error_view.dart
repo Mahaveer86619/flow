@@ -258,6 +258,14 @@ _Spec _spec(AppErrorType type, ColorScheme cs) {
         title: 'Session expired',
         subtitle: 'Please sign in again to continue.',
       );
+    case AppErrorType.ytAuthExpired:
+      return _Spec(
+        icon: Icons.sync_problem_rounded,
+        color: const Color(0xFFF59E0B),
+        title: 'YouTube Music disconnected',
+        subtitle:
+            'Your YouTube Music session has expired. Please reconnect in settings.',
+      );
     case AppErrorType.unknown:
       return _Spec(
         icon: Icons.error_outline_rounded,

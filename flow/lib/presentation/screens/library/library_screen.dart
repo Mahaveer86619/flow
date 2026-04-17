@@ -1,22 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../../core/responsive/breakpoints.dart';
 import '../../../domain/entities/song.dart';
-import '../../blocs/player/player_bloc.dart';
+import '../../../domain/repositories/song_repository.dart';
 import '../../cubits/library/library_cubit.dart';
 import '../../widgets/error_view.dart';
-import '../../widgets/song_card.dart';
 import '../../widgets/section_header.dart';
 import '../playlist/playlist_screen.dart';
 import '../settings/settings_screen.dart';
 import '../list/list_screen.dart';
-
 import '../../widgets/skeleton.dart';
+import '../../../core/logger/app_logger.dart';
+import '../../../core/ui/app_snack_bar.dart';
 
-class LibraryScreen extends StatelessWidget {
+class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
 
+  @override
+  State<LibraryScreen> createState() => _LibraryScreenState();
+}
+
+class _LibraryScreenState extends State<LibraryScreen> {
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.sizeOf(context).width;
@@ -78,6 +82,57 @@ class LibraryScreen extends StatelessWidget {
                       ),
                     ),
                     const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.add_rounded),
+                      onPressed: () async {
+                        final controller = TextEditingController();
+                        final name = await showDialog<String>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('Create Playlist'),
+                            content: TextField(
+                              controller: controller,
+                              decoration: const InputDecoration(
+                                labelText: 'Playlist Name',
+                                border: OutlineInputBorder(),
+                              ),
+                              autofocus: true,
+                              onSubmitted: (value) => Navigator.pop(ctx, value),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx),
+                                child: const Text('Cancel'),
+                              ),
+                              FilledButton(
+                                onPressed: () =>
+                                    Navigator.pop(ctx, controller.text),
+                                child: const Text('Create'),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (name?.trim().isNotEmpty ?? false) {
+                          try {
+                            final repo = context.read<SongRepository>();
+                            await repo.createFlowPlaylist(title: name!.trim());
+                            if (context.mounted) {
+                              context.read<LibraryCubit>().refresh();
+                            }
+                          } catch (e, st) {
+                            if (context.mounted) {
+                              AppSnackBar.showError(
+                                context,
+                                e,
+                                stackTrace: st,
+                                logTag: 'LibraryScreen',
+                              );
+                            }
+                          }
+                        }
+                      },
+                      tooltip: 'Create Playlist',
+                    ),
                     IconButton(
                       icon: const Icon(Icons.settings_outlined),
                       onPressed: () {
@@ -153,7 +208,8 @@ class LibraryScreen extends StatelessWidget {
                   children: [
                     _LibraryShortcuts(state: state),
                     const SizedBox(height: 24),
-                    const SectionHeader(title: 'Remote Playlists'),
+                    if (state.playlists.any((p) => p.type == 'flow'))
+                      const SectionHeader(title: 'My Playlists'),
                   ],
                 ),
               );
@@ -193,6 +249,23 @@ class LibraryScreen extends StatelessWidget {
               );
             },
           ),
+
+          // Remote Playlists section header
+          BlocBuilder<LibraryCubit, LibraryState>(
+            builder: (context, state) {
+              if (state.playlists.isEmpty ||
+                  !state.playlists.any((p) => p.type != 'flow')) {
+                return const SliverToBoxAdapter(child: SizedBox.shrink());
+              }
+              return const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(16, 24, 16, 0),
+                  child: SectionHeader(title: 'Remote Playlists'),
+                ),
+              );
+            },
+          ),
+
           const SliverToBoxAdapter(child: SizedBox(height: 120)),
         ],
       ),

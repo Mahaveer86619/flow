@@ -17,37 +17,52 @@ class AuthDataSource {
   };
 
   Future<String> login(String username, String password) async {
-    AppLogger.i(_tag, 'login($username)');
-    final resp = await http
-        .post(
-          Uri.parse('$_base/v1/auth/login'),
-          headers: _headers(),
-          body: {'username': username, 'password': password},
-        )
-        .timeout(_timeout);
-    _assertOk(resp, notify: false);
-    final json = jsonDecode(resp.body) as Map<String, dynamic>;
-    return json['access_token'] as String;
+    AppLogger.i(_tag, 'Attempting login for user: $username');
+    try {
+      final resp = await http
+          .post(
+            Uri.parse('$_base/v1/auth/login'),
+            headers: _headers(),
+            body: {'username': username, 'password': password},
+          )
+          .timeout(_timeout);
+      _assertOk(resp, notify: false);
+      final json = jsonDecode(resp.body) as Map<String, dynamic>;
+      final token = json['access_token'] as String;
+      AppLogger.i(_tag, 'Login successful for user: $username');
+      return token;
+    } catch (e, st) {
+      AppLogger.e(_tag, 'Login failed for user: $username', e, st);
+      rethrow;
+    }
   }
 
   Future<void> signup(String username, String email, String password) async {
-    AppLogger.i(_tag, 'signup($username)');
-    final resp = await http
-        .post(
-          Uri.parse('$_base/v1/auth/signup'),
-          headers: _headers()..addAll({'Content-Type': 'application/json'}),
-          body: jsonEncode({
-            'username': username,
-            'email': email,
-            'password': password,
-          }),
-        )
-        .timeout(_timeout);
-    _assertOk(resp);
+    AppLogger.i(_tag, 'Attempting signup for user: $username ($email)');
+    try {
+      final resp = await http
+          .post(
+            Uri.parse('$_base/v1/auth/signup'),
+            headers: _headers()..addAll({'Content-Type': 'application/json'}),
+            body: jsonEncode({
+              'username': username,
+              'email': email,
+              'password': password,
+            }),
+          )
+          .timeout(_timeout);
+      _assertOk(resp);
+      AppLogger.i(_tag, 'Signup successful for user: $username');
+    } catch (e, st) {
+      AppLogger.e(_tag, 'Signup failed for user: $username', e, st);
+      rethrow;
+    }
   }
 
   Future<Map<String, dynamic>> getMe(String token) async {
-    AppLogger.d(_tag, 'getMe()');
+    if (AppLogger.isDebug) {
+      AppLogger.d(_tag, 'Fetching current user profile');
+    }
     final resp = await http
         .get(Uri.parse('$_base/v1/auth/me'), headers: _headers(token))
         .timeout(_timeout);
@@ -59,7 +74,7 @@ class AuthDataSource {
     String token,
     Map<String, dynamic> settings,
   ) async {
-    AppLogger.i(_tag, 'updateSettings()');
+    AppLogger.i(_tag, 'Updating user settings');
     final resp = await http
         .patch(
           Uri.parse('$_base/v1/auth/settings'),
@@ -69,6 +84,7 @@ class AuthDataSource {
         )
         .timeout(_timeout);
     _assertOk(resp);
+    AppLogger.i(_tag, 'User settings updated successfully');
     return jsonDecode(resp.body) as Map<String, dynamic>;
   }
 
@@ -76,46 +92,87 @@ class AuthDataSource {
     String token,
     Map<String, String> cookies,
   ) async {
-    AppLogger.i(_tag, 'connectYTCookies()');
-    final resp = await http
-        .post(
-          Uri.parse('$_base/v1/yt-auth/cookies'),
-          headers: _headers(token)
-            ..addAll({'Content-Type': 'application/json'}),
-          body: jsonEncode({'cookies': cookies}),
-        )
-        .timeout(_timeout);
-    _assertOk(resp);
+    AppLogger.i(_tag, 'Connecting YouTube Music cookies');
+    try {
+      final resp = await http
+          .post(
+            Uri.parse('$_base/v1/yt-auth/cookies'),
+            headers: _headers(token)
+              ..addAll({'Content-Type': 'application/json'}),
+            body: jsonEncode({'cookies': cookies}),
+          )
+          .timeout(_timeout);
+      _assertOk(resp);
+      AppLogger.i(_tag, 'YouTube Music cookies connected successfully');
+    } catch (e, st) {
+      AppLogger.e(_tag, 'Failed to connect YouTube Music cookies', e, st);
+      rethrow;
+    }
   }
 
   Future<Map<String, dynamic>> refreshProfile(String token) async {
-    AppLogger.i(_tag, 'refreshProfile()');
+    AppLogger.i(_tag, 'Refreshing user profile');
     final resp = await http
-        .post(Uri.parse('$_base/v1/auth/refresh-profile'), headers: _headers(token))
+        .post(
+          Uri.parse('$_base/v1/auth/refresh-profile'),
+          headers: _headers(token),
+        )
         .timeout(_timeout);
     _assertOk(resp);
     return jsonDecode(resp.body) as Map<String, dynamic>;
   }
 
   Future<void> disconnectYT(String token) async {
-    AppLogger.i(_tag, 'disconnectYT()');
+    AppLogger.i(_tag, 'Disconnecting YouTube Music');
     final resp = await http
         .delete(Uri.parse('$_base/v1/yt-auth'), headers: _headers(token))
         .timeout(_timeout);
     _assertOk(resp);
+    AppLogger.i(_tag, 'YouTube Music disconnected successfully');
+  }
+
+  Future<Map<String, dynamic>> initYTOAuth(String token) async {
+    AppLogger.i(_tag, 'Initializing YouTube Music OAuth');
+    final resp = await http
+        .post(
+          Uri.parse('$_base/v1/yt-auth/oauth/init'),
+          headers: _headers(token),
+        )
+        .timeout(_timeout);
+    _assertOk(resp);
+    return jsonDecode(resp.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> checkYTOAuth(
+    String token,
+    String deviceCode,
+  ) async {
+    final resp = await http
+        .get(
+          Uri.parse('$_base/v1/yt-auth/oauth/check/$deviceCode'),
+          headers: _headers(token),
+        )
+        .timeout(_timeout);
+    _assertOk(resp);
+    return jsonDecode(resp.body) as Map<String, dynamic>;
   }
 
   void _assertOk(http.Response resp, {bool notify = true}) {
     if (resp.statusCode >= 200 && resp.statusCode < 300) return;
 
     final isUnauthorized = resp.statusCode == 401;
+    final isForbidden = resp.statusCode == 403;
+
     if (isUnauthorized && notify) {
+      AppLogger.w(_tag, 'Unauthorized (401) body: ${resp.body}');
       AuthEventBus.notifyUnauthorized();
     }
 
     String detail = isUnauthorized
         ? 'Incorrect username or password'
-        : 'Request failed (${resp.statusCode})';
+        : (isForbidden
+              ? 'YouTube Music session expired'
+              : 'Request failed (${resp.statusCode})');
 
     try {
       final json = jsonDecode(resp.body) as Map<String, dynamic>;
@@ -126,6 +183,10 @@ class AuthDataSource {
 
     if (isUnauthorized) {
       throw ServerException(message: detail, statusCode: 401);
+    }
+
+    if (isForbidden) {
+      throw YTSessionExpiredException(detail);
     }
 
     throw ServerException(message: detail, statusCode: resp.statusCode);

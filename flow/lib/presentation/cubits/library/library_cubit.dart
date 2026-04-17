@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/app_event_bus.dart';
-import '../../../core/error/app_exception.dart';
 import '../../../core/logger/app_logger.dart';
 import '../../../core/network/download_service.dart';
 import '../../../core/storage/local_storage.dart';
@@ -85,12 +84,24 @@ class LibraryCubit extends Cubit<LibraryState> {
 
     emit(state.copyWith(isLoading: true));
     try {
-      // Fetch playlists and remote likes (these don't have streams yet)
+      // Fetch components individually so one failure doesn't kill the whole load
       final results = await Future.wait([
-        _getPlaylists(),
-        _fetchRemoteLikedSongs(),
-        _fetchLikedSongs(),
-        _fetchDownloadedSongs(),
+        _getPlaylists().catchError((e) {
+          AppLogger.e(_tag, 'Failed to fetch playlists', e);
+          return <Playlist>[];
+        }),
+        _fetchRemoteLikedSongs().catchError((e) {
+          AppLogger.e(_tag, 'Failed to fetch remote liked songs', e);
+          return <Song>[];
+        }),
+        _fetchLikedSongs().catchError((e) {
+          AppLogger.e(_tag, 'Failed to fetch liked songs', e);
+          return <Song>[];
+        }),
+        _fetchDownloadedSongs().catchError((e) {
+          AppLogger.e(_tag, 'Failed to fetch downloaded songs', e);
+          return <Song>[];
+        }),
       ]);
 
       if (isClosed) return;
@@ -102,11 +113,12 @@ class LibraryCubit extends Cubit<LibraryState> {
           remoteLikedSongs: results[1] as List<Song>,
           likedSongs: results[2] as List<Song>,
           downloadedSongs: results[3] as List<Song>,
+          error: false,
         ),
       );
     } catch (e, st) {
       if (isClosed) return;
-      AppLogger.e(_tag, 'Failed to load library', e, st);
+      AppLogger.e(_tag, 'Unexpected error in _loadAll', e, st);
       emit(state.copyWith(isLoading: false, error: true));
     } finally {
       _isInitialLoading = false;

@@ -4,9 +4,11 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../core/responsive/breakpoints.dart';
 import '../../../domain/entities/song.dart';
 import '../../../domain/repositories/song_repository.dart';
+import '../../../core/ui/app_snack_bar.dart';
 import '../../blocs/player/player_bloc.dart';
 import '../../widgets/song_tile.dart';
 import '../player/player_screen.dart';
+import 'flow_playlist_manage_screen.dart';
 
 import '../../widgets/skeleton.dart';
 
@@ -73,7 +75,7 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = e.toString();
+          _error = AppSnackBar.humanMessage(e);
           _isLoading = false;
         });
       }
@@ -202,9 +204,29 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
                 icon: const Icon(Icons.share_rounded, color: Colors.white),
                 onPressed: () {},
               ),
+              if (_playlist.type == 'flow')
+                IconButton(
+                  icon: const Icon(Icons.edit_rounded, color: Colors.white),
+                  onPressed: () async {
+                    final result = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            FlowPlaylistManageScreen(playlist: _playlist),
+                      ),
+                    );
+                    if (result != null && mounted) {
+                      if (result == 'deleted') {
+                        Navigator.pop(context);
+                      } else {
+                        _fetchTracks();
+                      }
+                    }
+                  },
+                ),
               IconButton(
                 icon: const Icon(Icons.more_vert_rounded, color: Colors.white),
-                onPressed: () {},
+                onPressed: () => _showPlaylistOptions(context),
               ),
             ],
           ),
@@ -340,6 +362,57 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
             fontWeight: FontWeight.w800,
             color: Colors.white,
             height: 1.0,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showPlaylistOptions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 20),
+              if (_playlist.type == 'flow')
+                ListTile(
+                  leading: const Icon(Icons.edit_rounded),
+                  title: const Text('Edit Playlist'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            FlowPlaylistManageScreen(playlist: _playlist),
+                      ),
+                    );
+                  },
+                ),
+              ListTile(
+                leading: const Icon(Icons.share_rounded),
+                title: const Text('Share'),
+                onTap: () => Navigator.pop(ctx),
+              ),
+              const SizedBox(height: 12),
+            ],
           ),
         ),
       ),

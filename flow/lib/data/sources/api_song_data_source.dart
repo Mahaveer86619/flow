@@ -44,7 +44,8 @@ class ApiSongDataSource implements SongDataSource {
   Future<HomeDataModel> fetchHomeData({int limit = 25}) async {
     AppLogger.i(_tag, 'fetchHomeData(limit: $limit)');
     final json =
-        await _getJson('/v1/home', params: {'limit': limit.toString()}) as Map<String, dynamic>;
+        await _getJson('/v1/home', params: {'limit': limit.toString()})
+            as Map<String, dynamic>;
     AppLogger.d(
       _tag,
       'fetchHomeData: '
@@ -67,10 +68,10 @@ class ApiSongDataSource implements SongDataSource {
     if (query.trim().isEmpty) return const [];
     AppLogger.i(_tag, 'searchSongs("$query", limit: $limit)');
     final list =
-        await _getJson('/v1/search/songs', params: {
-          'q': query,
-          'limit': limit.toString(),
-        })
+        await _getJson(
+              '/v1/search/songs',
+              params: {'q': query, 'limit': limit.toString()},
+            )
             as List<dynamic>;
     AppLogger.d(_tag, 'searchSongs("$query"): ${list.length} results');
     try {
@@ -126,12 +127,17 @@ class ApiSongDataSource implements SongDataSource {
   }
 
   @override
-  Future<List<SongModel>> fetchAlbumTracks(String browseId, {int limit = 25}) async {
+  Future<List<SongModel>> fetchAlbumTracks(
+    String browseId, {
+    int limit = 25,
+  }) async {
     AppLogger.i(_tag, 'fetchAlbumTracks($browseId, limit: $limit)');
-    final list = await _getJson(
-      '/v1/albums/$browseId',
-      params: {'limit': limit.toString()},
-    ) as List<dynamic>;
+    final list =
+        await _getJson(
+              '/v1/albums/$browseId',
+              params: {'limit': limit.toString()},
+            )
+            as List<dynamic>;
     try {
       return list
           .map((e) => SongModel.fromJson(e as Map<String, dynamic>))
@@ -145,7 +151,8 @@ class ApiSongDataSource implements SongDataSource {
   @override
   Future<List<SongModel>> fetchArtistSongs(String channelId) async {
     AppLogger.i(_tag, 'fetchArtistSongs($channelId)');
-    final list = await _getJson('/v1/artists/$channelId/songs') as List<dynamic>;
+    final list =
+        await _getJson('/v1/artists/$channelId/songs') as List<dynamic>;
     try {
       return list
           .map((e) => SongModel.fromJson(e as Map<String, dynamic>))
@@ -246,13 +253,16 @@ class ApiSongDataSource implements SongDataSource {
     List<String>? videoIds,
     String? sourcePlaylist,
   }) async {
-    final resp = await _postJson('/v1/playlists', body: {
-      'title': title,
-      if (description != null) 'description': description,
-      if (privacyStatus != null) 'privacy_status': privacyStatus,
-      if (videoIds != null) 'video_ids': videoIds,
-      if (sourcePlaylist != null) 'source_playlist': sourcePlaylist,
-    });
+    final resp = await _postJson(
+      '/v1/playlists',
+      body: {
+        'title': title,
+        if (description != null) 'description': description,
+        if (privacyStatus != null) 'privacy_status': privacyStatus,
+        if (videoIds != null) 'video_ids': videoIds,
+        if (sourcePlaylist != null) 'source_playlist': sourcePlaylist,
+      },
+    );
     return resp['id'] as String;
   }
 
@@ -263,11 +273,14 @@ class ApiSongDataSource implements SongDataSource {
     String? description,
     String? privacyStatus,
   }) async {
-    await _patchJson('/v1/playlists/$playlistId', body: {
-      if (title != null) 'title': title,
-      if (description != null) 'description': description,
-      if (privacyStatus != null) 'privacyStatus': privacyStatus,
-    });
+    await _patchJson(
+      '/v1/playlists/$playlistId',
+      body: {
+        if (title != null) 'title': title,
+        if (description != null) 'description': description,
+        if (privacyStatus != null) 'privacyStatus': privacyStatus,
+      },
+    );
   }
 
   @override
@@ -282,11 +295,14 @@ class ApiSongDataSource implements SongDataSource {
     String? sourcePlaylist,
     bool duplicates = false,
   }) async {
-    await _postJson('/v1/playlists/$playlistId/items', body: {
-      'videoIds': videoIds,
-      if (sourcePlaylist != null) 'source_playlist': sourcePlaylist,
-      'duplicates': duplicates,
-    });
+    await _postJson(
+      '/v1/playlists/$playlistId/items',
+      body: {
+        'videoIds': videoIds,
+        if (sourcePlaylist != null) 'source_playlist': sourcePlaylist,
+        'duplicates': duplicates,
+      },
+    );
   }
 
   @override
@@ -294,7 +310,10 @@ class ApiSongDataSource implements SongDataSource {
     required String playlistId,
     required List<Map<String, dynamic>> videos,
   }) async {
-    await _deleteJson('/v1/playlists/$playlistId/items', body: {'videos': videos});
+    await _deleteJson(
+      '/v1/playlists/$playlistId/items',
+      body: {'videos': videos},
+    );
   }
 
   // --- Artist Management ---
@@ -317,11 +336,16 @@ class ApiSongDataSource implements SongDataSource {
     String description = '',
     bool isPublic = false,
   }) async {
-    final resp = await _postJson('/v1/flow/playlists', body: {
-      'title': title,
-      'description': description,
-      'is_public': isPublic,
-    }) as Map<String, dynamic>;
+    final resp =
+        await _postJson(
+              '/v1/flow/playlists',
+              body: {
+                'title': title,
+                'description': description,
+                'is_public': isPublic,
+              },
+            )
+            as Map<String, dynamic>;
     return PlaylistModel.fromJson(resp);
   }
 
@@ -332,11 +356,16 @@ class ApiSongDataSource implements SongDataSource {
     String? description,
     bool? isPublic,
   }) async {
-    final resp = await _patchJson('/v1/flow/playlists/$playlistId', body: {
-      if (title != null) 'title': title,
-      if (description != null) 'description': description,
-      if (isPublic != null) 'is_public': isPublic,
-    }) as Map<String, dynamic>;
+    final resp =
+        await _patchJson(
+              '/v1/flow/playlists/$playlistId',
+              body: {
+                if (title != null) 'title': title,
+                if (description != null) 'description': description,
+                if (isPublic != null) 'is_public': isPublic,
+              },
+            )
+            as Map<String, dynamic>;
     return PlaylistModel.fromJson(resp);
   }
 
@@ -374,9 +403,7 @@ class ApiSongDataSource implements SongDataSource {
 
   @override
   Future<void> removeCollaborator(String playlistId, String userCode) async {
-    await _deleteJson(
-      '/v1/flow/playlists/$playlistId/collaborators/$userCode',
-    );
+    await _deleteJson('/v1/flow/playlists/$playlistId/collaborators/$userCode');
   }
 
   // ── HTTP helpers ──────────────────────────────────────────────────────────────
@@ -423,8 +450,12 @@ class ApiSongDataSource implements SongDataSource {
       }
 
       if (response.statusCode == 401) {
-        AuthEventBus.notifyUnauthorized();
-        throw const UnauthorizedException();
+        _handle401(uri, response.body);
+      }
+
+      if (response.statusCode == 403) {
+        // Special case: YT session expired but app session might be fine
+        throw const YTSessionExpiredException();
       }
 
       AppLogger.w(_tag, 'HTTP ${response.statusCode} ← $uri\n${response.body}');
@@ -453,17 +484,23 @@ class ApiSongDataSource implements SongDataSource {
       if (token != null) headers['Authorization'] = 'Bearer $token';
 
       final response = await _client
-          .post(uri, headers: headers, body: body != null ? jsonEncode(body) : null)
+          .post(
+            uri,
+            headers: headers,
+            body: body != null ? jsonEncode(body) : null,
+          )
           .timeout(_timeout);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return response.body.isNotEmpty ? jsonDecode(response.body) : null;
       }
       if (response.statusCode == 401) {
-        AuthEventBus.notifyUnauthorized();
-        throw const UnauthorizedException();
+        _handle401(uri, response.body);
       }
-      throw ServerException(message: response.body, statusCode: response.statusCode);
+      throw ServerException(
+        message: response.body,
+        statusCode: response.statusCode,
+      );
     } catch (e) {
       throw toAppException(e);
     }
@@ -481,17 +518,23 @@ class ApiSongDataSource implements SongDataSource {
       if (token != null) headers['Authorization'] = 'Bearer $token';
 
       final response = await _client
-          .patch(uri, headers: headers, body: body != null ? jsonEncode(body) : null)
+          .patch(
+            uri,
+            headers: headers,
+            body: body != null ? jsonEncode(body) : null,
+          )
           .timeout(_timeout);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return response.body.isNotEmpty ? jsonDecode(response.body) : null;
       }
       if (response.statusCode == 401) {
-        AuthEventBus.notifyUnauthorized();
-        throw const UnauthorizedException();
+        _handle401(uri, response.body);
       }
-      throw ServerException(message: response.body, statusCode: response.statusCode);
+      throw ServerException(
+        message: response.body,
+        statusCode: response.statusCode,
+      );
     } catch (e) {
       throw toAppException(e);
     }
@@ -509,20 +552,41 @@ class ApiSongDataSource implements SongDataSource {
       if (token != null) headers['Authorization'] = 'Bearer $token';
 
       final response = await _client
-          .delete(uri, headers: headers, body: body != null ? jsonEncode(body) : null)
+          .delete(
+            uri,
+            headers: headers,
+            body: body != null ? jsonEncode(body) : null,
+          )
           .timeout(_timeout);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return response.body.isNotEmpty ? jsonDecode(response.body) : null;
       }
       if (response.statusCode == 401) {
-        AuthEventBus.notifyUnauthorized();
-        throw const UnauthorizedException();
+        _handle401(uri, response.body);
       }
-      throw ServerException(message: response.body, statusCode: response.statusCode);
+      throw ServerException(
+        message: response.body,
+        statusCode: response.statusCode,
+      );
     } catch (e) {
       throw toAppException(e);
     }
+  }
+
+  /// Inspects a 401 body: YT-not-connected errors become [YTSessionExpiredException];
+  /// everything else fires the global logout and throws [UnauthorizedException].
+  Never _handle401(Uri uri, String responseBody) {
+    AppLogger.w(_tag, 'Unauthorized (401) ← $uri\nBody: $responseBody');
+    final body = responseBody.toLowerCase();
+    if (body.contains('yt music not connected') ||
+        body.contains('connect your account')) {
+      throw const YTSessionExpiredException(
+        'YouTube Music not connected. Please reconnect.',
+      );
+    }
+    AuthEventBus.notifyUnauthorized();
+    throw const UnauthorizedException();
   }
 
   /// Recursively traverses the JSON response and wraps any 'thumbnailUrl' field.

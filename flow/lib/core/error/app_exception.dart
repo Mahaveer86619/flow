@@ -38,6 +38,13 @@ class UnauthorizedException extends AppException {
   ]);
 }
 
+/// Thrown when YT Music session is expired (403 Forbidden from backend).
+class YTSessionExpiredException extends AppException {
+  const YTSessionExpiredException([
+    super.message = 'YouTube Music session expired. Please reconnect.',
+  ]);
+}
+
 /// Thrown when the server is unreachable (connection refused / timeout).
 class ServerUnreachableException extends AppException {
   const ServerUnreachableException([
@@ -65,6 +72,7 @@ enum AppErrorType {
   serverDown, // server unreachable
   serverError, // server returned an error response
   unauthorized, // 401
+  ytAuthExpired, // 403
   parse, // bad data
   unknown, // catch-all
 }
@@ -74,6 +82,7 @@ extension AppExceptionExt on AppException {
     if (this is NetworkException) return AppErrorType.network;
     if (this is ServerUnreachableException) return AppErrorType.serverDown;
     if (this is UnauthorizedException) return AppErrorType.unauthorized;
+    if (this is YTSessionExpiredException) return AppErrorType.ytAuthExpired;
     if (this is ServerException) return AppErrorType.serverError;
     if (this is ParseException) return AppErrorType.parse;
     return AppErrorType.unknown;

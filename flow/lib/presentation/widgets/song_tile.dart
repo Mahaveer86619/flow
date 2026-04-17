@@ -8,6 +8,7 @@ import '../../domain/entities/song.dart';
 import '../blocs/player/player_bloc.dart';
 import '../screens/player/player_screen.dart';
 import '../../core/responsive/breakpoints.dart';
+import 'add_to_playlist_dialog.dart';
 
 import 'text_carousel.dart';
 
@@ -178,6 +179,8 @@ class _SongOptionsButton extends StatelessWidget {
           context.read<PlayerBloc>().add(PlayRadioEvent(song));
         } else if (value == 'like') {
           context.read<PlayerBloc>().add(ToggleLikeEvent(song));
+        } else if (value == 'playlist') {
+          AddToPlaylistDialog.show(context, song);
         }
       },
       itemBuilder: (context) => [
@@ -282,7 +285,10 @@ class _SongOptionsButton extends StatelessWidget {
               ListTile(
                 leading: const Icon(Icons.playlist_add_rounded),
                 title: const Text('Add to another Playlist'),
-                onTap: () => Navigator.pop(ctx),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  AddToPlaylistDialog.show(context, song);
+                },
               ),
               ListTile(
                 leading: const Icon(Icons.share_rounded),

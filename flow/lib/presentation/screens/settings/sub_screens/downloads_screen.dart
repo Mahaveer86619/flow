@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../../../core/platform/permission_service.dart';
+import '../../../../core/ui/app_snack_bar.dart';
 import '../../../../presentation/cubits/settings/settings_cubit.dart';
 
 const _kQualities = ['Low (128 kbps)', 'Medium (192 kbps)', 'High (320 kbps)'];
@@ -162,11 +163,9 @@ class DownloadsScreen extends StatelessWidget {
       if (selectedDirectory != null) {
         cubit.setDownloadPath(selectedDirectory);
       }
-    } catch (e) {
+    } catch (e, st) {
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error picking directory: $e')));
+        AppSnackBar.showError(context, e, stackTrace: st, logTag: 'DownloadsScreen');
       }
     }
   }
