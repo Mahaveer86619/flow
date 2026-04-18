@@ -12,6 +12,7 @@ import '../../cubits/home/home_cubit.dart';
 import '../../widgets/artist_card.dart';
 import '../../widgets/error_view.dart';
 import '../../widgets/no_source_view.dart';
+import '../../widgets/personality_bot_view.dart';
 import '../../widgets/section_header.dart';
 import '../../widgets/song_card.dart';
 import '../artist/artist_screen.dart';
@@ -208,7 +209,9 @@ class _HomeScreenContent extends StatelessWidget {
 
               // ── Body Logic ──────────────────────────
               if (state.isLoading && state.shelves.isEmpty)
-                const _HomeScreenSkeleton()
+                const SliverFillRemaining(
+                  child: PersonalityBotView(isLoading: true),
+                )
               else if (state.noSource)
                 const SliverFillRemaining(child: NoSourceView())
               else if (state.error && state.shelves.isEmpty)
@@ -228,8 +231,7 @@ class _HomeScreenContent extends StatelessWidget {
                   // 1. Identify priority shelves
                   HomeShelf? listeningAgain;
                   HomeShelf? quickPicks;
-                  HomeShelf? freshFinds;
-                  HomeShelf? trending;
+                  HomeShelf? musicVideos;
                   final List<HomeShelf> otherShelves = [];
 
                   for (final shelf in rawShelves) {
@@ -239,23 +241,18 @@ class _HomeScreenContent extends StatelessWidget {
                             shelf.section == 'frequentListens') &&
                         listeningAgain == null) {
                       listeningAgain = shelf;
-                    } else if (shelf.section == 'freshFinds' &&
-                        freshFinds == null) {
-                      freshFinds = shelf;
-                    } else if (shelf.section == 'trending' &&
-                        trending == null) {
-                      trending = shelf;
+                    } else if (shelf.section == 'musicVideos' &&
+                        musicVideos == null) {
+                      musicVideos = shelf;
                     } else {
                       otherShelves.add(shelf);
                     }
                   }
 
-                  // 2. Add in requested order
-                  if (listeningAgain != null)
-                    displayShelves.add(listeningAgain);
+                  // 2. Add in requested order: Listen Again -> Quick Picks -> Music Videos
+                  if (listeningAgain != null) displayShelves.add(listeningAgain);
                   if (quickPicks != null) displayShelves.add(quickPicks);
-                  if (freshFinds != null) displayShelves.add(freshFinds);
-                  if (trending != null) displayShelves.add(trending);
+                  if (musicVideos != null) displayShelves.add(musicVideos);
 
                   // 3. Add the rest
                   displayShelves.addAll(otherShelves);
@@ -1359,82 +1356,8 @@ class _HomePlaylistCardState extends State<_HomePlaylistCard> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Skeleton — shown while HomeCubit.isLoading == true
+// QuickPickStaggeredItem
 // ─────────────────────────────────────────────────────────────────────────────
-
-class _HomeScreenSkeleton extends StatelessWidget {
-  const _HomeScreenSkeleton();
-
-  @override
-  Widget build(BuildContext context) {
-    return SliverMainAxisGroup(
-      slivers: [
-        // Featured Grid Skeleton
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-            child: GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                mainAxisSpacing: 16,
-                crossAxisSpacing: 16,
-                childAspectRatio: 2.5,
-              ),
-              itemCount: 4,
-              itemBuilder: (context, i) =>
-                  const Skeleton(borderRadius: AppRadius.medium),
-            ),
-          ),
-        ),
-
-        // Multiple Rows of Shelves
-        for (int i = 0; i < 5; i++) ...[
-          const _SkeletonSectionHeader(),
-          _SkeletonHorizontalRow(isArtist: i == 2),
-        ],
-      ],
-    );
-  }
-}
-
-class _SkeletonSectionHeader extends StatelessWidget {
-  const _SkeletonSectionHeader();
-
-  @override
-  Widget build(BuildContext context) {
-    return const SliverToBoxAdapter(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(16, 32, 16, 16),
-        child: SkeletonText(width: 150, height: 20),
-      ),
-    );
-  }
-}
-
-class _SkeletonHorizontalRow extends StatelessWidget {
-  final bool isArtist;
-  const _SkeletonHorizontalRow({this.isArtist = false});
-
-  @override
-  Widget build(BuildContext context) {
-    return SliverToBoxAdapter(
-      child: SizedBox(
-        height: isArtist ? 130 : 200,
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          physics: const NeverScrollableScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          itemCount: 5,
-          separatorBuilder: (_, __) => const SizedBox(width: 14),
-          itemBuilder: (_, __) =>
-              isArtist ? const SkeletonArtistCard() : const SkeletonSongCard(),
-        ),
-      ),
-    );
-  }
-}
 
 class _QuickPickStaggeredItem extends StatefulWidget {
   final Song song;
