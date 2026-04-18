@@ -45,6 +45,26 @@ class YoutubeMusicDataSource implements MusicDataSource {
 
       final data = response.data as Map<String, dynamic>;
 
+      final sections = data['contents']?['singleColumnBrowseResultsRenderer']?['tabs']?[0]?['tabRenderer']?['content']?['sectionListRenderer']?['contents'] as List<dynamic>?;
+      if (sections != null) {
+        AppLogger.i(_tag, '--- RAW HOME FEED START ---');
+        for (var i = 0; i < sections.length; i++) {
+          final section = sections[i];
+          final shelf = section['musicCarouselShelfRenderer'] ?? section['musicShelfRenderer'] ?? section['musicTastebuilderShelfRenderer'];
+          final header = shelf?['header']?['musicCarouselShelfBasicHeaderRenderer'] ?? shelf?['header']?['musicHeaderRenderer'];
+          final title = header?['title']?['runs']?[0]?['text'] ?? header?['title']?['simpleText'] ?? 'Unknown Shelf';
+          
+          AppLogger.i(_tag, 'Section [$i]: "$title" | Keys: ${section.keys} | Shelf Keys: ${shelf?.keys}');
+          if (shelf != null && shelf['contents'] != null) {
+             final List items = shelf['contents'];
+             if (items.isNotEmpty) {
+                AppLogger.i(_tag, '  -> First Item Renderer: ${items.first.keys}');
+             }
+          }
+        }
+        AppLogger.i(_tag, '--- RAW HOME FEED END ---');
+      }
+
       if (data['contents'] == null) {
         AppLogger.w(_tag, 'FEmusic_home returned empty contents, trying public fallback');
         return _fetchPublicHomeData();
@@ -141,9 +161,12 @@ class YoutubeMusicDataSource implements MusicDataSource {
         data['contents']?['singleColumnBrowseResultsRenderer']?['tabs']?[0]?['tabRenderer']?['content']?['sectionListRenderer']?['contents'] ?? 
         data['contents']?['sectionListRenderer']?['contents'] ?? [];
 
+      AppLogger.d(_tag, 'Parsing ${contents.length} sections from home feed');
+
       for (final section in contents) {
         final shelf = section['musicShelfRenderer'] ??
                       section['musicCarouselShelfRenderer'] ??
+                      section['musicTastebuilderShelfRenderer'] ??
                       section['musicEditablePlaylistDetailHeaderRenderer'] ??
                       section['itemSectionRenderer']?['contents']?[0]?['musicShelfRenderer'];
 
@@ -173,8 +196,10 @@ class YoutubeMusicDataSource implements MusicDataSource {
 
         for (final item in shelfItems) {
           final actualItem = item['musicResponsiveListItemRenderer'] != null || 
+                            item['musicTwoRowItemRenderer'] != null ||
                             item['musicTwoColumnItemRenderer'] != null ||
-                            item['playlistPanelVideoRenderer'] != null
+                            item['playlistPanelVideoRenderer'] != null ||
+                            item['musicNavigationButtonRenderer'] != null
                             ? item : (item['navigationEndpoint'] != null ? item : null);
           
           if (actualItem == null) continue;
@@ -191,7 +216,7 @@ class YoutubeMusicDataSource implements MusicDataSource {
             'section': sectionType,
             'items': items,
           });
-          AppLogger.d(_tag, 'Parsed shelf: "$title" with ${items.length} items');
+          AppLogger.i(_tag, 'Parsed shelf: "$title" (${items.length} items)');
         }
       }
     } catch (e, st) {
@@ -371,9 +396,92 @@ class YoutubeMusicDataSource implements MusicDataSource {
   }
 
   @override
-  Future<List<SongModel>> fetchAlbumTracks(String browseId, {int limit = 25}) async => [];
+  Future<List<SongModel>> fetchArtistSongs(String channelId) async {
+    try {
+      AppLogger.i(_tag, 'fetchArtistSongs: $channelId');
+      final response = await _dio.post(
+        '$_ytmBase/browse?prettyPrint=false',
+        data: {
+          "browseId": channelId,
+          "context": {
+            "client": { "clientName": "WEB_REMIX", "clientVersion": "1.20240320.01.00" }
+          }
+        },
+      );
+
+      if (response.statusCode != 200) return [];
+      final data = response.data as Map<String, dynamic>;
+      
+      // Navigate to the "Songs" shelf. This can be complex as it varies by artist.
+      // We look for a musicShelfRenderer or a carousel with songs.
+      final List<dynamic> sections = data['contents']?['singleColumnBrowseResultsRenderer']?['tabs']?[0]?['tabRenderer']?['content']?['sectionListRenderer']?['contents'] ?? [];
+      
+      final tracks = <SongModel>[];
+      for (final section in sections) {
+        final shelf = section['musicShelfRenderer'] ?? section['musicCarouselShelfRenderer'];
+        if (shelf == null) continue;
+        
+        final contents = shelf['contents'] as List?;
+        if (contents == null) continue;
+
+        for (final item in contents) {
+          final mapped = _parseMytmItem(item);
+          if (mapped != null && mapped['type'] == 'song') {
+            final sData = mapped['data'] as Map<String, dynamic>;
+            final colors = _colorsForId(sData['id']);
+            tracks.add(SongModel(
+              id: sData['id'], title: sData['title'], artist: sData['artist'], album: '',
+              duration: Duration(milliseconds: sData['durationMs'] ?? 0), thumbnailUrl: sData['thumbnailUrl'],
+              colorPrimary: colors.$1, colorSecondary: colors.$2,
+            ));
+          }
+        }
+      }
+      return tracks;
+    } catch (e) { return []; }
+  }
+
   @override
-  Future<List<SongModel>> fetchArtistSongs(String channelId) async => [];
+  Future<List<SongModel>> fetchAlbumTracks(String browseId, {int limit = 25}) async {
+    try {
+      AppLogger.i(_tag, 'fetchAlbumTracks: $browseId');
+      final response = await _dio.post(
+        '$_ytmBase/browse?prettyPrint=false',
+        data: {
+          "browseId": browseId,
+          "context": {
+            "client": { "clientName": "WEB_REMIX", "clientVersion": "1.20240320.01.00" }
+          }
+        },
+      );
+
+      if (response.statusCode != 200) return [];
+      final data = response.data as Map<String, dynamic>;
+      
+      final List<dynamic> contents = data['contents']?['twoColumnBrowseResultsRenderer']?['secondaryContents']?['sectionListRenderer']?['contents'] ?? [];
+      // Albums usually have a musicShelfRenderer for tracks
+      final shelf = contents.firstOrNull?['musicShelfRenderer'];
+      if (shelf == null) return [];
+
+      final items = shelf['contents'] as List?;
+      if (items == null) return [];
+
+      final tracks = <SongModel>[];
+      for (final item in items) {
+        final mapped = _parseMytmItem(item);
+        if (mapped != null && mapped['type'] == 'song') {
+          final sData = mapped['data'] as Map<String, dynamic>;
+          final colors = _colorsForId(sData['id']);
+          tracks.add(SongModel(
+            id: sData['id'], title: sData['title'], artist: sData['artist'], album: '',
+            duration: Duration(milliseconds: sData['durationMs'] ?? 0), thumbnailUrl: sData['thumbnailUrl'],
+            colorPrimary: colors.$1, colorSecondary: colors.$2,
+          ));
+        }
+      }
+      return tracks.take(limit).toList();
+    } catch (e) { return []; }
+  }
 
   @override
   Future<List<SongModel>> fetchRadioTracks(String videoId, {int limit = 25}) async {
