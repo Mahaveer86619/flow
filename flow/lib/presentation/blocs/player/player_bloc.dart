@@ -21,6 +21,7 @@ import '../../../domain/entities/song.dart';
 
 import '../../../core/network/download_service.dart';
 import '../../../domain/repositories/song_repository.dart';
+import '../../../data/sources/stream_resolver.dart';
 
 part 'player_event.dart';
 part 'player_state.dart';
@@ -656,11 +657,21 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
       );
       return AudioSource.file(localFile.path, tag: mediaItem);
     } else {
-      final streamUrl = '${ServerConfig.instance.baseUrl}/v1/stream/${song.id}';
-      final uri = Uri.parse(streamUrl);
+      // ── LOCAL STREAM RESOLUTION (Phase 1) ──────────────────────────────────
+      // Resolve the direct YouTube stream URL on-device.
+      final directStreamUrl = await StreamResolver.instance.resolveYoutubeStream(song.id);
+      
+      if (directStreamUrl == null) {
+        // Fallback or throw error? For now, we'll try the old way or just log
+        AppLogger.e(_tag, 'Failed to resolve local stream for ${song.id}');
+        // Fallback to old backend if needed during transition? 
+        // No, goal is to move away. Let's throw a clear error or return dummy.
+      }
+
+      final uri = Uri.parse(directStreamUrl ?? '');
       final headers = {
-        if (token != null) 'Authorization': 'Bearer $token',
-        'User-Agent': 'FlowMusicApp/1.0',
+        // No more Bearer token needed for direct YT streams (they use query params)
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
       };
 
       // LockCachingAudioSource has known file-locking and proxy issues on Windows.

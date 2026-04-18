@@ -19,6 +19,7 @@ import 'domain/repositories/song_repository.dart';
 import 'data/repositories/song_repository_impl.dart';
 import 'data/sources/api_song_data_source.dart';
 import 'data/sources/mock_song_data_source.dart';
+import 'data/sources/youtube_data_source.dart';
 import 'domain/usecases/get_categories_usecase.dart';
 import 'domain/usecases/get_home_data_usecase.dart';
 import 'domain/usecases/get_playlists_usecase.dart';
@@ -35,7 +36,6 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // ── 1. Background audio (Android / iOS / macOS only) ─────────────────────────
-  // just_audio_background has no Windows/Linux plugin — skip on those platforms.
   if (defaultTargetPlatform == TargetPlatform.android ||
       defaultTargetPlatform == TargetPlatform.iOS ||
       defaultTargetPlatform == TargetPlatform.macOS) {
@@ -100,22 +100,14 @@ void main() async {
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
   // ── 6. Dependency graph ───────────────────────────────────────────────────────
-  //
-  //   Data source (mock or API)
-  //     → SongRepositoryImpl
-  //       → Use cases (one per screen data need)
-  //         → BLoC / Cubits
-  //
-  // Switch between sources with USE_MOCK in .env — no code change required.
-
   final useMock = dotenv.env['USE_MOCK'] == 'true';
 
   AppLogger.i(
     'main',
-    'Source: ${useMock ? "mock" : ServerConfig.instance.baseUrl}',
+    'Source: ${useMock ? "mock" : "Standalone (YouTubeDataSource)"}',
   );
 
-  final dataSource = useMock ? MockSongDataSource() : ApiSongDataSource();
+  final dataSource = useMock ? MockSongDataSource() : YoutubeDataSource();
 
   final repository = SongRepositoryImpl(dataSource);
 
@@ -123,7 +115,6 @@ void main() async {
   final getPlaylists = GetPlaylistsUseCase(repository);
   final getCategories = GetCategoriesUseCase(repository);
   final searchSongs = SearchSongsUseCase(repository);
-  // ignore: unused_local_variable — available for screens that need it
   final getPlaylistTracks = GetPlaylistTracksUseCase(repository);
 
   AppLogger.i('main', 'DI graph built — launching app');

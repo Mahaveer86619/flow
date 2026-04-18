@@ -5,6 +5,7 @@ class AuthState {
   final String? username;
   final String? email;
   final bool hasYtAuth;
+  final bool hasSpotifyAuth;
   final String? ytName;
   final String? ytAvatarUrl;
 
@@ -15,6 +16,7 @@ class AuthState {
     this.username,
     this.email,
     this.hasYtAuth = false,
+    this.hasSpotifyAuth = false,
     this.ytName,
     this.ytAvatarUrl,
   });
@@ -26,6 +28,7 @@ class AuthState {
     String? username,
     String? email,
     bool? hasYtAuth,
+    bool? hasSpotifyAuth,
     String? ytName,
     String? ytAvatarUrl,
   }) =>
@@ -36,6 +39,7 @@ class AuthState {
         username: username ?? this.username,
         email: email ?? this.email,
         hasYtAuth: hasYtAuth ?? this.hasYtAuth,
+        hasSpotifyAuth: hasSpotifyAuth ?? this.hasSpotifyAuth,
         ytName: ytName ?? this.ytName,
         ytAvatarUrl: ytAvatarUrl ?? this.ytAvatarUrl,
       );

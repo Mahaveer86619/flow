@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../error/app_exception.dart';
 import '../logger/app_logger.dart';
 import '../storage/local_storage.dart';
+import '../storage/secure_storage_service.dart';
 import '../../data/sources/auth_data_source.dart';
 import 'auth_event_bus.dart';
 import 'auth_state.dart';
@@ -32,12 +33,24 @@ class AuthCubit extends Cubit<AuthState> {
 
   Future<void> _init() async {
     AppLogger.i(_tag, 'Initializing AuthCubit');
+    
+    // Check local secure storage for cookies (The new "Standalone" source of truth)
+    final ytCookies = await SecureStorageService.instance.getYoutubeCookies();
+    final spotifyCookies = await SecureStorageService.instance.getSpotifyCookies();
+    
+    final hasYt = ytCookies != null && ytCookies.isNotEmpty;
+    final hasSpotify = spotifyCookies != null && spotifyCookies.isNotEmpty;
+
     final token = LocalStorage.instance.jwtToken;
     if (token == null) {
       AppLogger.i(_tag, 'No cached session found');
-      emit(const AuthState());
+      emit(AuthState(
+        hasYtAuth: hasYt,
+        hasSpotifyAuth: hasSpotify,
+      ));
       return;
     }
+
     AppLogger.i(
       _tag,
       'Cached session found for: ${LocalStorage.instance.cachedUsername}',
@@ -48,71 +61,31 @@ class AuthCubit extends Cubit<AuthState> {
         token: token,
         username: LocalStorage.instance.cachedUsername,
         email: LocalStorage.instance.cachedEmail,
-        hasYtAuth: LocalStorage.instance.cachedHasYtAuth,
+        hasYtAuth: hasYt,
+        hasSpotifyAuth: hasSpotify,
       ),
     );
     _validateToken(token);
   }
 
   Future<void> _validateToken(String token) async {
-    AppLogger.d(_tag, 'Validating session token');
-    try {
-      final user = await _authSource.getMe(token);
-      final hasYt = (user['has_yt_auth'] as bool?) ?? false;
-      final ytName = user['yt_name'] as String?;
-      final ytAvatar = user['yt_avatar_url'] as String?;
-
-      AppLogger.i(_tag, 'Token valid. YT connected: $hasYt');
-
-      LocalStorage.instance.saveHasYtAuth(hasYt);
-      if (user['settings'] != null) {
-        AppLogger.d(_tag, 'Loading remote user settings');
-        AuthEventBus.notifySettingsLoaded(
-          user['settings'] as Map<String, dynamic>,
-        );
-      }
-      if (!isClosed) {
-        emit(
-          state.copyWith(
-            hasYtAuth: hasYt,
-            ytName: ytName,
-            ytAvatarUrl: ytAvatar,
-          ),
-        );
-      }
-
-      // Refresh YT profile if connected but name missing
-      if (hasYt && ytName == null) {
-        AppLogger.i(_tag, 'YT connected but profile info missing — refreshing');
-        try {
-          final refreshed = await _authSource.refreshProfile(token);
-          if (!isClosed) {
-            emit(
-              state.copyWith(
-                ytName: refreshed['yt_name'] as String?,
-                ytAvatarUrl: refreshed['yt_avatar_url'] as String?,
-              ),
-            );
-          }
-        } catch (e) {
-          AppLogger.w(_tag, 'Failed to refresh YT profile: $e');
-        }
-      }
-    } on ServerException catch (e) {
-      if (e.statusCode == 401) {
-        AppLogger.w(_tag, 'Token expired or invalid, logging out');
-        await logout();
-      } else {
-        AppLogger.e(_tag, 'Server error during token validation', e);
-      }
-    } catch (e, st) {
-      AppLogger.e(_tag, 'Unexpected error during token validation', e, st);
-    }
+    // ── STANDALONE MODE (Phase 2) ──────────────────────────────────────────
+    // In a fully standalone app, we don't need to validate the JWT against
+    // a legacy server. If the token exists, we treat it as valid for local
+    // session persistence. 
+    //
+    // If we ever implement a new P2P/Decentralized auth, it will go here.
+    
+    AppLogger.i(_tag, 'Standalone mode: Skipping remote token validation');
+    
+    // We keep the state as authenticated.
+    // If we have YT cookies, the app will work regardless of the server.
+    return;
   }
 
   Future<void> login(String username, String password) async {
     AppLogger.i(_tag, 'login($username) triggered');
-    emit(const AuthState(isLoading: true));
+    emit(state.copyWith(isLoading: true));
     try {
       final token = await _authSource.login(username, password);
       final user = await _authSource.getMe(token);
@@ -120,21 +93,21 @@ class AuthCubit extends Cubit<AuthState> {
       AppLogger.i(_tag, 'Login flow complete for: $username');
     } catch (e) {
       AppLogger.w(_tag, 'Login failed: $e');
-      emit(const AuthState());
+      emit(state.copyWith(isLoading: false));
       rethrow;
     }
   }
 
   Future<void> signup(String username, String email, String password) async {
     AppLogger.i(_tag, 'signup($username) triggered');
-    emit(const AuthState(isLoading: true));
+    emit(state.copyWith(isLoading: true));
     try {
       await _authSource.signup(username, email, password);
       AppLogger.i(_tag, 'Signup successful, proceeding to login');
       await login(username, password);
     } catch (e) {
       AppLogger.w(_tag, 'Signup flow failed: $e');
-      emit(const AuthState());
+      emit(state.copyWith(isLoading: false));
       rethrow;
     }
   }
@@ -142,13 +115,22 @@ class AuthCubit extends Cubit<AuthState> {
   Future<void> logout() async {
     AppLogger.i(_tag, 'Logging out — clearing local session');
     LocalStorage.instance.clearAuth();
-    if (!isClosed) emit(const AuthState());
+    if (!isClosed) {
+      emit(AuthState(
+        hasYtAuth: state.hasYtAuth,
+        hasSpotifyAuth: state.hasSpotifyAuth,
+      ));
+    }
   }
 
   void setYtAuth(bool connected) {
     AppLogger.i(_tag, 'YouTube Music connection state changed: $connected');
-    LocalStorage.instance.saveHasYtAuth(connected);
     if (!isClosed) emit(state.copyWith(hasYtAuth: connected));
+  }
+
+  void setSpotifyAuth(bool connected) {
+    AppLogger.i(_tag, 'Spotify connection state changed: $connected');
+    if (!isClosed) emit(state.copyWith(hasSpotifyAuth: connected));
   }
 
   void _persist(String token, Map<String, dynamic> user) {
@@ -167,12 +149,12 @@ class AuthCubit extends Cubit<AuthState> {
     }
     if (!isClosed) {
       emit(
-        AuthState(
+        state.copyWith(
           isAuthenticated: true,
           token: token,
           username: username,
           email: user['email'] as String,
-          hasYtAuth: (user['has_yt_auth'] as bool?) ?? false,
+          isLoading: false,
         ),
       );
     }

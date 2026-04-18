@@ -4,6 +4,7 @@ import '../../../core/app_event_bus.dart';
 import '../../../core/error/app_exception.dart';
 import '../../../core/logger/app_logger.dart';
 import '../../../core/storage/local_storage.dart';
+import '../../../core/storage/secure_storage_service.dart';
 import '../../../domain/usecases/get_home_data_usecase.dart';
 import '../../../domain/entities/home_data.dart';
 import '../../../domain/entities/history_data.dart';
@@ -11,13 +12,6 @@ import '../../../domain/repositories/song_repository.dart';
 import 'home_state.dart';
 
 export 'home_state.dart';
-
-// ── HomeCubit ─────────────────────────────────────────────────────────────────
-//
-// Loads home screen data via [GetHomeDataUseCase] — one network call.
-// Section splitting is the backend's responsibility; this cubit just loads
-// and emits. The greeting is the only thing computed here (client-side clock).
-// ─────────────────────────────────────────────────────────────────────────────
 
 class HomeCubit extends Cubit<HomeState> {
   static const _tag = 'HomeCubit';
@@ -60,25 +54,25 @@ class HomeCubit extends Cubit<HomeState> {
     return super.close();
   }
 
-  /// Pull-to-refresh: keep existing data, just reload in background.
   Future<void> refresh() {
     AppLogger.i(_tag, 'refresh()');
     return _load();
   }
 
   Future<void> _load() async {
-    // If the user has no YT auth, show the no-source view immediately.
-    final token = LocalStorage.instance.jwtToken;
-    final hasYt = LocalStorage.instance.cachedHasYtAuth;
+    // ── STANDALONE SOURCE CHECK (Phase 2) ──────────────────────────────────
+    // Check local secure storage for cookies.
+    final ytCookies = await SecureStorageService.instance.getYoutubeCookies();
+    final hasYtLocal = ytCookies != null && ytCookies.isNotEmpty;
 
-    if (token == null || !hasYt) {
-      AppLogger.i(_tag, 'Unauthenticated or no YT auth — emitting noSource');
+    if (!hasYtLocal) {
+      AppLogger.i(_tag, 'No local YT cookies found — emitting noSource');
       if (!isClosed) emit(const HomeState(noSource: true));
       return;
     }
 
     try {
-      AppLogger.d(_tag, 'Fetching home data and history...');
+      AppLogger.d(_tag, 'Fetching home data and history (Standalone)...');
       final dataFuture = _getHomeData(limit: 48);
       final historyFuture = _songRepository.getPersistentHistory();
 
@@ -100,7 +94,6 @@ class HomeCubit extends Cubit<HomeState> {
         'Loaded — allSongs=${data.allSongs.length}  greeting=$greeting',
       );
 
-      // Combine today, this week, and this month for a "Recent" list on home
       final recent = [
         ...history.today,
         ...history.thisWeek,

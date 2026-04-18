@@ -12,4 +12,9 @@ class AppRadius {
   static RoundedRectangleBorder get smallShape => RoundedRectangleBorder(borderRadius: smallBorderRadius);
   static RoundedRectangleBorder get mediumShape => RoundedRectangleBorder(borderRadius: mediumBorderRadius);
   static RoundedRectangleBorder get largeShape => RoundedRectangleBorder(borderRadius: largeBorderRadius);
+  
+  static const String emoji1 = 'ಥ_ಥ';
+  static const String emoji2 = '╰(*°▽°*)╯';
+  static const String emoji3 = '>_<';
+  
 }

@@ -2,10 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/auth/auth_cubit.dart';
-import '../../../core/config/server_config.dart';
 import '../../../core/storage/local_storage.dart';
-import '../../../core/ui/app_snack_bar.dart';
-import '../../../data/sources/auth_data_source.dart';
+import '../../../core/storage/secure_storage_service.dart';
 import '../../cubits/home/home_cubit.dart';
 import '../../cubits/settings/settings_cubit.dart';
 import '../auth/login_screen.dart';
@@ -13,8 +11,6 @@ import 'sub_screens/about_screen.dart';
 import 'sub_screens/appearance_screen.dart';
 import 'sub_screens/downloads_screen.dart';
 import 'sub_screens/equalizer_screen.dart';
-import 'sub_screens/server_screen.dart';
-import 'sub_screens/server_browser_screen.dart';
 import 'sub_screens/yt_connect_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -66,16 +62,22 @@ class SettingsScreen extends StatelessWidget {
             title: 'Sources',
             children: [
               _SourceTile(
+                name: 'YouTube Music',
+                color: const Color(0xFFFF0000),
+                icon: Icons.music_video_rounded,
                 connected: authState.hasYtAuth,
                 onTap: () => authState.hasYtAuth
-                    ? _disconnectYT(context)
+                    ? _disconnectSource(context, 'YouTube Music')
                     : _push(context, const YTConnectScreen()),
               ),
-              _Tile(
-                icon: Icons.public_rounded,
-                title: 'Server Browser Login',
-                subtitle: 'Log in via server IP to fix bot detection',
-                onTap: () => _push(context, const ServerBrowserScreen()),
+              _SourceTile(
+                name: 'Spotify',
+                color: const Color(0xFF1DB954),
+                icon: Icons.podcasts_rounded,
+                connected: authState.hasSpotifyAuth,
+                onTap: () => authState.hasSpotifyAuth
+                    ? _disconnectSource(context, 'Spotify')
+                    : _showSpotifyComingSoon(context),
               ),
             ],
           ),
@@ -113,25 +115,12 @@ class SettingsScreen extends StatelessWidget {
             ],
           ),
           _Section(
-            title: 'Connection',
-            children: [
-              _Tile(
-                icon: Icons.dns_outlined,
-                title: 'Server',
-                subtitle: ServerConfig.instance.isCustom
-                    ? 'Custom — ${ServerConfig.instance.baseUrl}'
-                    : 'Default',
-                onTap: () => _push(context, const ServerScreen()),
-              ),
-            ],
-          ),
-          _Section(
             title: 'Info',
             children: [
               _Tile(
                 icon: Icons.info_outline_rounded,
                 title: 'About Flow',
-                subtitle: 'v1.0.0',
+                subtitle: 'v1.0.0 Standalone',
                 onTap: () => _push(context, const AboutScreen()),
               ),
             ],
@@ -151,13 +140,13 @@ class SettingsScreen extends StatelessWidget {
     _ => 'Dark',
   };
 
-  Future<void> _disconnectYT(BuildContext context) async {
+  Future<void> _disconnectSource(BuildContext context, String source) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Disconnect YouTube Music'),
-        content: const Text(
-          'Are you sure you want to disconnect your YouTube Music account?',
+        title: Text('Disconnect $source'),
+        content: Text(
+          'Are you sure you want to disconnect your $source account locally?',
         ),
         actions: [
           TextButton(
@@ -173,24 +162,46 @@ class SettingsScreen extends StatelessWidget {
     );
     if (confirmed != true || !context.mounted) return;
 
-    final token = LocalStorage.instance.jwtToken;
-    if (token == null) return;
+    if (source == 'YouTube Music') {
+      await SecureStorageService.instance.saveYoutubeCookies('');
+      if (context.mounted) {
+        context.read<AuthCubit>().setYtAuth(false);
+        context.read<HomeCubit>().reload();
+      }
+    } else if (source == 'Spotify') {
+      await SecureStorageService.instance.saveSpotifyCookies('');
+      if (context.mounted) {
+        context.read<AuthCubit>().setSpotifyAuth(false);
+        context.read<HomeCubit>().reload();
+      }
+    }
 
-    try {
-      await AuthDataSource().disconnectYT(token);
-      if (!context.mounted) return;
-      context.read<AuthCubit>().setYtAuth(false);
-      context.read<HomeCubit>().reload();
+    if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('YouTube Music disconnected'),
+        SnackBar(
+          content: Text('$source disconnected'),
           behavior: SnackBarBehavior.floating,
         ),
       );
-    } catch (e, st) {
-      if (!context.mounted) return;
-      AppSnackBar.showError(context, e, stackTrace: st, logTag: 'SettingsScreen');
     }
+  }
+
+  void _showSpotifyComingSoon(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Spotify Support'),
+        content: const Text(
+          'Spotify integration is coming in Phase 3. Stay tuned!',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -331,10 +342,19 @@ class _AccountCard extends StatelessWidget {
 }
 
 class _SourceTile extends StatelessWidget {
+  final String name;
+  final Color color;
+  final IconData icon;
   final bool connected;
   final VoidCallback onTap;
 
-  const _SourceTile({required this.connected, required this.onTap});
+  const _SourceTile({
+    required this.name,
+    required this.color,
+    required this.icon,
+    required this.connected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -344,18 +364,18 @@ class _SourceTile extends StatelessWidget {
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          color: const Color(0xFFFF0000).withAlpha(20),
+          color: color.withAlpha(20),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: const Icon(
-          Icons.music_video_rounded,
-          color: Color(0xFFFF0000),
+        child: Icon(
+          icon,
+          color: color,
           size: 22,
         ),
       ),
-      title: const Text(
-        'YouTube Music',
-        style: TextStyle(fontWeight: FontWeight.w500),
+      title: Text(
+        name,
+        style: const TextStyle(fontWeight: FontWeight.w500),
       ),
       subtitle: Row(
         mainAxisSize: MainAxisSize.min,
