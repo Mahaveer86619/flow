@@ -22,8 +22,18 @@ class YoutubeMusicDataSource implements MusicDataSource {
     try {
       AppLogger.i(_tag, 'fetchHomeData standalone: Calling FEmusic_home');
 
+      final visitorData = LocalStorage.instance.getCachedMetadata('yt_visitor_data') as String?;
+      if (visitorData != null) {
+        AppLogger.d(_tag, 'Injecting visitorData: $visitorData');
+      }
+
       final response = await _dio.post(
         '$_ytmBase/browse?prettyPrint=false',
+        options: Options(
+          headers: {
+            'X-Goog-Visitor-Id': visitorData ?? '',
+          },
+        ),
         data: {
           "browseId": "FEmusic_home",
           "context": {
@@ -36,6 +46,9 @@ class YoutubeMusicDataSource implements MusicDataSource {
               "hl": "en",
               "gl": "US",
               "utcOffsetMinutes": 0,
+              "visitorData": visitorData,
+              "browserName": "Chrome",
+              "browserVersion": "123.0.0.0",
             },
             "user": {
                "lockedSafetyMode": false
@@ -77,6 +90,12 @@ class YoutubeMusicDataSource implements MusicDataSource {
       }
 
       final model = _parseHomeData(data);
+
+      // Capture visitorData if available
+      final visitorData = data['responseContext']?['visitorData'];
+      if (visitorData != null) {
+        LocalStorage.instance.saveCachedMetadata('yt_visitor_data', visitorData);
+      }
 
       if (model.rawShelves.isEmpty) {
          AppLogger.w(_tag, 'FEmusic_home parsed to empty shelves, trying search fallback');
@@ -188,15 +207,15 @@ class YoutubeMusicDataSource implements MusicDataSource {
         String sectionType = 'standard';
         if (title != null) {
           final t = title.toLowerCase();
-          if (t.contains('listen again') || t.contains('recent') || t.contains('frequent')) {
+          if (t.contains('listen again') || t.contains('recent') || t.contains('frequent') || t.contains('forgotten')) {
             sectionType = 'listeningAgain';
           } else if (t.contains('quick picks')) {
             sectionType = 'quickPicks';
-          } else if (t.contains('mixed for you') || t.contains('recommended') || t.contains('start radio')) {
+          } else if (t.contains('mixed for you') || t.contains('recommended') || t.contains('start radio') || t.contains('mixes') || t.contains('picked for you')) {
             sectionType = 'mixedForYou';
-          } else if (t.contains('trending')) {
+          } else if (t.contains('trending') || t.contains('romance') || t.contains('charts') || t.contains('hits')) {
             sectionType = 'trending';
-          } else if (t.contains('music video') || t.contains('videos for you')) {
+          } else if (t.contains('music video') || t.contains('videos for you') || t.contains('livestream') || t.contains('live')) {
             sectionType = 'musicVideos';
           } else if (t.contains('long listening')) {
             sectionType = 'longListening';
@@ -206,8 +225,6 @@ class YoutubeMusicDataSource implements MusicDataSource {
             sectionType = 'similarTo';
           } else if (t.contains('album')) {
             sectionType = 'albumsForYou';
-          } else if (t.contains('chart')) {
-            sectionType = 'topCharts';
           } else if (t.contains('new arrival') || t.contains('new release')) {
             sectionType = 'newArrivals';
           }
@@ -222,7 +239,9 @@ class YoutubeMusicDataSource implements MusicDataSource {
                             item['musicTwoRowItemRenderer'] != null ||
                             item['musicTwoColumnItemRenderer'] != null ||
                             item['playlistPanelVideoRenderer'] != null ||
-                            item['musicNavigationButtonRenderer'] != null
+                            item['musicNavigationButtonRenderer'] != null ||
+                            item['musicTastebuilderItemRenderer'] != null ||
+                            item['musicMultiRowItemRenderer'] != null
                             ? item : (item['navigationEndpoint'] != null ? item : null);
           
           if (actualItem == null) continue;
@@ -234,6 +253,14 @@ class YoutubeMusicDataSource implements MusicDataSource {
         }
 
         if (items.isNotEmpty) {
+          // If a shelf is mostly playlists/albums but type is still standard, make it trending/albums
+          if (sectionType == 'standard') {
+            final playlistCount = items.where((i) => i['type'] == 'playlist' || i['type'] == 'album').length;
+            if (playlistCount > items.length / 2) {
+              sectionType = 'trending';
+            }
+          }
+
           shelves.add({
             'title': title ?? 'Recommended',
             'section': sectionType,
@@ -262,7 +289,10 @@ class YoutubeMusicDataSource implements MusicDataSource {
                        item['musicTwoRowItemRenderer'] ??
                        item['playlistPanelVideoRenderer'] ??
                        item['musicNavigationButtonRenderer'] ??
-                       item['musicTwoColumnItemRenderer'];
+                       item['musicTwoColumnItemRenderer'] ??
+                       item['musicTastebuilderItemRenderer'] ??
+                       item['musicMultiRowItemRenderer'] ??
+                       item;
 
       if (renderer == null) return null;
 
@@ -271,15 +301,24 @@ class YoutubeMusicDataSource implements MusicDataSource {
         title = renderer['flexColumns']?[0]?['musicResponsiveListItemFlexColumnRenderer']?['text']?['runs']?[0]?['text'];
       } else if (renderer['title'] != null) {
         title = renderer['title']?['runs']?[0]?['text'] ?? renderer['title']?['simpleText'];
+      } else if (renderer['primaryText'] != null) {
+        title = renderer['primaryText']?['runs']?[0]?['text'] ?? renderer['primaryText']?['simpleText'];
       } else if (renderer['buttonText'] != null) {
         title = renderer['buttonText']?['runs']?[0]?['text'];
       }
 
-      final browseId = renderer['navigationEndpoint']?['browseEndpoint']?['browseId'];
+      final nav = renderer['navigationEndpoint'] ?? 
+                  renderer['onTap']?['innertubeCommand'] ??
+                  renderer['onTap']?['browseEndpoint'] ??
+                  renderer['onTap']?['watchEndpoint'];
+
       final videoId = renderer['videoId'] ??
                       renderer['playlistItemData']?['videoId'] ??
-                      renderer['navigationEndpoint']?['watchEndpoint']?['videoId'] ??
+                      nav?['watchEndpoint']?['videoId'] ??
                       renderer['thumbnailOverlay']?['musicItemThumbnailOverlayRenderer']?['content']?['musicPlayButtonRenderer']?['playNavigationEndpoint']?['watchEndpoint']?['videoId'];
+
+      final browseId = nav?['browseEndpoint']?['browseId'];
+      final playlistId = nav?['watchEndpoint']?['playlistId'] ?? nav?['browseEndpoint']?['playlistId'];
 
       final thumb = renderer['thumbnail']?['musicThumbnailRenderer']?['thumbnail']?['thumbnails']?.last?['url'] ??
                     renderer['thumbnailRenderer']?['musicThumbnailRenderer']?['thumbnail']?['thumbnails']?.last?['url'] ??

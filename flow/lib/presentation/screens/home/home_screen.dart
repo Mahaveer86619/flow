@@ -307,6 +307,8 @@ class _HomeShelfRenderer extends StatelessWidget {
         return _buildListenAgainShelf(context);
       case 'freshFinds':
         return _buildFreshPicksShelf(context);
+      case 'trending':
+        return _buildPlaylistRow(context, null, null);
       case 'trendingArtists':
         return _buildArtistRow(context, 'Popular Artists', null);
       case 'newArrivals':

@@ -28,6 +28,7 @@ class YoutubeMusicRepository implements MusicRepository {
   @override
   Future<HomeData> getHomeData({int limit = 25}) async {
     final cacheKey = 'home_data_$limit';
+    /* 
     try {
       final cached = LocalStorage.instance.getCachedMetadata(cacheKey);
       if (cached != null && cached is Map) {
@@ -44,6 +45,7 @@ class YoutubeMusicRepository implements MusicRepository {
     } catch (e) {
       AppLogger.w(_tag, 'Failed to read home cache: $e');
     }
+    */
 
     AppLogger.i(_tag, 'getHomeData(limit: $limit) - fetching fresh');
     try {

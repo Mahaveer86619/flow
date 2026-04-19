@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
+import '../../core/storage/local_storage.dart';
 import '../../core/logger/app_logger.dart';
 import '../../core/network/dio_client.dart';
 
@@ -18,6 +19,8 @@ class StreamResolver {
     try {
       AppLogger.i(_tag, 'Resolving stream for videoId: $videoId (InnerTube Player)');
 
+      final visitorData = LocalStorage.instance.getCachedMetadata('yt_visitor_data') as String?;
+
       final response = await _dio.post(
         'https://music.youtube.com/youtubei/v1/player?prettyPrint=false',
         data: {
@@ -25,9 +28,10 @@ class StreamResolver {
           "context": {
             "client": {
               "clientName": "ANDROID_MUSIC",
-              "clientVersion": "6.01.51",
+              "clientVersion": "17.31.35",
               "hl": "en",
-              "gl": "US"
+              "gl": "US",
+              "visitorData": visitorData,
             }
           }
         },

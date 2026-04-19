@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import '../storage/secure_storage_service.dart';
 import '../logger/app_logger.dart';
@@ -21,6 +23,14 @@ class YoutubeInterceptor extends Interceptor {
       if (cookies != null && cookies.isNotEmpty) {
         options.headers['Cookie'] = cookies;
         AppLogger.d('YoutubeInterceptor', 'Injected cookies for ${options.path}');
+
+        // Generate SAPISIDHASH for Authorization header if SAPISID exists
+        final sapisid = _extractCookie(cookies, 'SAPISID');
+        if (sapisid != null) {
+          final origin = options.headers['Origin'] ?? 'https://music.youtube.com';
+          final authHeader = _generateSapisidHash(sapisid, origin);
+          options.headers['Authorization'] = 'SAPISIDHASH $authHeader';
+        }
       }
 
       if (userAgent != null && userAgent.isNotEmpty) {
@@ -33,8 +43,29 @@ class YoutubeInterceptor extends Interceptor {
       // Mandatory headers for YouTube Music API
       options.headers['Origin'] = 'https://music.youtube.com';
       options.headers['Referer'] = 'https://music.youtube.com/';
+      options.headers['X-Goog-AuthUser'] = '0';
     }
     
     return handler.next(options);
+  }
+
+  String? _extractCookie(String cookies, String name) {
+    try {
+      final cookieList = cookies.split(';');
+      for (final cookie in cookieList) {
+        final parts = cookie.trim().split('=');
+        if (parts.length >= 2 && parts[0] == name) {
+          return parts.sublist(1).join('=');
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  String _generateSapisidHash(String sapisid, String origin) {
+    final timestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final payload = '$timestamp $sapisid $origin';
+    final hash = sha1.convert(utf8.encode(payload)).toString();
+    return '${timestamp}_$hash';
   }
 }
