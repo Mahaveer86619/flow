@@ -56,7 +56,7 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         (route) => false,
       );
-    } on ServerException catch (e) {
+    } on SourceException catch (e) {
       setState(() {
         _error = e.message;
         _loading = false;

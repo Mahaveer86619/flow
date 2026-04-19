@@ -1,11 +1,9 @@
+import 'package:flow/core/storage/local_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flow/data/sources/youtube_music_data_source.dart';
 import 'package:flow/data/sources/stream_resolver.dart';
 import 'package:flow/core/logger/app_logger.dart';
-import 'package:flow/core/network/dio_client.dart';
-import 'package:dio/dio.dart';
-import 'dart:io';
 
 void main() {
   // Simple verification script for Standalone YouTube Integration
@@ -14,10 +12,11 @@ void main() {
   late YoutubeMusicDataSource dataSource;
   late StreamResolver resolver;
 
-  setUpAll(() {
+  setUpAll(() async {
     // Mock environment for test
-    dotenv.testLoad(fileInput: 'DEBUG=true\nAPI_BASE_URL=http://localhost:8000');
+    dotenv.testLoad(fileInput: 'DEBUG=true');
     AppLogger.init();
+    await LocalStorage.instance.init();
     dataSource = YoutubeMusicDataSource();
     resolver = StreamResolver.instance;
   });

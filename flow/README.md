@@ -65,6 +65,12 @@ flutter run
 
 ---
 
+## 📖 Technical Documentation
+
+For in-depth details on the standalone architecture, direct source extraction logic, and performance optimizations, see the [Architecture Milestones](./docs/architecture/milestones.md).
+
+---
+
 ## 🏗️ Architecture
 
 Flow App follows a strict **Clean Architecture** pattern to ensure maintainability as a standalone entity:
@@ -90,7 +96,18 @@ Flow App follows a strict **Clean Architecture** pattern to ensure maintainabili
 1.  **Direct YTM Login:** Integrated webview for easier session cookie extraction.
 2.  **Spotify Hybrid Mode:** Fetch playlist metadata from Spotify while playing audio from YouTube.
 3.  **Local Audio Playback:** Integration of on-device MP3/FLAC files into the Flow library.
-4.  **Audio EQ:** Built-in equalizer and bass boost settings.
+4. **Audio EQ:** Built-in equalizer and bass boost settings.
+
+---
+
+## 🛠️ Development & Debugging
+
+For testing and debugging data extraction from YouTube Music:
+
+- **Isolated Tests:** All JSON dumps and debugging scripts are located in the `bin/` directory.
+- **Dumps:** `bin/*.json` contains raw responses from YTM API for various queries (Search, Home, etc.).
+- **Scripts:** `bin/*.dart` are standalone scripts to test parsing logic without running the full Flutter app.
+- **Ignored:** The `bin/` directory is ignored by git to keep the repository clean and avoid committing large data dumps.
 
 ---
 

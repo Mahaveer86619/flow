@@ -19,6 +19,8 @@ class Song {
 
   /// Remote thumbnail URL from the backend. Null for mock / offline songs.
   final String? thumbnailUrl;
+  final int? thumbnailWidth;
+  final int? thumbnailHeight;
 
   /// Gradient fallback colors used when [thumbnailUrl] is null or fails to load.
   final Color colorPrimary;
@@ -29,6 +31,9 @@ class Song {
   /// Timestamp when the song was last played (for history).
   final DateTime? playedAt;
 
+  /// Additional metadata like artist biography, related info, etc.
+  final Map<String, dynamic>? extras;
+
   const Song({
     required this.id,
     required this.title,
@@ -36,13 +41,22 @@ class Song {
     required this.album,
     required this.duration,
     this.thumbnailUrl,
+    this.thumbnailWidth,
+    this.thumbnailHeight,
     required this.colorPrimary,
     required this.colorSecondary,
     this.isDownloaded = false,
     this.playedAt,
+    this.extras,
   });
 
-  Song copyWith({bool? isDownloaded, DateTime? playedAt}) {
+  Song copyWith({
+    bool? isDownloaded,
+    DateTime? playedAt,
+    Map<String, dynamic>? extras,
+    int? thumbnailWidth,
+    int? thumbnailHeight,
+  }) {
     return Song(
       id: id,
       title: title,
@@ -50,10 +64,13 @@ class Song {
       album: album,
       duration: duration,
       thumbnailUrl: thumbnailUrl,
+      thumbnailWidth: thumbnailWidth ?? this.thumbnailWidth,
+      thumbnailHeight: thumbnailHeight ?? this.thumbnailHeight,
       colorPrimary: colorPrimary,
       colorSecondary: colorSecondary,
       isDownloaded: isDownloaded ?? this.isDownloaded,
       playedAt: playedAt ?? this.playedAt,
+      extras: extras ?? this.extras,
     );
   }
 

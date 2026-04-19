@@ -129,33 +129,74 @@ class QueueScreen extends StatelessWidget {
 
                     if (nextSongs.isNotEmpty) ...[
                       // Next Up Header
-                      _SectionHeader(
-                        title: 'Next In Queue',
-                        color: colorScheme.onSurface,
+                      SliverToBoxAdapter(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            _SectionHeader(
+                              title: 'Next In Queue',
+                              color: colorScheme.onSurface,
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.only(right: 16, top: 12),
+                              child: TextButton(
+                                onPressed: () {
+                                  context.read<PlayerBloc>().add(const ResetPlayerEvent());
+                                  Navigator.pop(context);
+                                },
+                                child: Text(
+                                  'Clear Queue',
+                                  style: GoogleFonts.outfit(
+                                    color: Colors.redAccent.withAlpha(200),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
 
                       // Queue List
-                      SliverList(
-                        delegate: SliverChildBuilderDelegate((context, index) {
+                      SliverReorderableList(
+                        itemBuilder: (context, index) {
                           final song = nextSongs[index];
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 4,
-                            ),
-                            child: _QueueSongTile(
-                              song: song,
-                              isPlaying: false,
-                              onTap: () {
-                                context.read<PlayerBloc>().add(
-                                  SkipToQueueIndexEvent(
-                                    state.queueIndex + 1 + index,
-                                  ),
-                                );
-                              },
+                          final actualIndex = state.queueIndex + 1 + index;
+                          return ReorderableDelayedDragStartListener(
+                            key: ValueKey('queue_${song.id}_$actualIndex'),
+                            index: index,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 4,
+                              ),
+                              child: _QueueSongTile(
+                                song: song,
+                                isPlaying: false,
+                                onTap: () {
+                                  context.read<PlayerBloc>().add(
+                                    SkipToQueueIndexEvent(actualIndex),
+                                  );
+                                },
+                                onRemove: () {
+                                  context.read<PlayerBloc>().add(
+                                    RemoveFromQueueEvent(actualIndex),
+                                  );
+                                },
+                              ),
                             ),
                           );
-                        }, childCount: nextSongs.length),
+                        },
+                        itemCount: nextSongs.length,
+                        onReorder: (oldIdx, newIdx) {
+                          context.read<PlayerBloc>().add(
+                            ReorderQueueEvent(
+                              state.queueIndex + 1 + oldIdx,
+                              state.queueIndex + 1 + newIdx,
+                            ),
+                          );
+                        },
                       ),
                     ],
                     const SliverToBoxAdapter(child: SizedBox(height: 100)),
@@ -199,12 +240,14 @@ class _QueueSongTile extends StatelessWidget {
   final bool isPlaying;
   final bool isNowPlaying;
   final VoidCallback? onTap;
+  final VoidCallback? onRemove;
 
   const _QueueSongTile({
     required this.song,
     this.isPlaying = false,
     this.isNowPlaying = false,
     this.onTap,
+    this.onRemove,
   });
 
   @override
@@ -258,20 +301,20 @@ class _QueueSongTile extends StatelessWidget {
               ),
             ),
 
-            // Reorder Handle / More
-            if (!isNowPlaying)
-              ReorderableDragStartListener(
-                index: 0, // Placeholder
+            // Status Icon / Drag Handle
+            if (isNowPlaying)
+              const Padding(
+                padding: EdgeInsets.only(right: 8),
                 child: Icon(
-                  Icons.drag_handle_rounded,
-                  color: colorScheme.onSurface.withAlpha(80),
+                  Icons.graphic_eq_rounded,
+                  color: Colors.white70,
                   size: 20,
                 ),
               )
             else
-              const Icon(
-                Icons.graphic_eq_rounded,
-                color: Colors.white70,
+              Icon(
+                Icons.drag_handle_rounded,
+                color: colorScheme.onSurface.withAlpha(80),
                 size: 20,
               ),
 
@@ -293,7 +336,7 @@ class _QueueSongTile extends StatelessWidget {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
+      builder: (modalContext) => Container(
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
@@ -312,26 +355,38 @@ class _QueueSongTile extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             ListTile(
+              leading: const Icon(Icons.play_circle_outline_rounded),
+              title: const Text('Start Radio'),
+              onTap: () {
+                context.read<PlayerBloc>().add(PlayRadioEvent(song));
+                Navigator.pop(modalContext);
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.playlist_add_rounded),
               title: const Text('Add to Playlist'),
-              onTap: () => Navigator.pop(context),
+              onTap: () => Navigator.pop(modalContext),
             ),
             ListTile(
               leading: const Icon(Icons.share_rounded),
               title: const Text('Share Song'),
-              onTap: () => Navigator.pop(context),
+              onTap: () => Navigator.pop(modalContext),
             ),
-            ListTile(
-              leading: const Icon(
-                Icons.delete_outline_rounded,
-                color: Colors.redAccent,
+            if (!isNowPlaying)
+              ListTile(
+                leading: const Icon(
+                  Icons.delete_outline_rounded,
+                  color: Colors.redAccent,
+                ),
+                title: const Text(
+                  'Remove from Queue',
+                  style: TextStyle(color: Colors.redAccent),
+                ),
+                onTap: () {
+                  onRemove?.call();
+                  Navigator.pop(modalContext);
+                },
               ),
-              title: const Text(
-                'Remove from Queue',
-                style: TextStyle(color: Colors.redAccent),
-              ),
-              onTap: () => Navigator.pop(context),
-            ),
             const SizedBox(height: 24),
           ],
         ),

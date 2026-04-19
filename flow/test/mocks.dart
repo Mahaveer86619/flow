@@ -12,7 +12,6 @@ import 'package:flow/presentation/cubits/search/search_cubit.dart';
 import 'package:flow/core/network/download_service.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flow/core/logger/app_logger.dart';
-import 'package:flow/core/config/server_config.dart';
 
 class MockAudioPlayer extends Mock implements AudioPlayer {
   @override
@@ -70,7 +69,6 @@ void setupMocks() {
   when(() => mockStorage.likedSongIds).thenReturn([]);
   when(() => mockStorage.getDownloadMetadata(any())).thenReturn(null);
   when(() => mockStorage.jwtToken).thenReturn(null);
-  when(() => mockStorage.serverUrl).thenReturn('http://test.com');
   when(() => mockStorage.volume).thenReturn(0.7);
   when(() => mockStorage.isShuffle).thenReturn(false);
   when(() => mockStorage.isRepeat).thenReturn(false);
@@ -78,13 +76,6 @@ void setupMocks() {
   when(() => mockStorage.recentlyPlayedIds).thenReturn([]);
 
   LocalStorage.instance = mockStorage;
-
-  // We can't easily mock the singleton instance field itself if it's 'static final'.
-  // However, ServerConfig.init reads LocalStorage.instance.serverUrl.
-  // In a real test environment, we might use a dependency injection container.
-  // For now, let's try to bypass the LateInitializationError by ensuring it's only called once
-  // and catching errors.
-  // ServerConfig is a no-op stub in standalone mode — no init needed.
 
   registerFallbackValue(FakePlayerState());
   registerFallbackValue(FakePlayerEvent());

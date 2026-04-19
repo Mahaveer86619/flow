@@ -22,6 +22,7 @@ class SongCard extends StatefulWidget {
   final double cardWidth;
   final double aspectRatio;
   final String? heroTag;
+  final bool startRadio;
 
   const SongCard({
     super.key,
@@ -31,6 +32,7 @@ class SongCard extends StatefulWidget {
     this.cardWidth = 135,
     this.aspectRatio = 1.0,
     this.heroTag,
+    this.startRadio = false,
   });
 
   @override
@@ -48,40 +50,60 @@ class _SongCardState extends State<SongCard> {
       (bloc) => bloc.state.isLiked(widget.song),
     );
 
+    final resolvedAspectRatio = widget.song.thumbnailWidth != null && widget.song.thumbnailHeight != null
+        ? widget.song.thumbnailWidth! / widget.song.thumbnailHeight!
+        : widget.aspectRatio;
+
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
         onTap: () => _handleTap(context),
+        onLongPress: () => _showMenu(context),
         child: SizedBox(
           width: widget.cardWidth,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
               AnimatedScale(
                 scale: _isHovered ? 1.04 : 1.0,
                 duration: const Duration(milliseconds: 200),
                 curve: Curves.easeOutCubic,
                 child: AspectRatio(
-                  aspectRatio: widget.aspectRatio,
+                  aspectRatio: resolvedAspectRatio,
                   child: _Artwork(
                     song: widget.song,
                     size: widget.cardWidth,
-                    aspectRatio: widget.aspectRatio,
+                    aspectRatio: resolvedAspectRatio,
                     isHovered: _isHovered,
                     heroTag: widget.heroTag,
                   ),
                 ),
               ),
               const SizedBox(height: 10),
-              TextCarousel(
-                text: widget.song.title,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                  letterSpacing: -0.2,
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextCarousel(
+                      text: widget.song.title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => _showMenu(context),
+                    child: Icon(
+                      Icons.more_vert_rounded,
+                      size: 16,
+                      color: colorScheme.onSurface.withAlpha(100),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 2),
               Row(
@@ -103,6 +125,7 @@ class _SongCardState extends State<SongCard> {
                         color: colorScheme.onSurface.withAlpha(140),
                       ),
                       overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
                   ),
                 ],
@@ -115,15 +138,83 @@ class _SongCardState extends State<SongCard> {
   }
 
   void _handleTap(BuildContext context) {
-    context.read<PlayerBloc>().add(
-      PlayQueueEvent(
-        songs: List<Song>.from(widget.queue),
-        startIndex: widget.index,
-      ),
-    );
+    if (widget.startRadio) {
+      context.read<PlayerBloc>().add(PlayRadioEvent(widget.song));
+    } else {
+      context.read<PlayerBloc>().add(
+            PlayQueueEvent(
+              songs: List<Song>.from(widget.queue),
+              startIndex: widget.index,
+            ),
+          );
+    }
     if (!Breakpoints.isDesktop(MediaQuery.sizeOf(context).width)) {
       PlayerScreen.show(context);
     }
+  }
+
+  void _showMenu(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (modalContext) => Container(
+        decoration: BoxDecoration(
+          color: Theme.of(modalContext).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Theme.of(modalContext).colorScheme.onSurface.withAlpha(40),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            ListTile(
+              leading: const Icon(Icons.play_arrow_rounded),
+              title: const Text('Play'),
+              onTap: () {
+                _handleTap(context);
+                Navigator.pop(modalContext);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.play_circle_outline_rounded),
+              title: const Text('Start Radio'),
+              onTap: () {
+                context.read<PlayerBloc>().add(PlayRadioEvent(widget.song));
+                Navigator.pop(modalContext);
+                if (!Breakpoints.isDesktop(MediaQuery.sizeOf(context).width)) {
+                  PlayerScreen.show(context);
+                }
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.playlist_play_rounded),
+              title: const Text('Play Next'),
+              onTap: () {
+                context.read<PlayerBloc>().add(InsertNextEvent(widget.song));
+                Navigator.pop(modalContext);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.queue_music_rounded),
+              title: const Text('Add to Queue'),
+              onTap: () {
+                context.read<PlayerBloc>().add(AppendToQueueEvent(widget.song));
+                Navigator.pop(modalContext);
+              },
+            ),
+            const SizedBox(height: 24),
+          ],
+        ),
+      ),
+    );
   }
 }
 

@@ -1,18 +1,28 @@
-# Flow App - Presentation Layer (`lib/presentation`)
+# Presentation Layer
 
-The Presentation layer is responsible for everything the user sees and interacts with.
+The **Presentation** layer handles the UI, user interaction, and state management.
 
-## 📂 Sub-directories
+## Architecture (BLoC/Cubit Pattern)
 
-- **[`screens/`](./screens):** Full-page UI components (e.g., `HomeScreen`, `PlayerScreen`, `LoginScreen`).
-- **[`widgets/`](./widgets):** Reusable UI components (e.g., `SongTile`, `SquigglyProgressBar`, `SidebarLayout`).
-- **[`blocs/`](./blocs) & [`cubits/`](./cubits):** State management logic.
-  - `PlayerBloc`: Manages the complex state of audio playback and the `just_audio` engine.
-  - `HomeCubit`: Manages the personalized home feed state.
-  - `SearchCubit`: Manages the real-time search experience.
+We use the BLoC pattern to strictly separate UI from business logic:
 
-## 🎨 UI Guidelines
+- **`blocs/`**: Complex state machines with event-driven logic.
+  - `PlayerBloc`: The brain of the application. Orchestrates audio playback, queue management, and stream resolution.
+- **`cubits/`**: Simplified state management for data fetching and simple states.
+  - `HomeCubit`: Manages the feed data.
+  - `SongDetailsCubit`: Fetches artist/song info in parallel with playback.
+  - `SettingsCubit`: Manages theme and local preferences.
+- **`screens/`**: Full-page widgets (e.g., `HomeScreen`, `PlayerScreen`). 
+  - Each screen corresponds to a major feature area.
+- **`widgets/`**: Reusable UI components (e.g., `SongTile`, `SquigglyProgressBar`, `Skeleton`).
 
-- **Material 3:** Adheres strictly to Material 3 design principles.
-- **Dynamic Color:** Many widgets react to the current song's album art using `palette_generator`.
-- **Responsive:** Layouts adapt dynamically using `ResponsiveLayout` and custom breakpoints.
+## Performance Design (Lazy State)
+To keep the UI highly responsive, especially on the **Player Screen**:
+- **JIT Resolution:** `PlayerBloc` uses Just-In-Time resolution for audio URLs.
+- **Background Prefetching:** Heavy network tasks (Stream resolution, Palette extraction) are handled in the background without blocking the UI thread.
+- **Parallel Cubits:** Metadata fetching (Song/Artist details) is decoupled from the main playback bloc to prevent "waterfall" delays.
+
+## UI Styling
+- **Material 3:** Follows Material 3 design guidelines.
+- **Custom Design Tokens:** Uses a centralized `AppConstants` for spacing and radii.
+- **Dynamic Theming:** Extracts colors from album art to dynamically theme the player and home feed.

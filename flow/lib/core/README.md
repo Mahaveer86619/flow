@@ -1,20 +1,22 @@
-# Flow App - Core Infrastructure (`lib/core`)
+# Core Layer
 
-This directory contains the essential foundation of the app, providing low-level services and cross-cutting concerns.
+The **Core** layer contains foundational utilities, shared configurations, and cross-cutting concerns that are used by all other layers.
 
-## 📂 Sub-directories
+## Key Components
 
-- **[`auth/`](./auth):** JWT-based authentication state (Cubit) and events.
-- **[`config/`](./config):** Global app configuration, including server base URL and fallback options.
-- **[`error/`](./error):** Standardized app-wide exception and error handling.
-- **[`logger/`](./logger):** Simple, consistent logging for debugging and monitoring.
-- **[`network/`](./network):** Connectivity monitoring, and a high-performance download service.
-- **[`platform/`](./platform):** Native platform integrations (e.g., Windows Media Keys, Permissions).
-- **[`responsive/`](./responsive):** Breakpoints and layout utilities for cross-device support.
-- **[`storage/`](./storage):** Hive-based local storage keys and services.
+- **`auth/`**: Local session management and authentication event bus.
+- **`config/`**: Application-wide constants and platform-specific settings.
+- **`error/`**: Centralized `AppException` hierarchy for typed error handling across the app.
+- **`logger/`**: Structured logging utility (`AppLogger`) with level filtering and formatted output.
+- **`network/`**:
+  - `DioClient`: Shared network client configuration.
+  - `YoutubeInterceptor`: Handles SAPISID hashing and YouTube-specific headers for metadata requests.
+  - `DownloadService`: Manages background downloads and local file persistence.
+- **`storage/`**:
+  - `LocalStorage`: Hive-based persistent storage for settings, history, and metadata.
+  - `SecureStorageService`: Encrypted storage for sensitive data like cookies and tokens.
+- **`responsive/`**: Utilities for handling adaptive UI layouts across Mobile, Tablet, and Desktop.
+- **`ui/`**: Common UI helpers like `AppSnackBar` and global themes.
 
-## 🛡️ Key Principles
-
-- **Singleton Pattern:** Services here are often singletons for global app access.
-- **Dependency Inversion:** Interfaces in `domain/` are implemented here when they interact with third-party libraries.
-- **Error Propagation:** All low-level errors are wrapped in `AppException` before reaching the UI.
+## Standalone Principles
+This layer is strictly designed for **Standalone Operation**. It contains no code that assumes a centralized backend exists. All persistence and logic is local or interacts directly with 3rd party providers (e.g., YouTube Music).

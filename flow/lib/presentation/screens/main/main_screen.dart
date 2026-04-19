@@ -1,15 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../blocs/player/player_bloc.dart';
 import '../../widgets/mini_player.dart';
 import '../../widgets/offline_banner.dart';
 import '../home/home_screen.dart';
 import '../library/library_screen.dart';
-import '../player/player_screen.dart';
 import '../search/search_screen.dart';
-import '../settings/settings_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -93,15 +89,5 @@ class _MainScreenState extends State<MainScreen> {
         ),
       ),
     );
-  }
-
-  void _showRecentlyPlayed(BuildContext context) {
-    // Navigate to a dedicated screen or show modal
-  }
-
-  void _showSettings(BuildContext context) {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
   }
 }

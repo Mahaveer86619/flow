@@ -10,11 +10,11 @@ class AppSnackBar {
     if (e is YTSessionExpiredException) {
       return 'YouTube Music session expired. Please reconnect.';
     }
-    if (e is UnauthorizedException) return 'Session expired. Please sign in again.';
-    if (e is ServerUnreachableException) return 'Server is unreachable. Try again later.';
+    if (e is UnauthorizedException) return 'Unauthorized. Please sign in again.';
+    if (e is RemoteUnreachableException) return 'Remote service is unreachable. Try again later.';
     if (e is ParseException) return 'Failed to load data. Please try again.';
     if (e is CacheException) return 'Storage error. Please try again.';
-    if (e is ServerException) return 'Something went wrong. Please try again.';
+    if (e is SourceException) return 'Something went wrong. Please try again.';
     if (e is AppException) return e.message;
     return 'An unexpected error occurred. Please try again.';
   }

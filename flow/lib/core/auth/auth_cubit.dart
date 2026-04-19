@@ -1,10 +1,8 @@
 import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../error/app_exception.dart';
 import '../logger/app_logger.dart';
 import '../storage/local_storage.dart';
 import '../storage/secure_storage_service.dart';
-import '../../data/sources/auth_data_source.dart';
 import 'auth_event_bus.dart';
 import 'auth_state.dart';
 
@@ -12,12 +10,9 @@ export 'auth_state.dart';
 
 class AuthCubit extends Cubit<AuthState> {
   static const _tag = 'AuthCubit';
-  final AuthDataSource _authSource;
   StreamSubscription? _unauthorizedSub;
 
-  AuthCubit({AuthDataSource? authSource})
-    : _authSource = authSource ?? AuthDataSource(),
-      super(const AuthState(isLoading: true)) {
+  AuthCubit() : super(const AuthState(isLoading: true)) {
     _init();
     _unauthorizedSub = AuthEventBus.unauthorized.listen((_) {
       AppLogger.w(_tag, 'Received global unauthorized event, logging out');
@@ -58,48 +53,31 @@ class AuthCubit extends Cubit<AuthState> {
     );
   }
 
-  Future<void> _validateToken(String token) async {
-    // ── STANDALONE MODE (Phase 2) ──────────────────────────────────────────
-    // In a fully standalone app, we don't need to validate the JWT against
-    // a legacy server. If the token exists, we treat it as valid for local
-    // session persistence. 
-    //
-    // If we ever implement a new P2P/Decentralized auth, it will go here.
-    
-    AppLogger.i(_tag, 'Standalone mode: Skipping remote token validation');
-    
-    // We keep the state as authenticated.
-    // If we have YT cookies, the app will work regardless of the server.
-    return;
-  }
-
   Future<void> login(String username, String password) async {
-    AppLogger.i(_tag, 'login($username) triggered');
+    AppLogger.i(_tag, 'login($username) - Standalone (Mock success)');
     emit(state.copyWith(isLoading: true));
-    try {
-      final token = await _authSource.login(username, password);
-      final user = await _authSource.getMe(token);
-      _persist(token, user);
-      AppLogger.i(_tag, 'Login flow complete for: $username');
-    } catch (e) {
-      AppLogger.w(_tag, 'Login failed: $e');
-      emit(state.copyWith(isLoading: false));
-      rethrow;
-    }
+    
+    // In standalone, we don't have a backend to verify credentials.
+    // We just create a local session.
+    await Future.delayed(const Duration(milliseconds: 500));
+    
+    final token = 'local_${DateTime.now().millisecondsSinceEpoch}';
+    final user = {
+      'username': username,
+      'email': '$username@local.flow',
+      'has_yt_auth': state.hasYtAuth,
+    };
+    
+    _persist(token, user);
+    AppLogger.i(_tag, 'Login flow complete for: $username (Local)');
   }
 
   Future<void> signup(String username, String email, String password) async {
-    AppLogger.i(_tag, 'signup($username) triggered');
+    AppLogger.i(_tag, 'signup($username) - Standalone (Mock success)');
     emit(state.copyWith(isLoading: true));
-    try {
-      await _authSource.signup(username, email, password);
-      AppLogger.i(_tag, 'Signup successful, proceeding to login');
-      await login(username, password);
-    } catch (e) {
-      AppLogger.w(_tag, 'Signup flow failed: $e');
-      emit(state.copyWith(isLoading: false));
-      rethrow;
-    }
+    
+    await Future.delayed(const Duration(milliseconds: 500));
+    await login(username, password);
   }
 
   Future<void> logout() async {

@@ -1,20 +1,27 @@
-# Flow App - Data Layer (`lib/data`)
+# Data Layer
 
-The Data layer is responsible for fetching, caching, and serializing data from various sources.
+The **Data** layer is responsible for retrieving data from external sources (APIs, Local Database) and mapping it into Domain entities.
 
-## 📂 Sub-directories
+## Architecture
 
-- **[`sources/`](./sources):** Concrete implementations for data fetching.
-  - `YoutubeDataSource`: The primary standalone source fetching directly from YouTube Music.
-  - `StreamResolver`: On-device resolution of direct audio stream URLs.
-  - `ApiSongDataSource`: Legacy source for communicating with the Flow Source API.
-  - `MockSongDataSource`: Provides static mock data for offline testing and development.
-- **[`repositories/`](./repositories):** Concrete implementations of the interfaces defined in the `domain/` layer. These bridge the data sources and the domain logic.
-- **[`models/`](./models):** Data transfer objects (DTOs) with `fromJson` and `toJson` methods for serialization.
+- **`sources/`**: Direct communication with 3rd party providers.
+  - `YoutubeMusicDataSource`: Interacts with InnerTube APIs (`/browse`, `/search`, `/next`).
+  - `StreamResolver`: Specialized component for extracting direct audio URLs using client rotation (e.g., `ANDROID_VR`).
+  - `MockSongDataSource`: In-memory data for testing and offline development.
+- **`repositories/`**: Implementations of Domain repository interfaces.
+  - Orchestrates calls between multiple DataSources (e.g., check cache then hit API).
+  - Handles data persistence using `LocalStorage`.
+- **`models/`**: Data Transfer Objects (DTOs).
+  - Contains JSON serialization logic (`fromJson`, `toJson`).
+  - Implements mapping to Domain entities (`toEntity`).
 
-## 🔄 Data Flow
+## Key Technologies
+- **Dio**: HTTP client for all API requests.
+- **Hive**: NoSQL local database for ultra-fast metadata caching and settings.
+- **YoutubeExplode**: Used as a fallback for stream resolution when InnerTube fails.
 
-1.  A **Repository** receives a request for data.
-2.  It chooses the appropriate **Data Source** (API or local cache).
-3.  The **Data Source** returns raw data or a **Model**.
-4.  The **Repository** converts the **Model** into a **Domain Entity** for the use cases.
+## Data Mapping Flow
+1. `Source` returns `Map<String, dynamic>`.
+2. `Model` parses JSON into a DTO.
+3. `Repository` calls `Model.toEntity()`.
+4. `Domain` layer receives the pure `Entity`.

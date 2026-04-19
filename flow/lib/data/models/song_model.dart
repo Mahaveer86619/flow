@@ -22,10 +22,13 @@ class SongModel {
   final String album;
   final Duration duration;
   final String? thumbnailUrl;
+  final int? thumbnailWidth;
+  final int? thumbnailHeight;
   final Color colorPrimary;
   final Color colorSecondary;
   final bool isDownloaded;
   final DateTime? playedAt;
+  final Map<String, dynamic>? extras;
 
   const SongModel({
     required this.id,
@@ -34,10 +37,13 @@ class SongModel {
     required this.album,
     required this.duration,
     this.thumbnailUrl,
+    this.thumbnailWidth,
+    this.thumbnailHeight,
     required this.colorPrimary,
     required this.colorSecondary,
     this.isDownloaded = false,
     this.playedAt,
+    this.extras,
   });
 
   // ── JSON ─────────────────────────────────────────────────────────────────────
@@ -57,6 +63,8 @@ class SongModel {
             0,
       ),
       thumbnailUrl: json['thumbnailUrl'] as String?,
+      thumbnailWidth: json['thumbnailWidth'] as int?,
+      thumbnailHeight: json['thumbnailHeight'] as int?,
       colorPrimary: json['colorPrimary'] != null
           ? Color(json['colorPrimary'] as int)
           : colors.$1,
@@ -67,6 +75,7 @@ class SongModel {
       playedAt: json['playedAt'] != null
           ? DateTime.tryParse(json['playedAt'] as String)
           : null,
+      extras: json['extras'] as Map<String, dynamic>?,
     );
   }
 
@@ -77,10 +86,13 @@ class SongModel {
     'album': album,
     'durationMs': duration.inMilliseconds,
     'thumbnailUrl': thumbnailUrl,
+    'thumbnailWidth': thumbnailWidth,
+    'thumbnailHeight': thumbnailHeight,
     'colorPrimary': colorPrimary.value,
     'colorSecondary': colorSecondary.value,
     'isDownloaded': isDownloaded,
     'playedAt': playedAt?.toIso8601String(),
+    if (extras != null) 'extras': extras,
   };
 
   // ── Domain mapping ────────────────────────────────────────────────────────────
@@ -92,10 +104,13 @@ class SongModel {
     album: album,
     duration: duration,
     thumbnailUrl: thumbnailUrl,
+    thumbnailWidth: thumbnailWidth,
+    thumbnailHeight: thumbnailHeight,
     colorPrimary: colorPrimary,
     colorSecondary: colorSecondary,
     isDownloaded: isDownloaded,
     playedAt: playedAt,
+    extras: extras,
   );
 
   // ── Color derivation ──────────────────────────────────────────────────────────

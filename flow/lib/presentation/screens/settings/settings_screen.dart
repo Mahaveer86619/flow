@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/auth/auth_cubit.dart';
-import '../../../core/storage/local_storage.dart';
 import '../../../core/storage/secure_storage_service.dart';
 import '../../cubits/home/home_cubit.dart';
 import '../../cubits/settings/settings_cubit.dart';

@@ -8,8 +8,8 @@ import '../../core/error/app_exception.dart';
 //
 // Variants driven by [AppErrorType]:
 //   network    → wifi_off icon, "No internet"
-//   serverDown → cloud_off icon, "Server offline"
-//   serverError→ error icon, "Something went wrong"
+//   remoteDown → cloud_off icon, "Service unreachable"
+//   sourceError→ error icon, "Something went wrong"
 //   parse      → code icon, "Bad data"
 //   unknown    → generic error icon
 //
@@ -200,28 +200,28 @@ _Spec _spec(AppErrorType type, ColorScheme cs) {
         title: 'No internet connection',
         subtitle: 'Check your Wi-Fi or mobile data and try again.',
       );
-    case AppErrorType.serverDown:
+    case AppErrorType.remoteDown:
       return _Spec(
         icon: Icons.cloud_off_rounded,
         color: const Color(0xFFF59E0B),
-        title: 'Server is offline',
+        title: 'Service unreachable',
         subtitle:
-            'The music server couldn\'t be reached. It may be down or the address is incorrect.',
+            'The remote service couldn\'t be reached. It may be offline or blocked.',
       );
-    case AppErrorType.serverError:
+    case AppErrorType.sourceError:
       return _Spec(
         icon: Icons.dns_rounded,
         color: const Color(0xFFEF4444),
-        title: 'Server error',
+        title: 'Source error',
         subtitle:
-            'The server returned an unexpected response. Try again shortly.',
+            'The data source returned an unexpected response. Try again shortly.',
       );
     case AppErrorType.parse:
       return _Spec(
         icon: Icons.data_object_rounded,
         color: const Color(0xFFEC4899),
         title: 'Bad data',
-        subtitle: 'Received unexpected data from the server.',
+        subtitle: 'Received unexpected data from the source.',
       );
     case AppErrorType.unauthorized:
       return _Spec(

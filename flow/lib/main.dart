@@ -21,12 +21,12 @@ import 'data/sources/youtube_music_data_source.dart';
 import 'domain/usecases/get_categories_usecase.dart';
 import 'domain/usecases/get_home_data_usecase.dart';
 import 'domain/usecases/get_playlists_usecase.dart';
-import 'domain/usecases/get_playlist_tracks_usecase.dart';
 import 'domain/usecases/search_songs_usecase.dart';
 import 'presentation/blocs/player/player_bloc.dart';
 import 'presentation/cubits/home/home_cubit.dart';
 import 'presentation/cubits/library/library_cubit.dart';
 import 'presentation/cubits/search/search_cubit.dart';
+import 'presentation/cubits/song_details/song_details_cubit.dart';
 import 'presentation/screens/auth/login_screen.dart';
 import 'presentation/screens/splash/splash_screen.dart';
 
@@ -109,7 +109,6 @@ void main() async {
   final getPlaylists = GetPlaylistsUseCase(repository);
   final getCategories = GetCategoriesUseCase(repository);
   final searchSongs = SearchSongsUseCase(repository);
-  final getPlaylistTracks = GetPlaylistTracksUseCase(repository);
 
   AppLogger.i('main', 'DI graph built — launching app');
 
@@ -144,6 +143,9 @@ void main() async {
               getPlaylists: getPlaylists,
               musicRepository: repository,
             ),
+          ),
+          BlocProvider(
+            create: (_) => SongDetailsCubit(musicRepository: repository),
           ),
         ],
         child: const FlowApp(),

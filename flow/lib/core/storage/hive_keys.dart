@@ -21,7 +21,6 @@ class HiveKeys {
 
   // ── settings box ─────────────────────────────────────────────────────────────
   static const String settingsBox = 'flow_settings';
-  static const String serverUrl = 'server_url';
   static const String themeMode = 'theme_mode';
   static const String eqPreset = 'eq_preset';
   static const String downloadQuality = 'download_quality';

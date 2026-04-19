@@ -33,8 +33,12 @@ class LocalStorage {
   final _likedSongsController = StreamController<List<String>>.broadcast();
   Stream<List<String>> get likedSongsStream => _likedSongsController.stream;
 
-  Future<void> init() async {
-    await Hive.initFlutter();
+  Future<void> init([String? path]) async {
+    if (path != null) {
+      Hive.init(path);
+    } else {
+      await Hive.initFlutter();
+    }
     _player = await Hive.openBox(HiveKeys.playerBox);
     _search = await Hive.openBox(HiveKeys.searchBox);
     _settings = await Hive.openBox(HiveKeys.settingsBox);
@@ -101,10 +105,6 @@ class LocalStorage {
   }
 
   // ── Settings ─────────────────────────────────────────────────────────────────
-
-  String? get serverUrl => _settings.get(HiveKeys.serverUrl) as String?;
-  void saveServerUrl(String url) => _settings.put(HiveKeys.serverUrl, url);
-  void clearServerUrl() => _settings.delete(HiveKeys.serverUrl);
 
   String get themeModePref =>
       (_settings.get(HiveKeys.themeMode) as String?) ?? 'dark';

@@ -259,13 +259,7 @@ class _SearchScreenState extends State<SearchScreen> {
                         song: song,
                         queue: state.results,
                         index: i,
-                        onTap: () {
-                          context.read<PlayerBloc>().add(PlayRadioEvent(song));
-                          if (!Breakpoints.isDesktop(
-                              MediaQuery.sizeOf(context).width)) {
-                            PlayerScreen.show(context);
-                          }
-                        },
+                        startRadio: true,
                       );
                     },
                     childCount: state.results.length,
@@ -311,18 +305,25 @@ class _SearchScreenState extends State<SearchScreen> {
                               childAspectRatio: 1.7,
                             ),
                         delegate: SliverChildBuilderDelegate(
-                          (context, i) => _CategoryTile(
-                            name: state.categories[i]['name'] as String,
-                            color: state.categories[i]['color'] as Color,
-                            onTap: () {
-                              final name =
-                                  state.categories[i]['name'] as String;
-                              _textController.text = name;
-                              context
-                                  .read<SearchCubit>()
-                                  .updateQueryWithCategory(name);
-                            },
-                          ),
+                          (context, i) {
+                            final category = state.categories[i];
+                            final name = category['name'] as String? ?? 'Unknown';
+                            final colorVal = category['color'];
+                            final color = colorVal is int 
+                                ? Color(colorVal) 
+                                : (colorVal is Color ? colorVal : colorScheme.primaryContainer);
+
+                            return _CategoryTile(
+                              name: name,
+                              color: color,
+                              onTap: () {
+                                _textController.text = name;
+                                context
+                                    .read<SearchCubit>()
+                                    .updateQueryWithCategory(name);
+                              },
+                            );
+                          },
                           childCount: state.categories.length,
                         ),
                       ),

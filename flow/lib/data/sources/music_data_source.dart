@@ -45,6 +45,12 @@ abstract class MusicDataSource {
   /// Fetch persistent play history with date segmentation.
   Future<Map<String, dynamic>> fetchPersistentHistory();
 
+  /// Get detailed metadata for a specific song.
+  Future<Map<String, dynamic>> fetchSongDetails(String videoId);
+
+  /// Get detailed info for an artist.
+  Future<Map<String, dynamic>> fetchArtistDetails(String browseId);
+
   /// Static browse categories — always synchronous, never needs the network.
   List<Map<String, dynamic>> fetchCategories();
 

@@ -347,6 +347,25 @@ class MockSongDataSource implements MusicDataSource {
   }
 
   @override
+  Future<Map<String, dynamic>> fetchSongDetails(String videoId) async {
+    return {
+      'videoId': videoId,
+      'description': 'This is a mock description for the song.',
+      'footer': 'Mock Footer',
+    };
+  }
+
+  @override
+  Future<Map<String, dynamic>> fetchArtistDetails(String browseId) async {
+    return {
+      'browseId': browseId,
+      'name': 'Mock Artist',
+      'biography': 'This is a mock biography for the artist.',
+      'thumbnailUrl': null,
+    };
+  }
+
+  @override
   List<Map<String, dynamic>> fetchCategories() =>
       List.unmodifiable(_categories);
 

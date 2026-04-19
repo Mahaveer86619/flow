@@ -1,12 +1,10 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:just_audio/just_audio.dart' hide PlayerState, ProcessingState;
 import 'package:just_audio/just_audio.dart'
     as ja
     show PlayerState, ProcessingState;
 import 'package:flow/presentation/blocs/player/player_bloc.dart';
-import 'package:flow/domain/entities/song.dart';
 import 'mocks.dart';
 
 void main() {

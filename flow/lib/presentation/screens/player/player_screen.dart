@@ -8,6 +8,7 @@ import '../../widgets/album_art_widget.dart';
 import '../../widgets/like_button.dart';
 import '../../widgets/squiggly_progress_bar.dart';
 import '../queue/queue_screen.dart';
+import '../../cubits/song_details/song_details_cubit.dart';
 import 'package:flow/core/network/download_service.dart';
 import 'package:flow/core/config/app_constants.dart';
 
@@ -19,14 +20,19 @@ class PlayerScreen extends StatefulWidget {
 
   static Future<void> show(BuildContext context) {
     final playerBloc = context.read<PlayerBloc>();
+    final detailsCubit = context.read<SongDetailsCubit>();
+    
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       useSafeArea: false,
-      enableDrag: false, // Handle drag manually via DraggableScrollableSheet
-      builder: (context) => BlocProvider<PlayerBloc>.value(
-        value: playerBloc,
+      enableDrag: false,
+      builder: (context) => MultiBlocProvider(
+        providers: [
+          BlocProvider<PlayerBloc>.value(value: playerBloc),
+          BlocProvider<SongDetailsCubit>.value(value: detailsCubit),
+        ],
         child: const PlayerScreen(),
       ),
     );
@@ -38,103 +44,116 @@ class PlayerScreen extends StatefulWidget {
 
 class _PlayerScreenState extends State<PlayerScreen> {
   @override
+  void initState() {
+    super.initState();
+    _fetchDetails();
+  }
+
+  void _fetchDetails() {
+    final song = context.read<PlayerBloc>().state.currentSong;
+    if (song != null) {
+      final artistId = song.extras?['artistId'] as String?;
+      context.read<SongDetailsCubit>().fetchDetails(song.id, artistId);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final state = context.watch<PlayerBloc>().state;
     final song = state.currentSong;
 
     if (song == null) return const SizedBox.shrink();
 
-    final primary = state.customPrimary ?? song.colorPrimary;
-    final secondary = state.customSecondary ?? song.colorSecondary;
-
-    return NotificationListener<DraggableScrollableNotification>(
-      onNotification: (notification) {
-        if (notification.extent <= 0.0) {
-          Navigator.pop(context);
-        }
-        return true;
+    return BlocListener<PlayerBloc, PlayerState>(
+      listenWhen: (prev, curr) => prev.currentSong?.id != curr.currentSong?.id,
+      listener: (context, state) {
+        _fetchDetails();
       },
-      child: DraggableScrollableSheet(
-        initialChildSize: 1.0,
-        minChildSize: 0.0,
-        maxChildSize: 1.0,
-        snap: true,
-        snapSizes: const [0.0, 1.0],
-        builder: (context, scrollController) {
-          return AnnotatedRegion<SystemUiOverlayStyle>(
-            value: const SystemUiOverlayStyle(
-              statusBarColor: Colors.transparent,
-              statusBarIconBrightness: Brightness.light,
-            ),
-            child: Scaffold(
-              backgroundColor: const Color(0xFF0A0A14), // Solid background
-              body: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: const Alignment(0.6, 0.8),
-                    colors: [
-                      secondary.withAlpha(200),
-                      primary.withAlpha(120),
-                      const Color(0xFF0A0A14).withAlpha(0),
-                    ],
-                    stops: const [0.0, 0.4, 1.0],
-                  ),
-                ),
-                child: CustomScrollView(
-                  controller: scrollController,
-                  physics: const BouncingScrollPhysics(
-                    parent: AlwaysScrollableScrollPhysics(),
-                  ),
-                  slivers: [
-                    // ── Dynamic Top Padding ────────────────────────────────────
-                    SliverToBoxAdapter(
-                      child: SizedBox(
-                        height: MediaQuery.paddingOf(context).top + 32,
-                      ),
-                    ),
+      child: NotificationListener<DraggableScrollableNotification>(
+        onNotification: (notification) {
+          if (notification.extent <= 0.0) {
+            Navigator.pop(context);
+          }
+          return true;
+        },
+        child: DraggableScrollableSheet(
+          initialChildSize: 1.0,
+          minChildSize: 0.0,
+          maxChildSize: 1.0,
+          snap: true,
+          snapSizes: const [0.0, 1.0],
+          builder: (context, scrollController) {
+            final primary = state.customPrimary ?? song.colorPrimary;
+            final secondary = state.customSecondary ?? song.colorSecondary;
 
-                    // ── 1. Main player ──────────────────────────────────────────
-                    SliverToBoxAdapter(
-                      child: SizedBox(
-                        // Dynamically adjust height to fill the screen nicely, subtracting top padding
-                        height:
-                            MediaQuery.sizeOf(context).height -
-                            MediaQuery.paddingOf(context).top -
-                            40,
-                        child: _MainPlayerSection(
-                          song: song,
-                          onScrollRequest: () {
-                            scrollController.animateTo(
-                              MediaQuery.sizeOf(context).height,
-                              duration: const Duration(milliseconds: 600),
-                              curve: Curves.easeOutCubic,
-                            );
-                          },
+            return AnnotatedRegion<SystemUiOverlayStyle>(
+              value: const SystemUiOverlayStyle(
+                statusBarColor: Colors.transparent,
+                statusBarIconBrightness: Brightness.light,
+              ),
+              child: Scaffold(
+                backgroundColor: const Color(0xFF0A0A14),
+                body: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: const Alignment(0.6, 0.8),
+                      colors: [
+                        secondary.withAlpha(200),
+                        primary.withAlpha(120),
+                        const Color(0xFF0A0A14).withAlpha(0),
+                      ],
+                      stops: const [0.0, 0.4, 1.0],
+                    ),
+                  ),
+                  child: CustomScrollView(
+                    controller: scrollController,
+                    physics: const BouncingScrollPhysics(
+                      parent: AlwaysScrollableScrollPhysics(),
+                    ),
+                    slivers: [
+                      SliverToBoxAdapter(
+                        child: SizedBox(
+                          height: MediaQuery.paddingOf(context).top + 32,
                         ),
                       ),
-                    ),
-                    // ── 2. Artist card ────────────────────────────────────────────
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                        child: _ArtistCard(song: song),
+                      SliverToBoxAdapter(
+                        child: SizedBox(
+                          height:
+                              MediaQuery.sizeOf(context).height -
+                              MediaQuery.paddingOf(context).top -
+                              40,
+                          child: _MainPlayerSection(
+                            song: song,
+                            onScrollRequest: () {
+                              scrollController.animateTo(
+                                MediaQuery.sizeOf(context).height,
+                                duration: const Duration(milliseconds: 600),
+                                curve: Curves.easeOutCubic,
+                              );
+                            },
+                          ),
+                        ),
                       ),
-                    ),
-
-                    // ── 3. Metadata card ──────────────────────────────────────────
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 52),
-                        child: _MetadataCard(song: song),
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                          child: _ArtistCard(song: song),
+                        ),
                       ),
-                    ),
-                  ],
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 52),
+                          child: _MetadataCard(song: song),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
@@ -609,6 +628,7 @@ class _ArtistCard extends StatelessWidget {
         .toUpperCase();
 
     final cs = Theme.of(context).colorScheme;
+    final detailsState = context.watch<SongDetailsCubit>().state;
 
     return Container(
       decoration: BoxDecoration(
@@ -657,14 +677,21 @@ class _ArtistCard extends StatelessWidget {
                 ],
               ),
               child: ClipOval(
-                child: song.thumbnailUrl != null
+                child: detailsState.artistThumbnail != null
                     ? Image.network(
-                        song.thumbnailUrl!,
-                        fit: BoxFit.fill,
+                        detailsState.artistThumbnail!,
+                        fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) =>
                             _ArtistInitials(initials: initials, song: song),
                       )
-                    : _ArtistInitials(initials: initials, song: song),
+                    : (song.thumbnailUrl != null
+                        ? Image.network(
+                            song.thumbnailUrl!,
+                            fit: BoxFit.fill,
+                            errorBuilder: (context, error, stackTrace) =>
+                                _ArtistInitials(initials: initials, song: song),
+                          )
+                        : _ArtistInitials(initials: initials, song: song)),
               ),
             ),
           ),
@@ -688,6 +715,20 @@ class _ArtistCard extends StatelessWidget {
               fontWeight: FontWeight.w500,
             ),
           ),
+          if (detailsState.biography != null) ...[
+            const SizedBox(height: 16),
+            Text(
+              detailsState.biography!,
+              style: GoogleFonts.outfit(
+                fontSize: 13,
+                color: Colors.white.withAlpha(180),
+                height: 1.5,
+              ),
+              maxLines: 4,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+            ),
+          ],
           const SizedBox(height: 12),
         ],
       ),
@@ -730,6 +771,7 @@ class _MetadataCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final detailsState = context.watch<SongDetailsCubit>().state;
 
     return Container(
       decoration: BoxDecoration(
@@ -750,6 +792,17 @@ class _MetadataCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 20),
+          if (detailsState.songDescription != null) ...[
+            Text(
+              detailsState.songDescription!,
+              style: GoogleFonts.outfit(
+                fontSize: 13,
+                color: Colors.white.withAlpha(180),
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
           _MetaRow(
             icon: Icons.album_rounded,
             label: 'Album',
@@ -832,3 +885,4 @@ class _MetaRow extends StatelessWidget {
     );
   }
 }
+

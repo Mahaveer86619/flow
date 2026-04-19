@@ -6,7 +6,6 @@ import '../../../domain/entities/song.dart';
 import '../../blocs/player/player_bloc.dart';
 import '../../cubits/library/library_cubit.dart';
 import '../../widgets/song_tile.dart';
-import '../player/player_screen.dart';
 
 enum ListCategory { none, downloaded, favourites, youtubeLikes }
 

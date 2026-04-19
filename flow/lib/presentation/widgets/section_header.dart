@@ -11,6 +11,7 @@ class SectionHeader extends StatelessWidget {
   final String? subtitle;
   final String? profileUrl;
   final String? profileName;
+  final IconData? icon;
   final VoidCallback? onSeeAll;
 
   const SectionHeader({
@@ -19,6 +20,7 @@ class SectionHeader extends StatelessWidget {
     this.subtitle,
     this.profileUrl,
     this.profileName,
+    this.icon,
     this.onSeeAll,
   });
 
@@ -38,6 +40,15 @@ class SectionHeader extends StatelessWidget {
                 radius: 18,
                 backgroundImage: NetworkImage(profileUrl!),
                 backgroundColor: colorScheme.surfaceContainerHigh,
+              ),
+            ),
+          if (icon != null && profileUrl == null)
+            Padding(
+              padding: const EdgeInsets.only(right: 10),
+              child: Icon(
+                icon,
+                size: 20,
+                color: colorScheme.primary.withAlpha(180),
               ),
             ),
 

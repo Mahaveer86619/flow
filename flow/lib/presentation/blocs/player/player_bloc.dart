@@ -82,6 +82,10 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     on<ToggleEndlessRadioEvent>(_onToggleEndlessRadio);
     on<PlayDownloadedRadioEvent>(_onPlayDownloadedRadio);
     on<SkipToQueueIndexEvent>(_onSkipToQueueIndex);
+    on<InsertNextEvent>(_onInsertNext);
+    on<AppendToQueueEvent>(_onAppendToQueue);
+    on<RemoveFromQueueEvent>(_onRemoveFromQueue);
+    on<ReorderQueueEvent>(_onReorderQueue);
     on<ToggleLikeEvent>(_onToggleLike);
     on<ToggleDownloadEvent>(_onToggleDownload);
     on<SetVolumeEvent>(_onSetVolume);
@@ -248,7 +252,7 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
       _fetchMoreRadioTracks();
     }
 
-    // Prefetch surrounding tracks
+    // Prefetch surrounding tracks with JIT resolution
     _prefetchSurroundingTracks(newIndex);
 
     emit(
@@ -266,31 +270,43 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     _extractPalette(song);
   }
 
-  void _prefetchSurroundingTracks(int currentIndex) {
+  void _prefetchSurroundingTracks(int currentIndex) async {
     if (state.queue.isEmpty) return;
 
     final List<int> indicesToPrefetch = [];
 
-    // Always prefetch current if not already ready (though it's playing)
+    // Current (if by any chance it's still a placeholder)
     indicesToPrefetch.add(currentIndex);
 
-    if (currentIndex == 0) {
-      // First song: prefetch next two
-      if (state.queue.length > 1) indicesToPrefetch.add(1);
-      if (state.queue.length > 2) indicesToPrefetch.add(2);
-    } else {
-      // Has previous: prefetch previous and next
+    // Neighbors
+    if (currentIndex + 1 < state.queue.length) {
+      indicesToPrefetch.add(currentIndex + 1);
+    }
+    if (currentIndex > 0) {
       indicesToPrefetch.add(currentIndex - 1);
-      if (currentIndex + 1 < state.queue.length) {
-        indicesToPrefetch.add(currentIndex + 1);
-      }
     }
 
     for (final idx in indicesToPrefetch.toSet()) {
       if (idx >= 0 && idx < state.queue.length) {
         final song = state.queue[idx];
-        AppLogger.d(_tag, 'Prefetching track at index $idx: ${song.title}');
-        _musicRepository.prefetchAudio(song.id);
+        
+        // Check if this index in _playlist is a placeholder
+        try {
+          final currentSource = _playlist.children[idx];
+          // Simple check: placeholders have our local dummy domain
+          final isPlaceholder = currentSource is ja.UriAudioSource && 
+                               currentSource.uri.host == 'flow.local';
+          
+          if (isPlaceholder) {
+            AppLogger.d(_tag, 'JIT Resolving track at index $idx: ${song.title}');
+            final realSource = await _buildAudioSource(song);
+            // Replace the placeholder in the concatenating source
+            await _playlist.removeAt(idx);
+            await _playlist.insert(idx, realSource);
+          }
+        } catch (e) {
+          // If out of bounds or other error, skip
+        }
       }
     }
   }
@@ -531,47 +547,54 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     try {
       AppLogger.i(
         _tag,
-        'Updating playlist: songs=${songs.length} index=$initialIndex',
+        'Updating playlist: songs=${songs.length} index=$initialIndex (Lazy Mode)',
       );
       _isChangingSource = true;
 
-      // 1. Clear and batch-add for efficiency
+      // 1. Clear current playlist
       await _playlist.clear();
-      final sources = await Future.wait(songs.map((s) => _buildAudioSource(s)));
-      await _playlist.addAll(sources);
+      
+      // 2. Build placeholders for all songs, but only resolve current track stream
+      // This prevents UI lag by not doing N network calls at once.
+      final List<AudioSource> children = [];
+      for (int i = 0; i < songs.length; i++) {
+        final s = songs[i];
+        if (i == initialIndex) {
+          // Resolve current track immediately
+          children.add(await _buildAudioSource(s));
+        } else {
+          // Placeholder for others - will be resolved via _prefetchSurroundingTracks
+          children.add(await _buildAudioSource(s, isPlaceholder: true));
+        }
+      }
+      
+      await _playlist.addAll(children);
 
-      // 2. Set source with initial state
+      // 3. Set source with initial state
       await _audioPlayer.setAudioSource(
         _playlist,
         initialIndex: initialIndex,
         initialPosition: Duration.zero,
       );
 
-      // 3. Update metadata & SMTC
+      // 4. Update metadata & SMTC
       final current = songs[initialIndex];
       _mediaSession.updateSong(current);
       _mediaSession.setPlaybackStatus(true);
 
-      // Safety: ensure 3 tracks are ready (previous, current, next)
+      // Trigger lazy resolution for neighbors in background
       _prefetchSurroundingTracks(initialIndex);
 
-      // We are essentially "done" with the initial source change here
       add(const _InitialLoadingChangedEvent(false));
-
-      // Allow streams to settle
-      await Future.delayed(const Duration(milliseconds: 300));
+      await Future.delayed(const Duration(milliseconds: 200));
       _isChangingSource = false;
 
       AppLogger.d(_tag, 'Starting playback for: ${current.title}');
-
-      // 4. Start playback - AudioPlayer stream will handle isPlaying state update
       await _audioPlayer.play();
 
-      // Double check - on some platforms (like Windows/Linux) just_audio
-      // sometimes needs a nudge if the first attempt didn't transition to playing
       if (!_audioPlayer.playing && !isClosed) {
-        AppLogger.w(_tag, 'Playback didn\'t start, retrying play() in 200ms');
-        await Future.delayed(const Duration(milliseconds: 200));
+        AppLogger.w(_tag, 'Playback didn\'t start, retrying play()');
+        await Future.delayed(const Duration(milliseconds: 100));
         await _audioPlayer.play();
       }
     } catch (e, st) {
@@ -590,8 +613,8 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
   Future<AudioSource> _buildAudioSource(
     Song song, {
     bool? isLikedOverride,
+    bool isPlaceholder = false,
   }) async {
-    final token = _storage.jwtToken;
     final isLiked = isLikedOverride ?? state.likedSongIds.contains(song.id);
 
     // 1. Check if downloaded (Check metadata and physical file)
@@ -650,40 +673,37 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     );
 
     if (useLocal && localFile != null) {
-      AppLogger.i(
+      AppLogger.d(
         _tag,
-        'Building local AudioSource for: ${song.title} (Path: ${localFile.path})',
+        'Building local AudioSource for: ${song.title}',
       );
       return AudioSource.file(localFile.path, tag: mediaItem);
     } else {
-      // ── LOCAL STREAM RESOLUTION (Phase 1) ──────────────────────────────────
-      // Resolve the direct YouTube stream URL on-device.
-      final directStreamUrl = await StreamResolver.instance.resolveYoutubeStream(song.id);
+      // ── LAZY STREAM RESOLUTION ───────────────────────────────────────────
+      String? streamUrl;
       
-      if (directStreamUrl == null) {
-        // Fallback or throw error? For now, we'll try the old way or just log
-        AppLogger.e(_tag, 'Failed to resolve local stream for ${song.id}');
-        // Fallback to old backend if needed during transition? 
-        // No, goal is to move away. Let's throw a clear error or return dummy.
+      if (isPlaceholder) {
+        // Return a temporary silent/empty URL that we will replace just-in-time
+        streamUrl = 'https://flow.local/placeholder/${song.id}';
+      } else {
+        streamUrl = await StreamResolver.instance.resolveYoutubeStream(song.id);
       }
-
-      final uri = Uri.parse(directStreamUrl ?? '');
+      
+      final uri = Uri.parse(streamUrl ?? '');
       final headers = {
-        // No more Bearer token needed for direct YT streams (they use query params)
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'User-Agent': 'com.google.android.youtube/19.29.37 (Linux; U; Android 13; en_US) gzip',
+        'Origin': 'https://www.youtube.com',
+        'Referer': 'https://www.youtube.com/',
       };
 
-      // LockCachingAudioSource has known issues with YouTube streams due to its internal proxy.
-      // We'll use standard AudioSource.uri for YouTube streams to ensure reliable playback.
-      if (Platform.isWindows || uri.host.contains('googlevideo.com')) {
-        AppLogger.i(
-          _tag,
-          'Building standard URI source for ${song.title}',
-        );
+      if (uri.host.contains('googlevideo.com')) {
         return AudioSource.uri(uri, headers: headers, tag: mediaItem);
       }
 
-      // Use LockCachingAudioSource for other sources to enable caching
+      if (Platform.isWindows || isPlaceholder) {
+        return AudioSource.uri(uri, headers: headers, tag: mediaItem);
+      }
+
       return LockCachingAudioSource(uri, headers: headers, tag: mediaItem);
     }
   }
@@ -927,10 +947,12 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     _BufferingChangedEvent event,
     Emitter<PlayerState> emit,
   ) {
+    // Explicitly use the player's current 'playing' state to avoid desync
+    final actualPlaying = _audioPlayer.playing;
     emit(
       state.copyWith(
         isBuffering: event.isBuffering,
-        isPlaying: event.isPlaying,
+        isPlaying: actualPlaying,
       ),
     );
   }
@@ -956,6 +978,98 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     if (event.index >= 0 && event.index < state.queue.length) {
       _audioPlayer.seek(Duration.zero, index: event.index);
     }
+  }
+
+  Future<void> _onInsertNext(
+    InsertNextEvent event,
+    Emitter<PlayerState> emit,
+  ) async {
+    final bool wasEmpty = state.queue.isEmpty;
+    final updatedQueue = List<Song>.from(state.queue);
+    
+    // If song already exists in queue, move it.
+    updatedQueue.removeWhere((s) => s.id == event.song.id);
+    
+    final currentIdxAfterRemoval = updatedQueue.indexWhere((s) => s.id == state.currentSong?.id);
+    final targetIdx = (currentIdxAfterRemoval != -1) ? currentIdxAfterRemoval + 1 : 0;
+    
+    updatedQueue.insert(targetIdx, event.song);
+    
+    final source = await _buildAudioSource(event.song);
+    
+    // Sync with just_audio playlist
+    final existingIdxInPlaylist = state.queue.indexWhere((s) => s.id == event.song.id);
+    if (existingIdxInPlaylist != -1) {
+      await _playlist.removeAt(existingIdxInPlaylist);
+    }
+    await _playlist.insert(targetIdx, source);
+    
+    if (wasEmpty) {
+      add(PlayQueueEvent(songs: [event.song], startIndex: 0));
+    } else {
+      emit(state.copyWith(
+        queue: updatedQueue,
+        queueIndex: updatedQueue.indexWhere((s) => s.id == state.currentSong?.id),
+      ));
+    }
+  }
+
+  Future<void> _onAppendToQueue(
+    AppendToQueueEvent event,
+    Emitter<PlayerState> emit,
+  ) async {
+    if (state.queue.any((s) => s.id == event.song.id)) return;
+    
+    final bool wasEmpty = state.queue.isEmpty;
+    final updatedQueue = [...state.queue, event.song];
+    final source = await _buildAudioSource(event.song);
+    await _playlist.add(source);
+    
+    if (wasEmpty) {
+      add(PlayQueueEvent(songs: [event.song], startIndex: 0));
+    } else {
+      emit(state.copyWith(queue: updatedQueue));
+    }
+  }
+
+  Future<void> _onRemoveFromQueue(
+    RemoveFromQueueEvent event,
+    Emitter<PlayerState> emit,
+  ) async {
+    if (event.index < 0 || event.index >= state.queue.length) return;
+    if (event.index == state.queueIndex) {
+      add(const SkipNextEvent());
+    }
+    
+    final updatedQueue = List<Song>.from(state.queue)..removeAt(event.index);
+    await _playlist.removeAt(event.index);
+    
+    emit(state.copyWith(
+      queue: updatedQueue,
+      queueIndex: _audioPlayer.currentIndex ?? state.queueIndex,
+    ));
+  }
+
+  Future<void> _onReorderQueue(
+    ReorderQueueEvent event,
+    Emitter<PlayerState> emit,
+  ) async {
+    int oldIdx = event.oldIndex;
+    int newIdx = event.newIndex;
+    if (oldIdx < newIdx) {
+      newIdx -= 1;
+    }
+    
+    final updatedQueue = List<Song>.from(state.queue);
+    final song = updatedQueue.removeAt(oldIdx);
+    updatedQueue.insert(newIdx, song);
+    
+    await _playlist.move(oldIdx, newIdx);
+    
+    emit(state.copyWith(
+      queue: updatedQueue,
+      queueIndex: _audioPlayer.currentIndex ?? state.queueIndex,
+    ));
   }
 
   void _onTrackCompleted(

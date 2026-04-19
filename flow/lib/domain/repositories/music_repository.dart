@@ -48,6 +48,12 @@ abstract class MusicRepository {
   /// Fetch persistent play history with date segmentation.
   Future<HistoryData> getPersistentHistory();
 
+  /// Get detailed metadata for a specific song (biography, etc.)
+  Future<Map<String, dynamic>> getSongDetails(String videoId);
+
+  /// Get detailed info for an artist (bio, image, etc.)
+  Future<Map<String, dynamic>> getArtistDetails(String browseId);
+
   /// Static browse categories — synchronous, never needs the network.
   List<Map<String, dynamic>> getCategories();
 

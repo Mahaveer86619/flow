@@ -57,6 +57,31 @@ class SkipToQueueIndexEvent extends PlayerEvent {
   const SkipToQueueIndexEvent(this.index);
 }
 
+/// Add a [song] to play immediately after the current one.
+class InsertNextEvent extends PlayerEvent {
+  final Song song;
+  const InsertNextEvent(this.song);
+}
+
+/// Add a [song] to the end of the current queue.
+class AppendToQueueEvent extends PlayerEvent {
+  final Song song;
+  const AppendToQueueEvent(this.song);
+}
+
+/// Remove the track at [index] from the queue.
+class RemoveFromQueueEvent extends PlayerEvent {
+  final int index;
+  const RemoveFromQueueEvent(this.index);
+}
+
+/// Reorder tracks in the queue.
+class ReorderQueueEvent extends PlayerEvent {
+  final int oldIndex;
+  final int newIndex;
+  const ReorderQueueEvent(this.oldIndex, this.newIndex);
+}
+
 /// Skip to the next track in the queue.
 class SkipNextEvent extends PlayerEvent {
   const SkipNextEvent();

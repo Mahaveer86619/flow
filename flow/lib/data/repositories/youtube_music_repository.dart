@@ -6,7 +6,6 @@ import '../../domain/entities/home_data.dart';
 import '../../domain/entities/song.dart';
 import '../../domain/entities/history_data.dart';
 import '../../domain/repositories/music_repository.dart';
-import '../models/home_data_model.dart';
 import '../models/song_model.dart';
 import '../sources/music_data_source.dart';
 
@@ -383,6 +382,44 @@ class YoutubeMusicRepository implements MusicRepository {
     } catch (e, st) {
       AppLogger.e(_tag, 'getPersistentHistory failed', e, st);
       throw toAppException(e);
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> getSongDetails(String videoId) async {
+    try {
+      return await _source.fetchSongDetails(videoId);
+    } catch (e) {
+      AppLogger.w(_tag, 'getSongDetails failed: $e');
+      return {};
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> getArtistDetails(String browseId) async {
+    final cacheKey = 'artist_details_$browseId';
+    try {
+      final cached = LocalStorage.instance.getCachedMetadata(cacheKey);
+      if (cached != null && cached is Map) {
+        final ts = cached['timestamp'] as int?;
+        if (ts != null &&
+            DateTime.now().millisecondsSinceEpoch - ts <
+                _cacheTtl.inMilliseconds * 2) {
+          return Map<String, dynamic>.from(cached['data'] as Map);
+        }
+      }
+    } catch (_) {}
+
+    try {
+      final details = await _source.fetchArtistDetails(browseId);
+      LocalStorage.instance.saveCachedMetadata(cacheKey, {
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+        'data': details,
+      });
+      return details;
+    } catch (e) {
+      AppLogger.w(_tag, 'getArtistDetails failed: $e');
+      return {};
     }
   }
 

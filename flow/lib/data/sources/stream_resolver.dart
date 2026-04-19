@@ -2,14 +2,20 @@ import 'package:dio/dio.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import '../../core/storage/local_storage.dart';
 import '../../core/logger/app_logger.dart';
-import '../../core/network/dio_client.dart';
+// import '../../core/network/dio_client.dart';
 
 class StreamResolver {
   static final StreamResolver _instance = StreamResolver._internal();
   static StreamResolver get instance => _instance;
 
   final YoutubeExplode _yt = YoutubeExplode();
-  final Dio _dio = DioClient.instance.dio;
+  
+  // Use a clean Dio instance for player requests to avoid interceptor side-effects (cookies/headers)
+  // that can break native-emulated clients.
+  final Dio _playerDio = Dio(BaseOptions(
+    connectTimeout: const Duration(seconds: 10),
+    receiveTimeout: const Duration(seconds: 10),
+  ));
 
   StreamResolver._internal();
 
@@ -17,62 +23,108 @@ class StreamResolver {
 
   Future<String?> resolveYoutubeStream(String videoId) async {
     try {
-      AppLogger.i(_tag, 'Resolving stream for videoId: $videoId (InnerTube Player)');
+      AppLogger.i(_tag, 'Resolving stream for videoId: $videoId');
 
       final visitorData = LocalStorage.instance.getCachedMetadata('yt_visitor_data') as String?;
 
-      final response = await _dio.post(
-        'https://music.youtube.com/youtubei/v1/player?prettyPrint=false',
-        data: {
-          "videoId": videoId,
-          "context": {
-            "client": {
-              "clientName": "ANDROID_MUSIC",
-              "clientVersion": "17.31.35",
-              "hl": "en",
-              "gl": "US",
-              "visitorData": visitorData,
-            }
-          }
+      // Optimized client list:
+      // 1. ANDROID_VR is currently very stable for direct URLs.
+      // 2. IOS is a good secondary native client.
+      // 3. WEB_REMIX as a reliable web fallback.
+      // 4. MWEB for mobile web fallback.
+      final clients = [
+        {
+          "clientName": "ANDROID_VR",
+          "clientVersion": "1.50.46",
         },
-      );
+        {
+          "clientName": "IOS",
+          "clientVersion": "19.29.1",
+        },
+        {
+          "clientName": "WEB_REMIX",
+          "clientVersion": "1.20240409.01.01",
+        },
+        {
+          "clientName": "MWEB",
+          "clientVersion": "2.20240210.01.00",
+        },
+      ];
 
-      if (response.statusCode == 200) {
-        final data = response.data as Map<String, dynamic>;
-        final streamingData = data['streamingData'];
-        
-        if (streamingData != null && streamingData['adaptiveFormats'] != null) {
-          final List<dynamic> formats = streamingData['adaptiveFormats'];
-          
-          // Filter for audio only streams
-          final audioStreams = formats.where((f) {
-            final mimeType = f['mimeType'] as String?;
-            return mimeType != null && mimeType.startsWith('audio/');
-          }).toList();
+      final endpoints = [
+        'https://www.youtube.com/youtubei/v1/player',
+        'https://music.youtube.com/youtubei/v1/player',
+      ];
 
-          if (audioStreams.isNotEmpty) {
-            // Sort by bitrate descending to get best quality
-            audioStreams.sort((a, b) {
-              final bitrateA = a['averageBitrate'] ?? a['bitrate'] ?? 0;
-              final bitrateB = b['averageBitrate'] ?? b['bitrate'] ?? 0;
-              return (bitrateB as int).compareTo(bitrateA as int);
-            });
+      for (var client in clients) {
+        for (var endpoint in endpoints) {
+          try {
+            final response = await _playerDio.post(
+              '$endpoint?prettyPrint=false',
+              data: {
+                "videoId": videoId,
+                "context": {
+                  "client": {
+                    ...client,
+                    "hl": "en",
+                    "gl": "US",
+                    "visitorData": visitorData,
+                  }
+                }
+              },
+            );
 
-            final bestStream = audioStreams.first;
-            final url = bestStream['url'] as String?;
-            
-            if (url != null) {
-              AppLogger.d(_tag, 'InnerTube resolved: $url');
-              return url;
+            if (response.statusCode == 200) {
+              final data = response.data as Map<String, dynamic>;
+              
+              final playability = data['playabilityStatus'];
+              final status = playability?['status'] as String?;
+              if (status != null && status != 'OK') {
+                continue; // Try next endpoint/client
+              }
+
+              final streamingData = data['streamingData'];
+              if (streamingData != null) {
+                final List<dynamic> formats = (streamingData['adaptiveFormats'] as List<dynamic>? ?? []) + 
+                                              (streamingData['formats'] as List<dynamic>? ?? []);
+                
+                final audioStreams = formats.where((f) {
+                  final mimeType = f['mimeType'] as String?;
+                  return mimeType != null && mimeType.contains('audio/');
+                }).toList();
+
+                if (audioStreams.isNotEmpty) {
+                  audioStreams.sort((a, b) {
+                    final bitrateA = a['averageBitrate'] ?? a['bitrate'] ?? 0;
+                    final bitrateB = b['averageBitrate'] ?? b['bitrate'] ?? 0;
+                    return (bitrateB as int).compareTo(bitrateA as int);
+                  });
+
+                  // We MUST have a direct 'url'. If it has 'signatureCipher', we skip it
+                  // as we don't have a decipherer implemented yet.
+                  final bestStream = audioStreams.firstWhere(
+                    (f) => f['url'] != null, 
+                    orElse: () => null
+                  );
+                  
+                  if (bestStream != null) {
+                    final url = bestStream['url'] as String;
+                    AppLogger.i(_tag, 'Resolved: ${client['clientName']} (${endpoint.contains('music') ? 'YTM' : 'WWW'})');
+                    return url;
+                  }
+                }
+              }
             }
+          } catch (e) {
+            // Silence and continue
           }
         }
       }
       
-      AppLogger.w(_tag, 'InnerTube player failed or returned no streams, falling back to YoutubeExplode');
+      AppLogger.w(_tag, 'All InnerTube clients failed, falling back to YoutubeExplode');
       return _resolveFallback(videoId);
     } catch (e, st) {
-      AppLogger.e(_tag, 'InnerTube player exception, falling back', e, st);
+      AppLogger.e(_tag, 'Stream resolution critical failure', e, st);
       return _resolveFallback(videoId);
     }
   }

@@ -18,6 +18,7 @@ class SongTile extends StatelessWidget {
   final int index;
   final String? heroTag;
   final VoidCallback? onTap;
+  final bool startRadio;
 
   const SongTile({
     super.key,
@@ -26,6 +27,7 @@ class SongTile extends StatelessWidget {
     required this.index,
     this.heroTag,
     this.onTap,
+    this.startRadio = false,
   });
 
   @override
@@ -39,9 +41,16 @@ class SongTile extends StatelessWidget {
       onTap:
           onTap ??
           () {
-            context.read<PlayerBloc>().add(
-              PlayQueueEvent(songs: List<Song>.from(queue), startIndex: index),
-            );
+            if (startRadio) {
+              context.read<PlayerBloc>().add(PlayRadioEvent(song));
+            } else {
+              context.read<PlayerBloc>().add(
+                    PlayQueueEvent(
+                      songs: List<Song>.from(queue),
+                      startIndex: index,
+                    ),
+                  );
+            }
             if (!isDesktop) {
               PlayerScreen.show(context);
             }
@@ -177,6 +186,10 @@ class _SongOptionsButton extends StatelessWidget {
       onSelected: (value) {
         if (value == 'radio') {
           context.read<PlayerBloc>().add(PlayRadioEvent(song));
+        } else if (value == 'play_next') {
+          context.read<PlayerBloc>().add(InsertNextEvent(song));
+        } else if (value == 'add_queue') {
+          context.read<PlayerBloc>().add(AppendToQueueEvent(song));
         } else if (value == 'like') {
           context.read<PlayerBloc>().add(ToggleLikeEvent(song));
         } else if (value == 'playlist') {
@@ -191,6 +204,26 @@ class _SongOptionsButton extends StatelessWidget {
               const Icon(Icons.radio_rounded, size: 20),
               const SizedBox(width: 12),
               const Text('Start radio'),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'play_next',
+          child: Row(
+            children: [
+              const Icon(Icons.playlist_play_rounded, size: 20),
+              const SizedBox(width: 12),
+              const Text('Play Next'),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'add_queue',
+          child: Row(
+            children: [
+              const Icon(Icons.queue_music_rounded, size: 20),
+              const SizedBox(width: 12),
+              const Text('Add to Queue'),
             ],
           ),
         ),
@@ -264,6 +297,22 @@ class _SongOptionsButton extends StatelessWidget {
                 title: const Text('Start radio'),
                 onTap: () {
                   context.read<PlayerBloc>().add(PlayRadioEvent(song));
+                  Navigator.pop(ctx);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.playlist_play_rounded),
+                title: const Text('Play Next'),
+                onTap: () {
+                  context.read<PlayerBloc>().add(InsertNextEvent(song));
+                  Navigator.pop(ctx);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.queue_music_rounded),
+                title: const Text('Add to Queue'),
+                onTap: () {
+                  context.read<PlayerBloc>().add(AppendToQueueEvent(song));
                   Navigator.pop(ctx);
                 },
               ),
