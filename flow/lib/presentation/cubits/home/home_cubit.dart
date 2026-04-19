@@ -1,14 +1,9 @@
-import 'dart:async';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import '../../../core/app_event_bus.dart';
-import '../../../core/error/app_exception.dart';
 import '../../../core/logger/app_logger.dart';
-import '../../../core/storage/local_storage.dart';
 import '../../../core/storage/secure_storage_service.dart';
 import '../../../domain/usecases/get_home_data_usecase.dart';
 import '../../../domain/entities/home_data.dart';
 import '../../../domain/entities/history_data.dart';
-import '../../../domain/repositories/song_repository.dart';
+import '../../../domain/repositories/music_repository.dart';
 import 'home_state.dart';
 
 export 'home_state.dart';
@@ -17,14 +12,14 @@ class HomeCubit extends Cubit<HomeState> {
   static const _tag = 'HomeCubit';
 
   final GetHomeDataUseCase _getHomeData;
-  final SongRepository _songRepository;
+  final MusicRepository _musicRepository;
   StreamSubscription? _eventSub;
 
   HomeCubit({
     required GetHomeDataUseCase getHomeData,
-    required SongRepository songRepository,
+    required MusicRepository musicRepository,
   }) : _getHomeData = getHomeData,
-       _songRepository = songRepository,
+       _musicRepository = musicRepository,
        super(const HomeState(isLoading: true)) {
     AppLogger.i(_tag, 'Created');
 
@@ -62,19 +57,13 @@ class HomeCubit extends Cubit<HomeState> {
   Future<void> _load() async {
     // ── STANDALONE SOURCE CHECK (Phase 2) ──────────────────────────────────
     // Check local secure storage for cookies.
-    final ytCookies = await SecureStorageService.instance.getYoutubeCookies();
-    final hasYtLocal = ytCookies != null && ytCookies.isNotEmpty;
-
-    if (!hasYtLocal) {
-      AppLogger.i(_tag, 'No local YT cookies found — emitting noSource');
-      if (!isClosed) emit(const HomeState(noSource: true));
-      return;
-    }
+    await SecureStorageService.instance.getYoutubeCookies();
 
     try {
       AppLogger.d(_tag, 'Fetching home data and history (Standalone)...');
       final dataFuture = _getHomeData(limit: 48);
-      final historyFuture = _songRepository.getPersistentHistory();
+      // History is local, always fetchable
+      final historyFuture = _musicRepository.getPersistentHistory();
 
       final results = await Future.wait([dataFuture, historyFuture]);
       final data = results[0] as HomeData;

@@ -12,7 +12,7 @@ class YTConnectCubit extends Cubit<YTConnectState> {
 
   YTConnectCubit() : super(const YTConnectState());
 
-  Future<void> connect(Map<String, String> cookies) async {
+  Future<void> connect(Map<String, String> cookies, String userAgent) async {
     AppLogger.i(_tag, 'Connecting YouTube Music locally via cookies');
     emit(const YTConnectState(status: YTConnectStatus.loading));
     try {
@@ -21,6 +21,7 @@ class YTConnectCubit extends Cubit<YTConnectState> {
           .join('; ');
 
       await SecureStorageService.instance.saveYoutubeCookies(cookieString);
+      await SecureStorageService.instance.saveYoutubeUserAgent(userAgent);
       
       AppLogger.i(_tag, 'Local YouTube Music connection successful');
       emit(const YTConnectState(status: YTConnectStatus.success));

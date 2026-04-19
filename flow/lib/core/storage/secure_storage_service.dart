@@ -25,8 +25,13 @@ class SecureStorageService {
 
   Future<String?> getYoutubeCookies() async {
     try {
+      // In unit tests, the binding might not be initialized.
+      // This is expected and we should return null gracefully.
       return await _storage.read(key: _ytCookiesKey);
     } catch (e) {
+      if (e.toString().contains('Binding has not yet been initialized')) {
+        return null;
+      }
       AppLogger.e('SecureStorageService', 'Error reading YouTube cookies', e);
       return null;
     }
@@ -59,8 +64,12 @@ class SecureStorageService {
 
   Future<String?> getYoutubeUserAgent() async {
     try {
+      // In unit tests, the binding might not be initialized.
       return await _storage.read(key: _ytUserAgentKey);
     } catch (e) {
+      if (e.toString().contains('Binding has not yet been initialized')) {
+        return null;
+      }
       AppLogger.e('SecureStorageService', 'Error reading YouTube User-Agent', e);
       return null;
     }

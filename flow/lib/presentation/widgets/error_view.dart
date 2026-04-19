@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'personality_bot_view.dart';
 import '../../core/error/app_exception.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -77,39 +78,10 @@ class _ErrorViewState extends State<ErrorView>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // ── Icon container ───────────────────────────────────────────
-                Container(
-                  width: 88,
-                  height: 88,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: spec.color.withAlpha(20),
-                  ),
-                  child: Icon(spec.icon, size: 40, color: spec.color),
-                ),
-                const SizedBox(height: 24),
-
-                // ── Title ────────────────────────────────────────────────────
-                Text(
-                  spec.title,
-                  style: GoogleFonts.spaceGrotesk(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: cs.onSurface,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 10),
-
-                // ── Subtitle ─────────────────────────────────────────────────
-                Text(
-                  widget.customMessage ?? spec.subtitle,
-                  style: GoogleFonts.outfit(
-                    fontSize: 14,
-                    color: cs.onSurface.withAlpha(160),
-                    height: 1.5,
-                  ),
-                  textAlign: TextAlign.center,
+                // ── Bot Personality ──────────────────────────────────────────
+                PersonalityBotView(
+                  isError: true,
+                  message: widget.customMessage ?? spec.subtitle,
                 ),
                 const SizedBox(height: 32),
 

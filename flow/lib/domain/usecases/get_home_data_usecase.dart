@@ -1,5 +1,5 @@
 import '../entities/home_data.dart';
-import '../repositories/song_repository.dart';
+import '../repositories/music_repository.dart';
 
 /// Returns structured home screen data from the repository.
 ///
@@ -7,7 +7,7 @@ import '../repositories/song_repository.dart';
 /// splitting it into sections inside the Cubit. The backend now owns that
 /// logic; the Cubit just loads and emits.
 class GetHomeDataUseCase {
-  final SongRepository _repository;
+  final MusicRepository _repository;
   const GetHomeDataUseCase(this._repository);
   Future<HomeData> call({int limit = 25}) => _repository.getHomeData(limit: limit);
 }

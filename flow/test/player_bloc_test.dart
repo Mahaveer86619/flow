@@ -13,14 +13,14 @@ void main() {
   late MockAudioPlayer mockAudioPlayer;
   late MockLocalStorage mockLocalStorage;
   late MockWindowsMediaSession mockMediaSession;
-  late MockSongRepository mockSongRepository;
+  late MockMusicRepository mockMusicRepository;
 
   setUp(() {
     setupMocks();
     mockAudioPlayer = MockAudioPlayer();
     mockLocalStorage = MockLocalStorage();
     mockMediaSession = MockWindowsMediaSession();
-    mockSongRepository = MockSongRepository();
+    mockMusicRepository = MockMusicRepository();
 
     // Stub AudioPlayer streams
     when(
@@ -88,10 +88,10 @@ void main() {
       'starts radio and fetches tracks',
       build: () {
         when(
-          () => mockSongRepository.getRadioTracks(any()),
+          () => mockMusicRepository.getRadioTracks(any()),
         ).thenAnswer((_) async => [testSong2]);
         return PlayerBloc(
-          songRepository: mockSongRepository,
+          musicRepository: mockMusicRepository,
           audioPlayer: mockAudioPlayer,
           storage: mockLocalStorage,
           mediaSession: mockMediaSession,
@@ -99,7 +99,7 @@ void main() {
       },
       act: (bloc) => bloc.add(PlayRadioEvent(testSong)),
       verify: (bloc) {
-        verify(() => mockSongRepository.getRadioTracks(testSong.id)).called(1);
+        verify(() => mockMusicRepository.getRadioTracks(testSong.id)).called(1);
         expect(bloc.state.queue, contains(testSong));
       },
     );
@@ -111,7 +111,7 @@ void main() {
       build: () {
         when(() => mockAudioPlayer.stop()).thenAnswer((_) async => {});
         return PlayerBloc(
-          songRepository: mockSongRepository,
+          musicRepository: mockMusicRepository,
           audioPlayer: mockAudioPlayer,
           storage: mockLocalStorage,
           mediaSession: mockMediaSession,

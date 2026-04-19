@@ -5,7 +5,9 @@ The Data layer is responsible for fetching, caching, and serializing data from v
 ## 📂 Sub-directories
 
 - **[`sources/`](./sources):** Concrete implementations for data fetching.
-  - `ApiSongDataSource`: Communicates with the Flow Source API.
+  - `YoutubeDataSource`: The primary standalone source fetching directly from YouTube Music.
+  - `StreamResolver`: On-device resolution of direct audio stream URLs.
+  - `ApiSongDataSource`: Legacy source for communicating with the Flow Source API.
   - `MockSongDataSource`: Provides static mock data for offline testing and development.
 - **[`repositories/`](./repositories):** Concrete implementations of the interfaces defined in the `domain/` layer. These bridge the data sources and the domain logic.
 - **[`models/`](./models):** Data transfer objects (DTOs) with `fromJson` and `toJson` methods for serialization.

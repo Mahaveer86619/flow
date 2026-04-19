@@ -5,25 +5,25 @@ import '../../core/storage/local_storage.dart';
 import '../../domain/entities/home_data.dart';
 import '../../domain/entities/song.dart';
 import '../../domain/entities/history_data.dart';
-import '../../domain/repositories/song_repository.dart';
+import '../../domain/repositories/music_repository.dart';
 import '../models/home_data_model.dart';
 import '../models/song_model.dart';
-import '../sources/song_data_source.dart';
+import '../sources/music_data_source.dart';
 
 // ── Repository Implementation ─────────────────────────────────────────────────
 //
 // Converts data-layer models into domain entities.
-// The domain and presentation layers depend only on [SongRepository] — this
+// The domain and presentation layers depend only on [MusicRepository] — this
 // class is invisible above the data boundary.
 // ─────────────────────────────────────────────────────────────────────────────
 
-class SongRepositoryImpl implements SongRepository {
-  final SongDataSource _source;
+class YoutubeMusicRepository implements MusicRepository {
+  final MusicDataSource _source;
 
-  static const _tag = 'SongRepository';
+  static const _tag = 'MusicRepository';
   static const _cacheTtl = Duration(minutes: 30);
 
-  const SongRepositoryImpl(this._source);
+  const YoutubeMusicRepository(this._source);
 
   @override
   Future<HomeData> getHomeData({int limit = 25}) async {

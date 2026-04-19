@@ -3,7 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../domain/entities/history_data.dart';
 import '../../../domain/entities/song.dart';
-import '../../../domain/repositories/song_repository.dart';
+import '../../../domain/repositories/music_repository.dart';
 import '../../widgets/song_tile.dart';
 
 import '../../widgets/skeleton.dart';
@@ -26,7 +26,7 @@ class _RecentlyPlayedScreenState extends State<RecentlyPlayedScreen> {
 
   void _refresh() {
     setState(() {
-      _historyFuture = context.read<SongRepository>().getPersistentHistory();
+      _historyFuture = context.read<MusicRepository>().getPersistentHistory();
     });
   }
 

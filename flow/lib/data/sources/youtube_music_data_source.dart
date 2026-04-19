@@ -29,7 +29,13 @@ class YoutubeMusicDataSource implements MusicDataSource {
           "context": {
             "client": {
               "clientName": "WEB_REMIX",
-              "clientVersion": "1.20240320.01.00",
+              "clientVersion": "1.20240409.01.01",
+              "osName": "Windows",
+              "osVersion": "10.0",
+              "platform": "DESKTOP",
+              "hl": "en",
+              "gl": "US",
+              "utcOffsetMinutes": 0,
             },
             "user": {
                "lockedSafetyMode": false
@@ -175,24 +181,41 @@ class YoutubeMusicDataSource implements MusicDataSource {
         String? title = shelf['header']?['musicHeaderRenderer']?['title']?['runs']?[0]?['text'] ??
                         shelf['header']?['musicCarouselShelfBasicHeaderRenderer']?['title']?['runs']?[0]?['text'] ??
                         shelf['title']?['runs']?[0]?['text'] ??
-                        shelf['title']?['simpleText'];
+                        shelf['title']?['simpleText'] ??
+                        shelf['primaryText']?['runs']?[0]?['text'] ??
+                        shelf['primaryText']?['simpleText'];
 
         String sectionType = 'standard';
         if (title != null) {
           final t = title.toLowerCase();
-          if (t.contains('listen again') || t.contains('recent')) {
+          if (t.contains('listen again') || t.contains('recent') || t.contains('frequent')) {
             sectionType = 'listeningAgain';
           } else if (t.contains('quick picks')) {
             sectionType = 'quickPicks';
-          } else if (t.contains('mixed for you')) {
+          } else if (t.contains('mixed for you') || t.contains('recommended') || t.contains('start radio')) {
             sectionType = 'mixedForYou';
           } else if (t.contains('trending')) {
             sectionType = 'trending';
+          } else if (t.contains('music video') || t.contains('videos for you')) {
+            sectionType = 'musicVideos';
+          } else if (t.contains('long listening')) {
+            sectionType = 'longListening';
+          } else if (t.contains('forgotten favorites')) {
+            sectionType = 'forgottenFavorites';
+          } else if (t.contains('similar to') || t.contains('fans also like')) {
+            sectionType = 'similarTo';
+          } else if (t.contains('album')) {
+            sectionType = 'albumsForYou';
+          } else if (t.contains('chart')) {
+            sectionType = 'topCharts';
+          } else if (t.contains('new arrival') || t.contains('new release')) {
+            sectionType = 'newArrivals';
           }
         }
 
         final items = <Map<String, dynamic>>[];
-        final List<dynamic> shelfItems = (shelf['contents'] as List<dynamic>?) ?? [];
+        final List<dynamic> shelfItems = (shelf['contents'] as List<dynamic>?) ?? 
+                                         (shelf['tastebuilderItems'] as List<dynamic>?) ?? [];
 
         for (final item in shelfItems) {
           final actualItem = item['musicResponsiveListItemRenderer'] != null || 
@@ -216,7 +239,9 @@ class YoutubeMusicDataSource implements MusicDataSource {
             'section': sectionType,
             'items': items,
           });
-          AppLogger.i(_tag, 'Parsed shelf: "$title" (${items.length} items)');
+          AppLogger.i(_tag, 'Parsed shelf: "$title" (type: $sectionType, items: ${items.length})');
+        } else if (title != null) {
+          AppLogger.d(_tag, 'Skipped shelf: "$title" (no items parsed)');
         }
       }
     } catch (e, st) {
@@ -283,7 +308,7 @@ class YoutubeMusicDataSource implements MusicDataSource {
         } else if (renderer['subtitle'] != null) {
           final runs = renderer['subtitle']?['runs'] as List?;
           if (runs != null && runs.isNotEmpty) {
-             artist = runs[0]['text'];
+             artist = runs.map((r) => r['text']).where((t) => t != ' • ').join('');
           }
         }
 
@@ -527,7 +552,9 @@ class YoutubeMusicDataSource implements MusicDataSource {
           duration: v.duration ?? Duration.zero, thumbnailUrl: v.thumbnails.highResUrl,
           colorPrimary: colors.$1, colorSecondary: colors.$2,
         ));
-      } catch (e) {}
+      } catch (e) {
+        // Ignore individual video fetch failures
+      }
     }
     return songs;
   }

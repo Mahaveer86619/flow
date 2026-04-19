@@ -5,7 +5,7 @@ import '../../../core/logger/app_logger.dart';
 import '../../../core/network/download_service.dart';
 import '../../../core/storage/local_storage.dart';
 import '../../../domain/entities/song.dart';
-import '../../../domain/repositories/song_repository.dart';
+import '../../../domain/repositories/music_repository.dart';
 import '../../../domain/usecases/get_playlists_usecase.dart';
 import 'library_state.dart';
 
@@ -15,7 +15,7 @@ class LibraryCubit extends Cubit<LibraryState> {
   static const _tag = 'LibraryCubit';
 
   final GetPlaylistsUseCase _getPlaylists;
-  final SongRepository _songRepository;
+  final MusicRepository _musicRepository;
 
   StreamSubscription? _likedSongsSub;
   StreamSubscription? _downloadSub;
@@ -25,9 +25,9 @@ class LibraryCubit extends Cubit<LibraryState> {
 
   LibraryCubit({
     required GetPlaylistsUseCase getPlaylists,
-    required SongRepository songRepository,
+    required MusicRepository musicRepository,
   }) : _getPlaylists = getPlaylists,
-       _songRepository = songRepository,
+       _musicRepository = musicRepository,
        super(const LibraryState(isLoading: true, playlists: [])) {
     AppLogger.i(_tag, 'Created');
 
@@ -128,22 +128,23 @@ class LibraryCubit extends Cubit<LibraryState> {
   Future<List<Song>> _fetchLikedSongs() async {
     final ids = LocalStorage.instance.likedSongIds;
     if (ids.isEmpty) return [];
-    return _songRepository.getSongsByIds(ids);
+    return _musicRepository.getSongsByIds(ids);
   }
 
   Future<List<Song>> _fetchDownloadedSongs() async {
     final ids = DownloadService.instance.getDownloadedIds();
     if (ids.isEmpty) return [];
-    return _songRepository.getSongsByIds(ids);
+    return _musicRepository.getSongsByIds(ids);
   }
 
   Future<List<Song>> _fetchRemoteLikedSongs() async {
     try {
       // "LM" is the YT Music "Your Likes" playlist ID
-      return await _songRepository.getPlaylistTracks('LM');
+      return await _musicRepository.getPlaylistTracks('LM');
     } catch (e) {
       AppLogger.w(_tag, 'Failed to fetch remote liked songs: $e');
       return [];
     }
   }
 }
+

@@ -1,8 +1,8 @@
-import '../repositories/song_repository.dart';
+import '../repositories/music_repository.dart';
 
 /// Returns the browse category list (name + color pairs).
 class GetCategoriesUseCase {
-  final SongRepository _repository;
+  final MusicRepository _repository;
 
   const GetCategoriesUseCase(this._repository);
 

@@ -8,7 +8,7 @@ import '../entities/history_data.dart';
 // is injected at the composition root — the domain never knows which source.
 // ─────────────────────────────────────────────────────────────────────────────
 
-abstract class SongRepository {
+abstract class MusicRepository {
   /// Structured home screen data — all sections in one call.
   Future<HomeData> getHomeData({int limit = 25});
 

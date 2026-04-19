@@ -7,7 +7,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:just_audio_background/just_audio_background.dart';
 import 'core/auth/auth_cubit.dart';
 import 'core/config/app_constants.dart';
-import 'core/config/server_config.dart';
 import 'core/logger/app_logger.dart';
 import 'core/network/connectivity_service.dart';
 import 'core/network/download_service.dart';
@@ -15,11 +14,10 @@ import 'core/network/network_cubit.dart';
 import 'core/platform/permission_service.dart';
 import 'core/storage/local_storage.dart';
 import 'presentation/cubits/settings/settings_cubit.dart';
-import 'domain/repositories/song_repository.dart';
-import 'data/repositories/song_repository_impl.dart';
-import 'data/sources/api_song_data_source.dart';
+import 'domain/repositories/music_repository.dart';
+import 'data/repositories/youtube_music_repository.dart';
 import 'data/sources/mock_song_data_source.dart';
-import 'data/sources/youtube_data_source.dart';
+import 'data/sources/youtube_music_data_source.dart';
 import 'domain/usecases/get_categories_usecase.dart';
 import 'domain/usecases/get_home_data_usecase.dart';
 import 'domain/usecases/get_playlists_usecase.dart';
@@ -79,10 +77,6 @@ void main() async {
   // ── 3c. Download service ────────────────────────────────────────────────────
   await DownloadService.instance.init();
 
-  // ── 3b. Server config (reads stored custom URL from Hive) ────────────────────
-  final baseUrlFromEnv = dotenv.env['API_BASE_URL'] ?? 'http://localhost:8000';
-  ServerConfig.instance.init(baseUrlFromEnv);
-
   // ── 4. Connectivity ───────────────────────────────────────────────────────────
   await ConnectivityService.instance.init();
 
@@ -104,12 +98,12 @@ void main() async {
 
   AppLogger.i(
     'main',
-    'Source: ${useMock ? "mock" : "Standalone (YouTubeDataSource)"}',
+    'Source: ${useMock ? "mock" : "Standalone (YoutubeMusicDataSource)"}',
   );
 
-  final dataSource = useMock ? MockSongDataSource() : YoutubeDataSource();
+  final dataSource = useMock ? MockSongDataSource() : YoutubeMusicDataSource();
 
-  final repository = SongRepositoryImpl(dataSource);
+  final repository = YoutubeMusicRepository(dataSource);
 
   final getHomeData = GetHomeDataUseCase(repository);
   final getPlaylists = GetPlaylistsUseCase(repository);
@@ -122,7 +116,7 @@ void main() async {
   runApp(
     MultiRepositoryProvider(
       providers: [
-        RepositoryProvider<SongRepository>(create: (_) => repository),
+        RepositoryProvider<MusicRepository>(create: (_) => repository),
       ],
       child: MultiBlocProvider(
         providers: [
@@ -130,14 +124,14 @@ void main() async {
           BlocProvider(
             create: (_) => NetworkCubit(ConnectivityService.instance),
           ),
-          BlocProvider(create: (_) => PlayerBloc(songRepository: repository)),
+          BlocProvider(create: (_) => PlayerBloc(musicRepository: repository)),
           BlocProvider(
             create: (context) =>
                 SettingsCubit(authCubit: context.read<AuthCubit>()),
           ),
           BlocProvider(
             create: (_) =>
-                HomeCubit(getHomeData: getHomeData, songRepository: repository),
+                HomeCubit(getHomeData: getHomeData, musicRepository: repository),
           ),
           BlocProvider(
             create: (_) => SearchCubit(
@@ -148,7 +142,7 @@ void main() async {
           BlocProvider(
             create: (_) => LibraryCubit(
               getPlaylists: getPlaylists,
-              songRepository: repository,
+              musicRepository: repository,
             ),
           ),
         ],

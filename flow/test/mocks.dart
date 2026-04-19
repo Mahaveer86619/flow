@@ -3,7 +3,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:just_audio/just_audio.dart' hide PlayerState;
 import 'package:flow/core/storage/local_storage.dart';
 import 'package:flow/core/platform/windows_media_session.dart';
-import 'package:flow/domain/repositories/song_repository.dart';
+import 'package:flow/domain/repositories/music_repository.dart';
 import 'package:flow/domain/entities/song.dart';
 import 'package:flow/domain/entities/history_data.dart';
 import 'package:flutter/material.dart';
@@ -26,7 +26,7 @@ class MockWindowsMediaSession extends Mock implements WindowsMediaSession {
   Future<void> dispose() async {}
 }
 
-class MockSongRepository extends Mock implements SongRepository {
+class MockMusicRepository extends Mock implements MusicRepository {
   @override
   Future<void> recordPlay(Song song) async {}
 
@@ -84,9 +84,7 @@ void setupMocks() {
   // In a real test environment, we might use a dependency injection container.
   // For now, let's try to bypass the LateInitializationError by ensuring it's only called once
   // and catching errors.
-  try {
-    ServerConfig.instance.init('http://test.com');
-  } catch (_) {}
+  // ServerConfig is a no-op stub in standalone mode — no init needed.
 
   registerFallbackValue(FakePlayerState());
   registerFallbackValue(FakePlayerEvent());

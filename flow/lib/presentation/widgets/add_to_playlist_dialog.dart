@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../domain/entities/song.dart';
-import '../../domain/repositories/song_repository.dart';
+import '../../domain/repositories/music_repository.dart';
 import '../../core/logger/app_logger.dart';
 import '../cubits/library/library_cubit.dart';
 
@@ -47,7 +47,7 @@ class _AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
     setState(() => _isCreating = true);
 
     try {
-      final repo = context.read<SongRepository>();
+      final repo = context.read<MusicRepository>();
       final newPlaylist = await repo.createFlowPlaylist(title: name);
       await repo.addTrackToFlowPlaylist(newPlaylist.id, widget.song);
 
@@ -70,7 +70,7 @@ class _AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
     });
 
     try {
-      final repo = context.read<SongRepository>();
+      final repo = context.read<MusicRepository>();
       await repo.addTrackToFlowPlaylist(playlist.id, widget.song);
 
       if (mounted) {

@@ -3,7 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/responsive/breakpoints.dart';
 import '../../../domain/entities/song.dart';
-import '../../../domain/repositories/song_repository.dart';
+import '../../../domain/repositories/music_repository.dart';
 import '../../../core/ui/app_snack_bar.dart';
 import '../../blocs/player/player_bloc.dart';
 import '../../widgets/song_tile.dart';
@@ -46,7 +46,7 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
     });
 
     try {
-      final repo = context.read<SongRepository>();
+      final repo = context.read<MusicRepository>();
       final bool isAlbum = _playlist.isAlbum || widget.isAlbum;
       final List<Song> tracks;
       if (isAlbum) {

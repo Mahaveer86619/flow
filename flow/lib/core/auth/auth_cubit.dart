@@ -32,40 +32,30 @@ class AuthCubit extends Cubit<AuthState> {
   }
 
   Future<void> _init() async {
-    AppLogger.i(_tag, 'Initializing AuthCubit');
+    AppLogger.i(_tag, 'Initializing AuthCubit (Standalone)');
     
-    // Check local secure storage for cookies (The new "Standalone" source of truth)
+    // Check local secure storage for cookies
     final ytCookies = await SecureStorageService.instance.getYoutubeCookies();
     final spotifyCookies = await SecureStorageService.instance.getSpotifyCookies();
     
     final hasYt = ytCookies != null && ytCookies.isNotEmpty;
     final hasSpotify = spotifyCookies != null && spotifyCookies.isNotEmpty;
 
-    final token = LocalStorage.instance.jwtToken;
-    if (token == null) {
-      AppLogger.i(_tag, 'No cached session found');
-      emit(AuthState(
-        hasYtAuth: hasYt,
-        hasSpotifyAuth: hasSpotify,
-      ));
-      return;
-    }
+    // In standalone, we always treat the user as "authenticated" locally 
+    // to allow access to the home feed and search.
+    final token = LocalStorage.instance.jwtToken ?? 'local_session';
+    final username = LocalStorage.instance.cachedUsername ?? 'Guest';
 
-    AppLogger.i(
-      _tag,
-      'Cached session found for: ${LocalStorage.instance.cachedUsername}',
-    );
     emit(
       AuthState(
         isAuthenticated: true,
         token: token,
-        username: LocalStorage.instance.cachedUsername,
-        email: LocalStorage.instance.cachedEmail,
+        username: username,
+        email: LocalStorage.instance.cachedEmail ?? '',
         hasYtAuth: hasYt,
         hasSpotifyAuth: hasSpotify,
       ),
     );
-    _validateToken(token);
   }
 
   Future<void> _validateToken(String token) async {

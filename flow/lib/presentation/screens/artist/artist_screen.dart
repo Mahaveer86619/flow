@@ -3,7 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/responsive/breakpoints.dart';
 import '../../../domain/entities/song.dart';
-import '../../../domain/repositories/song_repository.dart';
+import '../../../domain/repositories/music_repository.dart';
 import '../../blocs/player/player_bloc.dart';
 import '../../widgets/song_tile.dart';
 import '../../widgets/skeleton.dart';
@@ -32,7 +32,7 @@ class _ArtistScreenState extends State<ArtistScreen> {
 
   Future<void> _loadArtistSongs() async {
     try {
-      final repo = context.read<SongRepository>();
+      final repo = context.read<MusicRepository>();
       final channelId = widget.artist['browseId'] as String?;
       if (channelId != null) {
         final songs = await repo.getArtistSongs(channelId);
@@ -63,7 +63,7 @@ class _ArtistScreenState extends State<ArtistScreen> {
     final channelId = widget.artist['browseId'] as String?;
     if (channelId == null) return;
 
-    final repo = context.read<SongRepository>();
+    final repo = context.read<MusicRepository>();
     if (_isLiked) {
       repo.unlikeArtist(channelId);
     } else {

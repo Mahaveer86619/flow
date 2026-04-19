@@ -2,15 +2,15 @@ import 'package:flutter/material.dart';
 import '../models/home_data_model.dart';
 import '../models/playlist_model.dart';
 import '../models/song_model.dart';
-import 'song_data_source.dart';
+import 'music_data_source.dart';
 
 // ── Mock Data Source ──────────────────────────────────────────────────────────
 //
-// In-memory implementation of [SongDataSource].
+// In-memory implementation of [MusicDataSource].
 // Set USE_MOCK=true in .env to use this without a running backend.
 // ─────────────────────────────────────────────────────────────────────────────
 
-class MockSongDataSource implements SongDataSource {
+class MockSongDataSource implements MusicDataSource {
   // ── Raw song catalogue ───────────────────────────────────────────────────────
 
   static const List<SongModel> _songs = [

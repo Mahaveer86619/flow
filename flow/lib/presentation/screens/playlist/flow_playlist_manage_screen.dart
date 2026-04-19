@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../domain/entities/song.dart';
-import '../../../domain/repositories/song_repository.dart';
+import '../../../domain/repositories/music_repository.dart';
 import '../../../core/logger/app_logger.dart';
 import '../../../core/ui/app_snack_bar.dart';
 import '../../blocs/player/player_bloc.dart';
@@ -56,7 +56,7 @@ class _FlowPlaylistManageScreenState extends State<FlowPlaylistManageScreen> {
     });
 
     try {
-      final repo = context.read<SongRepository>();
+      final repo = context.read<MusicRepository>();
       await repo.updateFlowPlaylist(
         widget.playlist.id,
         title: _titleController.text.trim(),
@@ -105,7 +105,7 @@ class _FlowPlaylistManageScreenState extends State<FlowPlaylistManageScreen> {
     });
 
     try {
-      final repo = context.read<SongRepository>();
+      final repo = context.read<MusicRepository>();
       await repo.deleteFlowPlaylist(widget.playlist.id);
       if (mounted) {
         Navigator.pop(context, 'deleted');
@@ -129,7 +129,7 @@ class _FlowPlaylistManageScreenState extends State<FlowPlaylistManageScreen> {
     });
 
     try {
-      final repo = context.read<SongRepository>();
+      final repo = context.read<MusicRepository>();
       await repo.addCollaborator(widget.playlist.id, code);
       _collabCodeController.clear();
       if (mounted) {

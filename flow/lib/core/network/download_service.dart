@@ -2,10 +2,10 @@ import 'dart:async';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
-import '../config/server_config.dart';
 import '../logger/app_logger.dart';
 import '../storage/local_storage.dart';
 import '../../data/models/song_model.dart';
+import '../../data/sources/stream_resolver.dart';
 import '../../domain/entities/song.dart';
 
 class DownloadService {
@@ -135,10 +135,13 @@ class DownloadService {
         }
       }
 
-      final streamUrl = '${ServerConfig.instance.baseUrl}/v1/stream/${song.id}';
-      final token = LocalStorage.instance.jwtToken;
-
       AppLogger.i(_tag, 'Starting download: ${song.title}');
+
+      // Resolve the stream URL locally via youtube_explode_dart
+      final streamUrl = await _resolveStreamUrl(song.id);
+      if (streamUrl == null) {
+        throw Exception('Could not resolve stream URL for ${song.id}');
+      }
 
       // Check if we can resume
       int existingLength = 0;
@@ -148,10 +151,7 @@ class DownloadService {
       }
 
       final request = http.Request('GET', Uri.parse(streamUrl));
-      if (token != null) {
-        request.headers['Authorization'] = 'Bearer $token';
-      }
-      request.headers['User-Agent'] = 'FlowMusicApp/1.0';
+      request.headers['User-Agent'] = 'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36';
       if (existingLength > 0) {
         request.headers['Range'] = 'bytes=$existingLength-';
       }
@@ -294,6 +294,10 @@ class DownloadService {
     } catch (e, st) {
       AppLogger.e(_tag, 'Failed to move downloads', e, st);
     }
+  }
+
+  Future<String?> _resolveStreamUrl(String videoId) async {
+    return StreamResolver.instance.resolveYoutubeStream(videoId);
   }
 
   Future<String?> _downloadThumbnail(String id, String url) async {

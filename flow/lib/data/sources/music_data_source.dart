@@ -8,7 +8,7 @@ import '../models/song_model.dart';
 // Swap implementations (mock ↔ API) in main.dart without touching anything above.
 // ─────────────────────────────────────────────────────────────────────────────
 
-abstract class SongDataSource {
+abstract class MusicDataSource {
   /// Structured home screen data — maps to the five UI sections in one call.
   Future<HomeDataModel> fetchHomeData({int limit = 25});
 

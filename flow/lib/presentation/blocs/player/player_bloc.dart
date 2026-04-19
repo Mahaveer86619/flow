@@ -13,14 +13,13 @@ import 'package:just_audio/just_audio.dart'
         AudioSource,
         LoopMode,
         LockCachingAudioSource;
-import '../../../core/config/server_config.dart';
 import '../../../core/logger/app_logger.dart';
 import '../../../core/platform/windows_media_session.dart';
 import '../../../core/storage/local_storage.dart';
 import '../../../domain/entities/song.dart';
 
 import '../../../core/network/download_service.dart';
-import '../../../domain/repositories/song_repository.dart';
+import '../../../domain/repositories/music_repository.dart';
 import '../../../data/sources/stream_resolver.dart';
 
 part 'player_event.dart';
@@ -36,7 +35,7 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
   final AudioPlayer _audioPlayer;
   final LocalStorage _storage;
   final WindowsMediaSession _mediaSession;
-  final SongRepository _songRepository;
+  final MusicRepository _musicRepository;
 
   bool _isChangingSource = false;
   bool _isFetchingRadio = false;
@@ -58,11 +57,11 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
   static const _tag = 'PlayerBloc';
 
   PlayerBloc({
-    required SongRepository songRepository,
+    required MusicRepository musicRepository,
     LocalStorage? storage,
     AudioPlayer? audioPlayer,
     WindowsMediaSession? mediaSession,
-  }) : _songRepository = songRepository,
+  }) : _musicRepository = musicRepository,
        _storage = storage ?? LocalStorage.instance,
        _audioPlayer = audioPlayer ?? AudioPlayer(),
        _mediaSession = mediaSession ?? WindowsMediaSession.instance,
@@ -231,7 +230,7 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     AppLogger.i(_tag, 'Auto-advanced to: "${song.title}" (idx=$newIndex)');
 
     // Record play in persistent history
-    _songRepository.recordPlay(song);
+    _musicRepository.recordPlay(song);
 
     final recent = [
       song,
@@ -291,7 +290,7 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
       if (idx >= 0 && idx < state.queue.length) {
         final song = state.queue[idx];
         AppLogger.d(_tag, 'Prefetching track at index $idx: ${song.title}');
-        _songRepository.prefetchAudio(song.id);
+        _musicRepository.prefetchAudio(song.id);
       }
     }
   }
@@ -333,7 +332,7 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
 
   Future<void> _hydrateRecentlyPlayed(List<String> ids) async {
     try {
-      final songs = await _songRepository.getSongsByIds(ids);
+      final songs = await _musicRepository.getSongsByIds(ids);
       if (!isClosed) {
         add(_RecentlyPlayedUpdatedEvent(songs));
       }
@@ -360,7 +359,7 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     final idx = event.startIndex.clamp(0, event.songs.length - 1);
 
     final song = event.songs[idx];
-    _songRepository.recordPlay(song);
+    _musicRepository.recordPlay(song);
 
     // Stop and reset before setting new source to avoid threading issues on Windows
     await _audioPlayer.stop();
@@ -388,7 +387,7 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     Emitter<PlayerState> emit,
   ) async {
     _retryCount = 0;
-    _songRepository.recordPlay(event.song);
+    _musicRepository.recordPlay(event.song);
     await _audioPlayer.stop();
 
     emit(
@@ -414,7 +413,7 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     Emitter<PlayerState> emit,
   ) async {
     _retryCount = 0;
-    _songRepository.recordPlay(event.song);
+    _musicRepository.recordPlay(event.song);
     emit(
       state.copyWith(
         queue: [event.song],
@@ -435,7 +434,7 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     _isFetchingRadio = true;
     final anchor = state.queue.last;
     try {
-      final tracks = await _songRepository.getRadioTracks(anchor.id);
+      final tracks = await _musicRepository.getRadioTracks(anchor.id);
       if (isClosed) return;
 
       final existingIds = state.queue.map((s) => s.id).toSet();
@@ -674,17 +673,17 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
       };
 
-      // LockCachingAudioSource has known file-locking and proxy issues on Windows.
-      // We'll skip caching on Windows to ensure playback works correctly.
-      if (Platform.isWindows) {
+      // LockCachingAudioSource has known issues with YouTube streams due to its internal proxy.
+      // We'll use standard AudioSource.uri for YouTube streams to ensure reliable playback.
+      if (Platform.isWindows || uri.host.contains('googlevideo.com')) {
         AppLogger.i(
           _tag,
-          'Building standard URI source for Windows: ${song.title}',
+          'Building standard URI source for ${song.title}',
         );
         return AudioSource.uri(uri, headers: headers, tag: mediaItem);
       }
 
-      // Use LockCachingAudioSource to enable caching for repeats and seeking back on other platforms
+      // Use LockCachingAudioSource for other sources to enable caching
       return LockCachingAudioSource(uri, headers: headers, tag: mediaItem);
     }
   }
@@ -795,7 +794,7 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     emit(state.copyWith(isInitialLoading: true));
 
     try {
-      final songs = await _songRepository.getSongsByIds(ids);
+      final songs = await _musicRepository.getSongsByIds(ids);
       if (songs.isEmpty) {
         emit(state.copyWith(isInitialLoading: false));
         return;

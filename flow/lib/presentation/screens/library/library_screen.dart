@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../domain/entities/song.dart';
-import '../../../domain/repositories/song_repository.dart';
+import '../../../domain/repositories/music_repository.dart';
 import '../../cubits/library/library_cubit.dart';
 import '../../widgets/error_view.dart';
 import '../../widgets/section_header.dart';
@@ -114,7 +114,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                         );
                         if (name?.trim().isNotEmpty ?? false) {
                           try {
-                            final repo = context.read<SongRepository>();
+                            final repo = context.read<MusicRepository>();
                             await repo.createFlowPlaylist(title: name!.trim());
                             if (context.mounted) {
                               context.read<LibraryCubit>().refresh();

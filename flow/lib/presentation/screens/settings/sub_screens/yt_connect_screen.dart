@@ -19,6 +19,11 @@ class _YTConnectScreenState extends State<YTConnectScreen> {
   bool _pageLoaded = false;
   bool _extracting = false;
 
+  static const _userAgent =
+      'Mozilla/5.0 (Linux; Android 13; Pixel 7) '
+      'AppleWebKit/537.36 (KHTML, like Gecko) '
+      'Chrome/120.0.0.0 Mobile Safari/537.36';
+
   // Must be present to confirm the user is signed in.
   static const _requiredCookies = [
     '__Secure-3PAPISID',
@@ -128,10 +133,7 @@ class _YTConnectScreenState extends State<YTConnectScreen> {
                       url: WebUri('https://music.youtube.com'),
                     ),
                     initialSettings: InAppWebViewSettings(
-                      userAgent:
-                          'Mozilla/5.0 (Linux; Android 13; Pixel 7) '
-                          'AppleWebKit/537.36 (KHTML, like Gecko) '
-                          'Chrome/120.0.0.0 Mobile Safari/537.36',
+                      userAgent: _userAgent,
                       javaScriptEnabled: true,
                       domStorageEnabled: true,
                       cacheEnabled: true,
@@ -189,7 +191,7 @@ class _YTConnectScreenState extends State<YTConnectScreen> {
         allCookies[k] = cookieMap[k]!;
       }
 
-      if (mounted) context.read<YTConnectCubit>().connect(allCookies);
+      if (mounted) context.read<YTConnectCubit>().connect(allCookies, _userAgent);
     } catch (e, st) {
       setState(() => _extracting = false);
       if (mounted) {
