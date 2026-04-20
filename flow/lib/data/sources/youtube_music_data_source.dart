@@ -207,7 +207,7 @@ class YoutubeMusicDataSource implements MusicDataSource {
     String? subtitle;
     final subtitleRuns = renderer['subtitle']?['runs'] as List?;
     if (subtitleRuns != null) {
-      subtitle = subtitleRuns.map((r) => r['text']).join();
+      subtitle = subtitleRuns.map((r) => r['text']).where((t) => t != ' • ').join('');
     } else {
       subtitle = renderer['subtitle']?['simpleText'] ?? 
                  renderer['description']?['runs']?[0]?['text'] ??
