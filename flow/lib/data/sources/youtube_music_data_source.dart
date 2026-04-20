@@ -65,7 +65,7 @@ class YoutubeMusicDataSource implements MusicDataSource {
             'yt_visitor_data', newVisitorData);
       }
 
-      final model = _parseHomeDataInternal(data);
+      var model = _parseHomeDataInternal(data);
       
       // Fallback
       if (model.rawShelves.isEmpty) {
