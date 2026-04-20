@@ -20,13 +20,19 @@ class YoutubeMusicDataSource implements MusicDataSource {
   static const _ytmBase = 'https://music.youtube.com/youtubei/v1';
 
   // Standard InnerTube context
-  final Map<String, dynamic> _context = {
+  static final Map<String, dynamic> _context = {
     "client": {
       "clientName": "WEB_REMIX",
       "clientVersion": "1.20240409.01.01",
       "hl": "en",
       "gl": "US",
       "utcOffsetMinutes": 0,
+      "osName": "Windows",
+      "osVersion": "10.0",
+      "platform": "DESKTOP",
+    },
+    "user": {
+      "lockedSafetyMode": false,
     }
   };
 
@@ -137,7 +143,7 @@ class YoutubeMusicDataSource implements MusicDataSource {
         final t = title.toLowerCase();
         if (t.contains('listen again') || t.contains('recent') || t.contains('frequent')) {
           sectionType = 'listeningAgain';
-        } else if (t.contains('quick picks') || t.contains('start radio') || t.contains('speed dial')) {
+        } else if (t.contains('quick picks') || t.contains('start radio') || t.contains('speed dial') || t.contains('picks')) {
           sectionType = 'quickPicks';
         } else if (t.contains('mixed for you') || t.contains('recommended') || t.contains('mixes') || t.contains('picked for you')) {
           sectionType = 'mixedForYou';
