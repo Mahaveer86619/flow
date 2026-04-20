@@ -42,7 +42,11 @@ void main() {
       } else {
         for (var i = 0; i < homeData.rawShelves.length; i++) {
           final shelf = homeData.rawShelves[i];
-          print('Shelf [$i]: "${shelf['title']}" | Section: ${shelf['section']} | Items: ${(shelf['items'] as List).length}');
+          final items = shelf['items'] as List;
+          print('Shelf [$i]: "${shelf['title']}" | Section: ${shelf['section']} | Items: ${items.length}');
+          if (items.isNotEmpty) {
+             print('  -> First Item Type: ${items[0]['type']}');
+          }
         }
       }
     });

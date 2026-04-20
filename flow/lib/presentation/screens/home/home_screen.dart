@@ -214,8 +214,8 @@ class _HomeScreenContent extends StatelessWidget {
                     state.shelves,
                   );
                   final requestedSections = [
-                    ('Quick Picks', 'quickPicks', Icons.bolt_outlined),
-                    ('Listen Again', 'listeningAgain', Icons.history_rounded),
+                    ('Quick picks', 'quickPicks', Icons.bolt_outlined),
+                    ('Listen again', 'listeningAgain', Icons.history_rounded),
                     ('Fresh Picks', 'newArrivals', Icons.new_releases_outlined),
                     (
                       'Music Videos',
@@ -253,6 +253,15 @@ class _HomeScreenContent extends StatelessWidget {
                     if (indexB == -1) return -1;
                     return indexA.compareTo(indexB);
                   });
+
+                  for (var i = 0; i < displayShelves.length; i++) {
+                    final s = displayShelves[i];
+                    debugPrint('HomeRenderer: Shelf [$i] Title: "${s.title}" | Section: ${s.section} | Items: ${s.items.length}');
+                    if (s.items.isNotEmpty) {
+                      final item = s.items.first;
+                      debugPrint(' -> First Item Type: ${item.type} | Data: ${item.data.runtimeType}');
+                    }
+                  }
 
                   return displayShelves.map((shelf) {
                     final req = requestedSections.firstWhere(
@@ -619,13 +628,9 @@ class _HomeShelfRenderer extends StatelessWidget {
     String? profileUrl, {
     IconData? icon,
   }) {
-    final songs = shelf.items
-        .where((i) => i.type == HomeItemType.song)
-        .map((i) => i.data as Song)
-        .take(24)
-        .toList();
-    if (songs.isEmpty)
+    if (shelf.items.isEmpty)
       return const SliverToBoxAdapter(child: SizedBox.shrink());
+
     return SliverMainAxisGroup(
       slivers: [
         SliverToBoxAdapter(
@@ -642,22 +647,29 @@ class _HomeShelfRenderer extends StatelessWidget {
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: (songs.length / 4).ceil(),
+              itemCount: (shelf.items.length / 4).ceil(),
               itemBuilder: (context, colIndex) {
-                final columnSongs = songs.skip(colIndex * 4).take(4).toList();
+                final columnItems = shelf.items.skip(colIndex * 4).take(4).toList();
                 return Padding(
                   padding: const EdgeInsets.only(right: 24),
                   child: SizedBox(
                     width: 300,
                     child: Column(
-                      children: columnSongs
+                      children: columnItems
                           .map(
-                            (song) => _QuickPickListTile(
-                              song: song,
-                              allSongs: allSongs,
-                              index: songIndexMap[song.id] ?? 0,
-                              startRadio: true,
-                            ),
+                            (item) {
+                              if (item.type == HomeItemType.song) {
+                                final song = item.data as Song;
+                                return _QuickPickListTile(
+                                  song: song,
+                                  allSongs: allSongs,
+                                  index: songIndexMap[song.id] ?? 0,
+                                  startRadio: true,
+                                );
+                              }
+                              // Handle other types in the list tile format
+                              return _QuickPickGenericTile(item: item);
+                            }
                           )
                           .toList(),
                     ),
@@ -1254,6 +1266,112 @@ class _QuickPickStaggeredItemState extends State<_QuickPickStaggeredItem> {
                 ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _QuickPickGenericTile extends StatelessWidget {
+  final HomeItem item;
+  const _QuickPickGenericTile({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    String title = 'Unknown';
+    String? subtitle;
+    String? imageUrl;
+    Color? color;
+
+    if (item.type == HomeItemType.artist) {
+      final data = item.data as Map<String, dynamic>;
+      title = data['name'] ?? 'Unknown Artist';
+      imageUrl = data['thumbnailUrl'];
+    } else if (item.type == HomeItemType.album ||
+        item.type == HomeItemType.playlist) {
+      final data = item.data as Playlist;
+      title = data.name;
+      subtitle = data.description;
+      imageUrl = data.thumbnailUrl;
+      color = data.color;
+    }
+
+    return InkWell(
+      onTap: () {
+        if (item.type == HomeItemType.artist) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => ArtistScreen(
+                artist: item.data as Map<String, dynamic>,
+                allSongs: const [],
+              ),
+            ),
+          );
+        } else {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => PlaylistScreen(
+                playlist: item.data as Playlist,
+                isAlbum: item.type == HomeItemType.album,
+              ),
+            ),
+          );
+        }
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                borderRadius: item.type == HomeItemType.artist
+                    ? BorderRadius.circular(24)
+                    : AppRadius.smallBorderRadius,
+                color: color ?? cs.surfaceContainerHigh,
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: imageUrl != null
+                  ? CachedNetworkImage(
+                      imageUrl: imageUrl,
+                      fit: BoxFit.fill,
+                      errorBuilder: (context, error, stackTrace) =>
+                          const Center(child: Icon(Icons.music_note_rounded)),
+                    )
+                  : const Center(child: Icon(Icons.music_note_rounded)),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (subtitle != null)
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: cs.onSurface.withAlpha(140),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

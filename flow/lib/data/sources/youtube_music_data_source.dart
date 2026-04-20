@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
@@ -19,17 +22,13 @@ class YoutubeMusicDataSource implements MusicDataSource {
   static const _tag = 'YoutubeMusicDataSource';
   static const _ytmBase = 'https://music.youtube.com/youtubei/v1';
 
-  // Standard InnerTube context
-  static final Map<String, dynamic> _context = {
+  final Map<String, dynamic> _context = {
     "client": {
       "clientName": "WEB_REMIX",
       "clientVersion": "1.20240409.01.01",
       "hl": "en",
       "gl": "US",
       "utcOffsetMinutes": 0,
-      "osName": "Windows",
-      "osVersion": "10.0",
-      "platform": "DESKTOP",
     },
     "user": {
       "lockedSafetyMode": false,
@@ -39,10 +38,11 @@ class YoutubeMusicDataSource implements MusicDataSource {
   @override
   Future<HomeDataModel> fetchHomeData({int limit = 25}) async {
     try {
-      AppLogger.i(_tag, 'fetchHomeData standalone');
+      AppLogger.i(_tag, 'fetchHomeData starting');
       final visitorData =
           LocalStorage.instance.getCachedMetadata('yt_visitor_data') as String?;
 
+      // Primary Home Feed
       final response = await _dio.post(
         '$_ytmBase/browse?prettyPrint=false',
         data: {
@@ -61,13 +61,103 @@ class YoutubeMusicDataSource implements MusicDataSource {
       // visitorData update
       final newVisitorData = data['responseContext']?['visitorData'];
       if (newVisitorData != null) {
-        LocalStorage.instance.saveCachedMetadata(
-            'yt_visitor_data', newVisitorData);
+        LocalStorage.instance.saveCachedMetadata('yt_visitor_data', newVisitorData);
       }
 
       var model = _parseHomeDataInternal(data);
       
-      // Fallback
+      // Check for missing key shelves and try dedicated endpoints
+      final hasListeningAgain = model.rawShelves.any((s) => s['section'] == 'listeningAgain');
+      final hasQuickPicks = model.rawShelves.any((s) => s['section'] == 'quickPicks');
+
+      if (!hasListeningAgain || !hasQuickPicks) {
+        AppLogger.i(_tag, 'Missing personalized shelves, trying sub-feeds...');
+        final List<(String, String)> subFeeds = [];
+        if (!hasListeningAgain) subFeeds.add(('FEmusic_listen_again', 'listeningAgain'));
+        if (!hasQuickPicks) subFeeds.add(('FEmusic_home', 'quickPicks'));
+
+        for (final feed in subFeeds) {
+          try {
+             final subResponse = await _dio.post(
+                '$_ytmBase/browse?prettyPrint=false',
+                data: {
+                  "browseId": feed.$1,
+                  if (feed.$2 == 'quickPicks' && feed.$1 == 'FEmusic_home')
+                    "params": "EgWKAQIIAWoQEAMQBBAJEAoQCxAEEAoQAA==",
+                  "context": _context, // Use clean context for sub-feeds
+                },
+              );
+              if (subResponse.statusCode == 200) {
+                final subData = subResponse.data as Map<String, dynamic>;
+                final subModel = _parseHomeDataInternal(subData);
+                
+                // Find any shelf from the sub-feed that matches our target type
+                final targetShelves = subModel.rawShelves.where(
+                  (s) => s['section'] == feed.$2,
+                ).toList();
+
+                if (targetShelves.isNotEmpty) {
+                  final newShelves = List<Map<String, dynamic>>.from(model.rawShelves);
+                  for (final ts in targetShelves) {
+                    final shelfCopy = Map<String, dynamic>.from(ts);
+                    shelfCopy['section'] = feed.$2;
+                    
+                    if (!newShelves.any((s) => s['title'] == shelfCopy['title'])) {
+                       newShelves.add(shelfCopy);
+                    }
+                  }
+                  model = HomeDataModel(
+                    rawShelves: newShelves,
+                    profileUrl: model.profileUrl,
+                    ytName: model.ytName,
+                    trending: model.trending,
+                    musicVideos: model.musicVideos,
+                    favArtistsSongs: model.favArtistsSongs,
+                  );
+                } else if (subModel.rawShelves.isNotEmpty) {
+                   // Fallback: look for a shelf that matches the target title or is generic
+                   final targetTitlePart = feed.$2 == 'quickPicks' ? 'pick' : 'listen';
+                   
+                   final candidate = subModel.rawShelves.firstWhere(
+                     (s) {
+                       final t = (s['title'] as String? ?? '').toLowerCase();
+                       final currentSection = s['section'] as String? ?? 'standard';
+                       
+                       // Don't hijack if it's already a different specialized section
+                       if (feed.$2 == 'quickPicks' && currentSection == 'listeningAgain') return false;
+                       if (feed.$2 == 'listeningAgain' && currentSection == 'quickPicks') return false;
+                       
+                       return t.contains(targetTitlePart) || currentSection == 'standard' || currentSection == 'mixedForYou';
+                     },
+                     orElse: () => {},
+                   );
+                   
+                   if (candidate.isNotEmpty) {
+                     final shelfCopy = Map<String, dynamic>.from(candidate);
+                     shelfCopy['section'] = feed.$2;
+                     
+                     final newShelves = List<Map<String, dynamic>>.from(model.rawShelves);
+                     if (!newShelves.any((s) => s['title'] == shelfCopy['title'])) {
+                        newShelves.add(shelfCopy);
+                        model = HomeDataModel(
+                          rawShelves: newShelves,
+                          profileUrl: model.profileUrl,
+                          ytName: model.ytName,
+                          trending: model.trending,
+                          musicVideos: model.musicVideos,
+                          favArtistsSongs: model.favArtistsSongs,
+                        );
+                     }
+                   }
+                }
+              }
+          } catch (e) {
+            AppLogger.w(_tag, 'Failed to fetch sub-feed ${feed.$1}: $e');
+          }
+        }
+      }
+
+      // Fallback to trending if still empty
       if (model.rawShelves.isEmpty) {
         AppLogger.w(_tag, 'Home feed empty, fetching trending fallback...');
         final trending = await searchSongs('trending hits');
@@ -111,10 +201,17 @@ class YoutubeMusicDataSource implements MusicDataSource {
                     section['itemSectionRenderer'];
       if (shelf == null) continue;
 
-      final header = shelf['header']?['musicCarouselShelfBasicHeaderRenderer'] ?? 
-                     shelf['header']?['musicHeaderRenderer'];
+      final header = shelf['header']?['musicCarouselShelfBasicHeaderRenderer'] ??
+          shelf['header']?['musicHeaderRenderer'];
+
+      final title = header?['title']?['runs']?[0]?['text'] ??
+          header?['title']?['simpleText'] ??
+          shelf['primaryText']?['runs']?[0]?['text'] ??
+          shelf['primaryText']?['simpleText'];
       
-      final title = header?['title']?['runs']?[0]?['text'] ?? header?['title']?['simpleText'];
+      if (title != null) {
+        AppLogger.d(_tag, 'Parsed shelf title: "$title"');
+      }
       
       String sectionType = forcedSectionType ?? 'standard';
       if (forcedSectionType == null && title != null) {
@@ -123,7 +220,7 @@ class YoutubeMusicDataSource implements MusicDataSource {
           sectionType = 'listeningAgain';
         } else if (t.contains('quick picks') || t.contains('start radio') || t.contains('speed dial') || t.contains('picks')) {
           sectionType = 'quickPicks';
-        } else if (t.contains('mixed for you') || t.contains('recommended') || t.contains('mixes') || t.contains('picked for you')) {
+        } else if (t.contains('mixed for you') || t.contains('recommended') || t.contains('mixes') || t.contains('picked for you') || t.contains('create a mix')) {
           sectionType = 'mixedForYou';
         } else if (t.contains('trending') || t.contains('romance') || t.contains('charts') || t.contains('hits')) {
           sectionType = 'trending';
@@ -142,8 +239,10 @@ class YoutubeMusicDataSource implements MusicDataSource {
       }
 
       final items = <Map<String, dynamic>>[];
-      final contentList = (shelf['contents'] as List?) ?? (shelf['items'] as List?);
-      
+      final contentList = (shelf['contents'] as List?) ??
+          (shelf['items'] as List?) ??
+          (shelf['tastebuilderItems'] as List?);
+
       if (contentList != null) {
         for (final item in contentList) {
           final parsed = _parseMytmItem(item);
