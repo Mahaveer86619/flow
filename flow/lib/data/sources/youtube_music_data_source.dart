@@ -39,55 +39,33 @@ class YoutubeMusicDataSource implements MusicDataSource {
   @override
   Future<HomeDataModel> fetchHomeData({int limit = 25}) async {
     try {
-      AppLogger.i(_tag, 'fetchHomeData standalone (Merging Feeds)');
-      final visitorData = LocalStorage.instance.getCachedMetadata('yt_visitor_data') as String?;
+      AppLogger.i(_tag, 'fetchHomeData standalone');
+      final visitorData =
+          LocalStorage.instance.getCachedMetadata('yt_visitor_data') as String?;
 
-      // We fetch home and some specific sub-feeds to ensure consistency
-      final browseIds = [
-        ('FEmusic_home', 'home'),
-        ('FEmusic_listen_again', 'listeningAgain'),
-        ('FEmusic_quick_picks', 'quickPicks'),
-      ];
-
-      final Map<String, Map<String, dynamic>> mergedShelves = {};
-
-      for (final entry in browseIds) {
-        try {
-          final response = await _dio.post(
-            '$_ytmBase/browse?prettyPrint=false',
-            data: {
-              "browseId": entry.$1,
-              "context": {
-                ..._context,
-                if (visitorData != null) "visitorData": visitorData,
-              }
-            },
-          );
-
-          if (response.statusCode == 200) {
-            final data = response.data as Map<String, dynamic>;
-            
-            // visitorData update
-            final newVisitorData = data['responseContext']?['visitorData'];
-            if (newVisitorData != null) {
-              LocalStorage.instance.saveCachedMetadata('yt_visitor_data', newVisitorData);
-            }
-
-            final parsed = _parseHomeDataInternal(data, forcedSectionType: entry.$1 == 'FEmusic_home' ? null : entry.$2);
-            for (final shelf in parsed.rawShelves) {
-               final section = shelf['section'] as String;
-               // Priority: if we already have a shelf of this type, don't overwrite with standard feed duplicates
-               if (!mergedShelves.containsKey(section) || entry.$1 != 'FEmusic_home') {
-                 mergedShelves[section] = shelf;
-               }
-            }
+      final response = await _dio.post(
+        '$_ytmBase/browse?prettyPrint=false',
+        data: {
+          "browseId": "FEmusic_home",
+          "context": {
+            ..._context,
+            if (visitorData != null) "visitorData": visitorData,
           }
-        } catch (e) {
-          AppLogger.w(_tag, 'Failed to fetch sub-feed ${entry.$1}: $e');
-        }
+        },
+      );
+
+      if (response.statusCode != 200) return const HomeDataModel(rawShelves: []);
+
+      final data = response.data as Map<String, dynamic>;
+
+      // visitorData update
+      final newVisitorData = data['responseContext']?['visitorData'];
+      if (newVisitorData != null) {
+        LocalStorage.instance.saveCachedMetadata(
+            'yt_visitor_data', newVisitorData);
       }
 
-      var model = HomeDataModel(rawShelves: mergedShelves.values.toList());
+      final model = _parseHomeDataInternal(data);
       
       // Fallback
       if (model.rawShelves.isEmpty) {
