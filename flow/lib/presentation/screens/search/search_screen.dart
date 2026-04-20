@@ -6,13 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/responsive/breakpoints.dart';
-import '../../../domain/entities/song.dart';
-import '../../blocs/player/player_bloc.dart';
 import '../../cubits/search/search_cubit.dart';
 import '../../widgets/error_view.dart';
 import '../../widgets/section_header.dart';
 import '../../widgets/song_tile.dart';
-import '../player/player_screen.dart';
 
 import '../../widgets/skeleton.dart';
 

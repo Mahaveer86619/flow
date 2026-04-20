@@ -19,7 +19,7 @@ class SongCard extends StatefulWidget {
   final Song song;
   final List<Song> queue;
   final int index;
-  final double cardWidth;
+  final double? cardWidth;
   final double aspectRatio;
   final String? heroTag;
   final bool startRadio;
@@ -29,7 +29,7 @@ class SongCard extends StatefulWidget {
     required this.song,
     required this.queue,
     required this.index,
-    this.cardWidth = 135,
+    this.cardWidth,
     this.aspectRatio = 1.0,
     this.heroTag,
     this.startRadio = false,
@@ -45,7 +45,6 @@ class _SongCardState extends State<SongCard> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final isDesktop = Breakpoints.isDesktop(MediaQuery.sizeOf(context).width);
     final isLiked = context.select<PlayerBloc, bool>(
       (bloc) => bloc.state.isLiked(widget.song),
     );
@@ -53,6 +52,10 @@ class _SongCardState extends State<SongCard> {
     final resolvedAspectRatio = widget.song.thumbnailWidth != null && widget.song.thumbnailHeight != null
         ? widget.song.thumbnailWidth! / widget.song.thumbnailHeight!
         : widget.aspectRatio;
+
+    // Use a fixed artwork height to keep the row consistent
+    const double artworkHeight = 130;
+    final double calculatedWidth = widget.cardWidth ?? (artworkHeight * resolvedAspectRatio);
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
@@ -62,7 +65,7 @@ class _SongCardState extends State<SongCard> {
         onTap: () => _handleTap(context),
         onLongPress: () => _showMenu(context),
         child: SizedBox(
-          width: widget.cardWidth,
+          width: calculatedWidth,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
@@ -71,14 +74,18 @@ class _SongCardState extends State<SongCard> {
                 scale: _isHovered ? 1.04 : 1.0,
                 duration: const Duration(milliseconds: 200),
                 curve: Curves.easeOutCubic,
-                child: AspectRatio(
-                  aspectRatio: resolvedAspectRatio,
-                  child: _Artwork(
-                    song: widget.song,
-                    size: widget.cardWidth,
+                child: Container(
+                  height: artworkHeight,
+                  width: calculatedWidth,
+                  child: AspectRatio(
                     aspectRatio: resolvedAspectRatio,
-                    isHovered: _isHovered,
-                    heroTag: widget.heroTag,
+                    child: _Artwork(
+                      song: widget.song,
+                      size: calculatedWidth,
+                      aspectRatio: resolvedAspectRatio,
+                      isHovered: _isHovered,
+                      heroTag: widget.heroTag,
+                    ),
                   ),
                 ),
               ),
@@ -92,9 +99,11 @@ class _SongCardState extends State<SongCard> {
                         fontWeight: FontWeight.w600,
                         fontSize: 13,
                         letterSpacing: -0.2,
+                        color: Colors.white,
                       ),
                     ),
                   ),
+                  const SizedBox(width: 4),
                   GestureDetector(
                     onTap: () => _showMenu(context),
                     child: Icon(

@@ -38,4 +38,8 @@ class HiveKeys {
   static const String downloadsBox = 'flow_downloads';
   static const String metadataBox = 'flow_metadata';
   static const String songMetadataBox = 'flow_song_metadata_cache';
+  static const String homeCacheBox = 'flow_home_cache';
+
+  // ── Home Cache keys ──────────────────────────────────────────────────────────
+  static const String homeDataKey = 'home_data_cache';
 }

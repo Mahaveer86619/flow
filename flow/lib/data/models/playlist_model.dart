@@ -37,6 +37,21 @@ class PlaylistModel {
 
   // ── JSON ─────────────────────────────────────────────────────────────────────
 
+  factory PlaylistModel.fromEntity(Playlist playlist) {
+    return PlaylistModel(
+      id: playlist.id,
+      name: playlist.name,
+      description: playlist.description,
+      thumbnailUrl: playlist.thumbnailUrl,
+      trackCount: playlist.songs.length,
+      color: playlist.color,
+      type: playlist.type,
+      isAlbum: playlist.isAlbum,
+      artistName: playlist.artistName,
+      ownerCode: playlist.ownerCode,
+    );
+  }
+
   factory PlaylistModel.fromJson(Map<String, dynamic> json) {
     final id = json['id'] as String? ?? '';
     return PlaylistModel(

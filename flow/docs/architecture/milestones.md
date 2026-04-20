@@ -38,26 +38,47 @@ Direct communication with YTM's InnerTube API for all metadata.
 
 ### Intelligent Playback (Start Radio)
 - **Home/Search**: Tapping a song automatically triggers **`PlayRadioEvent`**, initializing an infinite discovery queue.
-- **Albums/Playlists**: Tapping a song triggers **`PlayQueueEvent`**, playing the specific list in order.
+- **Fixed Radio resolution**: Uses the `RDAMVM<videoId>` protocol for high-relevancy radio sessions, ensuring consistent and deep queues (50+ suggestions).
+- **Placeholder JIT**: Placeholders in the queue use the `flow.loading` protocol, which keeps the player in a stable buffering state until the real stream is resolved, preventing rapid skips.
 
 ### Data Structure (`Song` Entity)
 ```dart
 class Song {
   final String id;              // YouTube videoId
   final Map<String, dynamic>? extras; // JIT metadata (bio, description, artistId)
+  final int? thumbnailWidth;    // Native dimension parsing
+  final int? thumbnailHeight;
 }
 ```
 
 ---
 
-## 4. Performance Optimization (Eliminating Lag)
+## 4. Performance & Reliability Optimization
+
 - **Lazy Stream Resolution:** URLs are only resolved for the track currently starting.
-- **JIT Prefetching:** The `PlayerBloc` resolves the *next* track in the background.
-- **Parallel Metadata:** `SongDetailsCubit` fetches Artist Bio and Song Description in parallel with playback.
+- **Unified 3-Song Cache:** A transparent disk-based LRU cache ensures the immediate history and next tracks are always available offline or on spotty connections.
+- **Feed Persistence:** Home feeds are cached in Hive as serialized JSON, providing an instant "offline-first" launch experience.
+- **Version-Aware Cleanup:** On app version mismatch (detectable from `.env`), the app automatically purges transient caches and metadata while preserving critical user data (Liked Songs/Settings).
 
 ---
 
-## 5. Robust Parsing Logic (InnerTube Adaptability)
+## 5. Unified App Storage & Maintenance
+
+### Consolidating Data
+The app now manages all storage under a single root directory (custom or default):
+- `/flow/downloads/`: MP3 audio files.
+- `/flow/downloads/thumbs/`: Localized album art for offline tracks.
+- `/flow/cache/`: Transcient audio cache.
+
+### Dynamic Migration
+When a user updates the **Download Path** in settings:
+1. All existing audio and thumbnail files are physically moved to the new root.
+2. Hive database mappings are updated to reflect the new absolute paths.
+3. Cache files are migrated or purged based on state.
+
+---
+
+## 6. Robust Parsing Logic (InnerTube Adaptability)
 
 ### Search Result Parsing
 Search results in YTM often use `musicResponsiveListItemRenderer` with a `flexColumns` structure instead of top-level `title` and `subtitle` keys.

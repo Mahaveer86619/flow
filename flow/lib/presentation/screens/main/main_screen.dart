@@ -24,10 +24,10 @@ class _MainScreenState extends State<MainScreen> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: const SystemUiOverlayStyle(
+      value: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.light,
-        systemNavigationBarColor: Colors.transparent,
+        systemNavigationBarColor: colorScheme.surface,
       ),
       child: Scaffold(
         backgroundColor: colorScheme.surface,
@@ -35,7 +35,10 @@ class _MainScreenState extends State<MainScreen> {
           children: [
             const OfflineBanner(),
             Expanded(
-              child: IndexedStack(index: _index, children: _screens),
+              child: IndexedStack(
+                index: _index,
+                children: _screens,
+              ),
             ),
             const MiniPlayer(),
           ],
@@ -43,8 +46,8 @@ class _MainScreenState extends State<MainScreen> {
         bottomNavigationBar: Theme(
           data: Theme.of(context).copyWith(
             navigationBarTheme: NavigationBarThemeData(
-              backgroundColor: Colors.transparent,
-              indicatorColor: colorScheme.primary.withAlpha(40),
+              backgroundColor: colorScheme.surface,
+              indicatorColor: colorScheme.primary.withAlpha(30),
               labelTextStyle: WidgetStatePropertyAll(
                 GoogleFonts.outfit(
                   fontSize: 12,

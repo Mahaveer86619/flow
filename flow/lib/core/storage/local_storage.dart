@@ -29,6 +29,7 @@ class LocalStorage {
   late final Box _downloads;
   late final Box _metadata;
   late final Box _songMetadataCache;
+  late final Box _homeCache;
 
   final _likedSongsController = StreamController<List<String>>.broadcast();
   Stream<List<String>> get likedSongsStream => _likedSongsController.stream;
@@ -46,6 +47,7 @@ class LocalStorage {
     _downloads = await Hive.openBox(HiveKeys.downloadsBox);
     _metadata = await Hive.openBox(HiveKeys.metadataBox);
     _songMetadataCache = await Hive.openBox(HiveKeys.songMetadataBox);
+    _homeCache = await Hive.openBox(HiveKeys.homeCacheBox);
     AppLogger.i(
       'LocalStorage',
       'Hive initialised. '
@@ -57,6 +59,7 @@ class LocalStorage {
           'Downloads=${_downloads.length}  '
           'Metadata=${_metadata.length}  '
           'Cache=${_songMetadataCache.length}  '
+          'HomeCache=${_homeCache.length}  '
           'Auth=${jwtToken != null ? "token present" : "no token"}',
     );
   }
@@ -157,16 +160,42 @@ class LocalStorage {
   void saveAppVersion(String version) =>
       _settings.put(HiveKeys.appVersion, version);
 
-  /// Clears search history and player state, but preserves critical settings
-  /// (Server URL, Theme, Downloads path) and Auth.
-  Future<void> clearCache() async {
+  /// Clears transient data (cache, history, downloads metadata) when version changes.
+  /// Preserves critical settings (Theme, Volume, Shuffle, Repeat) and Liked songs.
+  Future<void> clearCacheOnVersionChange() async {
     AppLogger.w(
       'LocalStorage',
-      'Clearing local cache (player, search, metadata cache)...',
+      'Version changed: Clearing non-essential boxes (search, cache, home, downloads metadata)...',
     );
-    await _player.clear();
+    // We KEEP _player (contains liked IDs and preferences)
+    // We KEEP _settings (contains download paths, quality, etc.)
+    // We KEEP _auth (contains login state)
+    
     await _search.clear();
     await _songMetadataCache.clear();
+    await _homeCache.clear();
+    await _downloads.clear();
+    await _metadata.clear();
+  }
+
+  /// Full clear of everything including settings and auth.
+  Future<void> clearAll() async {
+    await _player.clear();
+    await _search.clear();
+    await _settings.clear();
+    await _auth.clear();
+    await _downloads.clear();
+    await _metadata.clear();
+    await _songMetadataCache.clear();
+    await _homeCache.clear();
+  }
+
+  /// Clears search history and metadata cache.
+  Future<void> clearCache() async {
+    AppLogger.w('LocalStorage', 'Clearing local transient cache...');
+    await _search.clear();
+    await _songMetadataCache.clear();
+    await _homeCache.clear();
   }
 
   // ── Auth ─────────────────────────────────────────────────────────────────────

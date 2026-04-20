@@ -9,9 +9,9 @@ Flow App is a high-performance, cross-platform music streaming client built with
 - **🎨 Dynamic Material 3 UI:** Automatically extracts colors from album art for a truly personal interface.
 - **〰️ Squiggly Progress Bar:** A unique, playful player UI for a more expressive experience.
 - **🎼 Full Media Controls:** Support for background playback and system media keys (SMTC on Windows).
-- **🚀 Instant Playback:** Optimized for fast starting and seamless track transitions using on-device stream resolution.
+- **🚀 Instant Playback:** Optimized for fast starting and seamless track transitions using on-device stream resolution and a 3-song LRU cache.
 - **📱 Responsive Layout:** Perfectly adapted for mobile, tablet, and desktop screens.
-- **🔄 Local First:** Playback history, preferences, and downloaded tracks are stored securely on your device.
+- **🔄 Local First:** Playback history, preferences, and downloaded tracks are stored securely on your device with unified app storage management.
 
 ---
 
@@ -21,7 +21,7 @@ Flow App is a high-performance, cross-platform music streaming client built with
 - **BLoC & Cubit:** Predictable state management for a smooth UX.
 - **just_audio:** A powerful audio engine for background playback and streaming.
 - **youtube_explode_dart:** Direct resolution of high-quality YouTube audio streams.
-- **Hive:** Blazing-fast local storage for user preferences and playback history.
+- **Hive:** Blazing-fast local storage for user preferences, playback history, and feed caching.
 - **Dio:** For efficient API interaction with YouTube Music's internal endpoints.
 
 ---
@@ -75,7 +75,7 @@ For in-depth details on the standalone architecture, direct source extraction lo
 
 Flow App follows a strict **Clean Architecture** pattern to ensure maintainability as a standalone entity:
 
-- `lib/core/`: Foundation logic, local storage, logger, and network clients.
+- `lib/core/`: Foundation logic, local storage, unified cache/download services, logger, and network clients.
 - `lib/domain/`: Business logic, pure entities, and repository interfaces.
 - `lib/data/`: Data sources (YouTube Music direct scrapers, local storage) and repository implementations.
 - `lib/presentation/`: UI layer containing Screens, reusable Widgets, and BLoC/Cubit state management.
@@ -85,7 +85,9 @@ Flow App follows a strict **Clean Architecture** pattern to ensure maintainabili
 ## 🛡️ Standalone Implementation Details
 
 - **Stream Resolution:** Uses `StreamResolver` to fetch direct `.m4a` or `.webm` links from YouTube, bypassing the need for a proxy server.
-- **Metadata:** `YoutubeDataSource` communicates directly with YouTube Music's internal API to provide home feeds, search results, and radio suggestions.
+- **Metadata & Caching:** `YoutubeDataSource` communicates directly with YouTube Music's internal API. Results are cached locally in Hive for instant startup.
+- **Unified Storage:** All app data (downloads, cache, thumbnails) is stored in a `flow/` subfolder at the user's preferred location. Changing the location in settings automatically migrates existing files.
+- **Audio Cache:** Maintains a transparent 3-song LRU cache for gapless and reliable playback.
 - **Auth:** Authentication is handled by persisting YouTube Music session cookies locally in encrypted storage.
 - **Windows SMTC:** Deep integration with `smtc_windows` to provide a native feel on the Windows desktop, including taskbar thumbnails and media key support.
 

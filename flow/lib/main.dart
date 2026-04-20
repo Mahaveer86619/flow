@@ -10,6 +10,7 @@ import 'core/config/app_constants.dart';
 import 'core/logger/app_logger.dart';
 import 'core/network/connectivity_service.dart';
 import 'core/network/download_service.dart';
+import 'core/network/cache_service.dart';
 import 'core/network/network_cubit.dart';
 import 'core/platform/permission_service.dart';
 import 'core/storage/local_storage.dart';
@@ -59,7 +60,11 @@ void main() async {
   // ── 3. Local storage ──────────────────────────────────────────────────────────
   await LocalStorage.instance.init();
 
-  // ── 3b. Version Check ────────────────────────────────────────────────────────
+  // ── 3c. Download service ────────────────────────────────────────────────────
+  await DownloadService.instance.init();
+  await CacheService.instance.init();
+
+  // ── 3d. Version Check ────────────────────────────────────────────────────────
   final currentVersion = dotenv.env['APP_VERSION'] ?? '1.0.0';
   final storedVersion = LocalStorage.instance.appVersion;
 
@@ -68,14 +73,12 @@ void main() async {
       'main',
       'Version changed ($storedVersion -> $currentVersion). Cleaning cache...',
     );
-    await LocalStorage.instance.clearCache();
+    await LocalStorage.instance.clearCacheOnVersionChange();
+    await CacheService.instance.clearCache();
     LocalStorage.instance.saveAppVersion(currentVersion);
   } else {
     AppLogger.i('main', 'Version match: $currentVersion');
   }
-
-  // ── 3c. Download service ────────────────────────────────────────────────────
-  await DownloadService.instance.init();
 
   // ── 4. Connectivity ───────────────────────────────────────────────────────────
   await ConnectivityService.instance.init();

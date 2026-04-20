@@ -190,8 +190,8 @@ class YoutubeMusicDataSource implements MusicDataSource {
                      item['musicVideoRenderer'] ??
                      item['gridVideoRenderer'] ??
                      item['gridPlaylistRenderer'] ??
-                     item['musicTwoRowItemRenderer'];
-    
+                     item['musicTwoRowItemRenderer'] ??
+                     item['playlistPanelVideoRenderer'];    
     if (renderer == null) return null;
 
     String? title = renderer['title']?['runs']?[0]?['text'] ?? 
@@ -464,20 +464,61 @@ class YoutubeMusicDataSource implements MusicDataSource {
   @override
   Future<List<SongModel>> fetchRadioTracks(String videoId, {int limit = 25}) async {
     try {
+      AppLogger.i(_tag, 'fetchRadioTracks: $videoId');
       final response = await _dio.post('$_ytmBase/next?prettyPrint=false', data: {
           "videoId": videoId,
+          "playlistId": "RDAMVM$videoId",
           "context": _context,
       });
-      if (response.statusCode != 200) return [];
+      
+      if (response.statusCode != 200) {
+        AppLogger.e(_tag, 'fetchRadioTracks failed: ${response.statusCode}');
+        return [];
+      }
+      
       final data = response.data as Map<String, dynamic>;
+      final watchNext = data['contents']?['singleColumnMusicWatchNextResultsRenderer'] ?? 
+                        data['contents']?['twoColumnWatchNextResultsRenderer'];
       
-      final suggestions = data['contents']?['singleColumnMusicWatchNextResultsRenderer']?['tabbedRenderer']?['watchNextTabbedResultsRenderer']?['tabs']?[0]?['tabRenderer']?['content']?['musicQueueRenderer']?['content']?['playlistPanelRenderer']?['contents'] as List<dynamic>? ?? [];
+      if (watchNext == null) {
+        AppLogger.w(_tag, 'fetchRadioTracks: watchNext not found');
+        return [];
+      }
+
+      List<dynamic>? contents;
+      
+      // Try to find the queue in tabbed renderer
+      final tabbed = watchNext['tabbedRenderer']?['watchNextTabbedResultsRenderer'];
+      if (tabbed != null) {
+        final tabs = tabbed['tabs'] as List?;
+        if (tabs != null) {
+          for (final tab in tabs) {
+            final content = tab['tabRenderer']?['content'];
+            final queue = content?['musicQueueRenderer']?['content']?['playlistPanelRenderer'];
+            if (queue != null) {
+              contents = queue['contents'] as List?;
+              break;
+            }
+          }
+        }
+      }
+      
+      // Fallback for non-tabbed renderer
+      contents ??= watchNext['content']?['musicQueueRenderer']?['content']?['playlistPanelRenderer']?['contents'] as List?;
+
+      if (contents == null || contents.isEmpty) {
+        AppLogger.w(_tag, 'fetchRadioTracks: No suggestions found in response');
+        return [];
+      }
+      
       final tracks = <SongModel>[];
-      
-      for (final item in suggestions) {
+      for (final item in contents) {
         final mapped = _parseMytmItem(item);
         if (mapped != null && mapped['type'] == 'song') {
           final sData = mapped['data'] as Map<String, dynamic>;
+          // Skip the current video if it's in the suggestions
+          if (sData['id'] == videoId) continue;
+          
           final colors = _colorsForId(sData['id']);
           tracks.add(SongModel(
             id: sData['id'], title: sData['title'], artist: sData['artist'], album: '',
@@ -489,8 +530,11 @@ class YoutubeMusicDataSource implements MusicDataSource {
           ));
         }
       }
+      
+      AppLogger.d(_tag, 'fetchRadioTracks: Found ${tracks.length} tracks');
       return tracks;
-    } catch (e) {
+    } catch (e, st) {
+      AppLogger.e(_tag, 'fetchRadioTracks error', e, st);
       return [];
     }
   }

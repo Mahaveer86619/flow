@@ -69,16 +69,16 @@ class SectionHeader extends StatelessWidget {
                   Text(
                     subtitle!.toUpperCase(),
                     style: GoogleFonts.outfit(
-                      fontSize: 10,
+                      fontSize: 11,
                       fontWeight: FontWeight.w700,
-                      color: colorScheme.onSurface.withAlpha(120),
-                      letterSpacing: 0.5,
+                      color: colorScheme.onSurface.withAlpha(100),
+                      letterSpacing: 1.0,
                     ),
                   ),
                 Text(
                   title,
                   style: GoogleFonts.spaceGrotesk(
-                    fontSize: isSmall ? 22.0 : 26.0,
+                    fontSize: isSmall ? 20.0 : 24.0,
                     fontWeight: FontWeight.w800,
                     letterSpacing: -0.5,
                   ),

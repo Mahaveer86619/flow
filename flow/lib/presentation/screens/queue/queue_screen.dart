@@ -107,9 +107,11 @@ class QueueScreen extends StatelessWidget {
                     ),
 
                     // Now Playing Header
-                    _SectionHeader(
-                      title: 'Now Playing',
-                      color: colorScheme.primary,
+                    SliverToBoxAdapter(
+                      child: _SectionHeader(
+                        title: 'Now Playing',
+                        color: colorScheme.primary,
+                      ),
                     ),
 
                     // Now Playing Item
@@ -117,7 +119,7 @@ class QueueScreen extends StatelessWidget {
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,
-                          vertical: 8,
+                          vertical: 4,
                         ),
                         child: _QueueSongTile(
                           song: currentSong,
@@ -169,7 +171,7 @@ class QueueScreen extends StatelessWidget {
                             child: Padding(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 16,
-                                vertical: 4,
+                                vertical: 2,
                               ),
                               child: _QueueSongTile(
                                 song: song,
@@ -218,17 +220,15 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SliverToBoxAdapter(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 24, 16, 12),
-        child: Text(
-          title,
-          style: GoogleFonts.outfit(
-            fontSize: 15,
-            fontWeight: FontWeight.w700,
-            color: color.withAlpha(180),
-            letterSpacing: 0.5,
-          ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 24, 16, 12),
+      child: Text(
+        title,
+        style: GoogleFonts.outfit(
+          fontSize: 15,
+          fontWeight: FontWeight.w700,
+          color: color.withAlpha(180),
+          letterSpacing: 0.5,
         ),
       ),
     );
@@ -256,14 +256,19 @@ class _QueueSongTile extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(10),
       child: Container(
-        padding: const EdgeInsets.all(10),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         decoration: BoxDecoration(
           color: isNowPlaying
-              ? colorScheme.primaryContainer.withAlpha(80)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
+              ? colorScheme.primaryContainer.withAlpha(40)
+              : Colors.white.withAlpha(5),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isNowPlaying
+                ? colorScheme.primary.withAlpha(40)
+                : Colors.white.withAlpha(8),
+          ),
         ),
         child: Row(
           children: [

@@ -22,28 +22,29 @@ class NoSourceView extends StatelessWidget {
               width: 88,
               height: 88,
               decoration: BoxDecoration(
-                color: cs.surfaceContainerHigh,
+                color: cs.primary.withAlpha(20),
                 shape: BoxShape.circle,
               ),
               child: Icon(
-                isAuth ? Icons.link_off_rounded : Icons.account_circle_outlined,
+                isAuth ? Icons.feed_outlined : Icons.account_circle_outlined,
                 size: 40,
-                color: cs.onSurface.withAlpha(80),
+                color: cs.primary.withAlpha(180),
               ),
             ),
             const SizedBox(height: 24),
             Text(
-              isAuth ? 'No source connected' : 'Not signed in',
+              isAuth ? 'Personalized Feed Unavailable' : 'Not signed in',
               style: GoogleFonts.spaceGrotesk(
                 fontSize: 22,
                 fontWeight: FontWeight.w700,
               ),
+              textAlign: TextAlign.center,
             ),
             const SizedBox(height: 10),
             Text(
               isAuth
-                  ? 'Connect your YouTube Music account to get a personalised feed.'
-                  : 'Sign in or set up a self-hosted server to access your music.',
+                  ? 'Your personalized home feed is currently empty. Connect your YouTube Music account in settings to see your recommendations.'
+                  : 'Sign in to access your music library and personalized recommendations.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 14,
@@ -53,8 +54,8 @@ class NoSourceView extends StatelessWidget {
             ),
             const SizedBox(height: 32),
             FilledButton.icon(
-              icon: const Icon(Icons.settings_outlined, size: 18),
-              label: Text(isAuth ? 'Connect a source' : 'Go to Settings'),
+              icon: const Icon(Icons.account_tree_outlined, size: 18),
+              label: Text(isAuth ? 'Configure Source' : 'Go to Settings'),
               onPressed: () => Navigator.of(
                 context,
               ).push(MaterialPageRoute(builder: (_) => const SettingsScreen())),

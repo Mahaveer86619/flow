@@ -25,7 +25,7 @@ class AlbumArtWidget extends StatelessWidget {
     required this.size,
     required this.colorPrimary,
     required this.colorSecondary,
-    this.borderRadius = 24,
+    this.borderRadius = 12,
     this.thumbnailUrl,
   });
 

@@ -48,6 +48,24 @@ class SongModel {
 
   // ── JSON ─────────────────────────────────────────────────────────────────────
 
+  factory SongModel.fromEntity(Song song) {
+    return SongModel(
+      id: song.id,
+      title: song.title,
+      artist: song.artist,
+      album: song.album,
+      duration: song.duration,
+      thumbnailUrl: song.thumbnailUrl,
+      thumbnailWidth: song.thumbnailWidth,
+      thumbnailHeight: song.thumbnailHeight,
+      colorPrimary: song.colorPrimary,
+      colorSecondary: song.colorSecondary,
+      isDownloaded: song.isDownloaded,
+      playedAt: song.playedAt,
+      extras: song.extras,
+    );
+  }
+
   factory SongModel.fromJson(Map<String, dynamic> json) {
     final id = json['id'] as String;
     final colors = _colorsForId(id);

@@ -25,37 +25,37 @@ class MiniPlayer extends StatelessWidget {
         return GestureDetector(
           onTap: () => PlayerScreen.show(context),
           child: Container(
-            margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-            height: 68,
+            margin: const EdgeInsets.fromLTRB(10, 0, 10, 8),
+            height: 64,
             decoration: BoxDecoration(
-              color: colorScheme.surfaceContainerHigh.withAlpha(245),
-              borderRadius: AppRadius.largeBorderRadius,
+              color: colorScheme.surfaceContainerHigh.withAlpha(250),
+              borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: colorScheme.outlineVariant.withAlpha(50),
+                color: Colors.white.withAlpha(15),
                 width: 0.5,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withAlpha(25),
-                  blurRadius: 12,
+                  color: Colors.black.withAlpha(40),
+                  blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
               ],
             ),
             child: ClipRRect(
-              borderRadius: AppRadius.largeBorderRadius,
+              borderRadius: BorderRadius.circular(12),
               child: Row(
                 children: [
                   // ── 1. Thumbnail ───────────────────────────────────────
                   Padding(
-                    padding: const EdgeInsets.all(10.0),
+                    padding: const EdgeInsets.all(8.0),
                     child: Hero(
                       tag: 'active_art_${song.id}',
                       child: Container(
                         width: 48,
                         height: 48,
                         decoration: BoxDecoration(
-                          borderRadius: AppRadius.mediumBorderRadius,
+                          borderRadius: BorderRadius.circular(8),
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black.withAlpha(20),

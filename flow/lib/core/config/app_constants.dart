@@ -13,3 +13,8 @@ class AppRadius {
   static RoundedRectangleBorder get mediumShape => RoundedRectangleBorder(borderRadius: mediumBorderRadius);
   static RoundedRectangleBorder get largeShape => RoundedRectangleBorder(borderRadius: largeBorderRadius);
 }
+
+class AppConfig {
+  static const String appName = 'Flow';
+  static const String appStorageSubDir = 'flow';
+}

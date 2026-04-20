@@ -246,6 +246,7 @@ class _MainPlayerSection extends StatelessWidget {
                       colorPrimary: song.colorPrimary,
                       colorSecondary: song.colorSecondary,
                       thumbnailUrl: thumbUrl,
+                      borderRadius: 10,
                     ),
                   ),
                 );
@@ -632,40 +633,48 @@ class _ArtistCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: cs.surfaceContainerLow,
-        borderRadius: AppRadius.largeBorderRadius,
+        color: Colors.white.withAlpha(8),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white.withAlpha(10)),
       ),
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       child: Column(
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: cs.primaryContainer.withAlpha(100),
-                  borderRadius: AppRadius.mediumBorderRadius,
-                ),
-                child: Text(
-                  'Artist',
-                  style: GoogleFonts.outfit(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: cs.onPrimaryContainer,
-                    letterSpacing: 0.5,
-                  ),
+              Text(
+                'ARTIST',
+                style: GoogleFonts.outfit(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white.withAlpha(100),
+                  letterSpacing: 1.5,
                 ),
               ),
+              if (detailsState.artistThumbnail != null)
+                 Container(
+                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                   decoration: BoxDecoration(
+                     color: cs.primary.withAlpha(40),
+                     borderRadius: BorderRadius.circular(20),
+                   ),
+                   child: Text(
+                     'Official',
+                     style: GoogleFonts.outfit(
+                       fontSize: 9,
+                       fontWeight: FontWeight.w700,
+                       color: cs.primary,
+                     ),
+                   ),
+                 ),
             ],
           ),
           const SizedBox(height: 20),
           Center(
             child: Container(
-              width: 140,
-              height: 140,
+              width: 120,
+              height: 120,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 boxShadow: [
@@ -687,7 +696,7 @@ class _ArtistCard extends StatelessWidget {
                     : (song.thumbnailUrl != null
                         ? Image.network(
                             song.thumbnailUrl!,
-                            fit: BoxFit.fill,
+                            fit: BoxFit.cover,
                             errorBuilder: (context, error, stackTrace) =>
                                 _ArtistInitials(initials: initials, song: song),
                           )
@@ -699,34 +708,32 @@ class _ArtistCard extends StatelessWidget {
           Text(
             name,
             style: GoogleFonts.spaceGrotesk(
-              fontSize: 28,
+              fontSize: 26,
               fontWeight: FontWeight.w800,
               color: Colors.white,
               letterSpacing: -0.5,
             ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 4),
-          Text(
-            'Artist',
-            style: GoogleFonts.outfit(
-              fontSize: 14,
-              color: Colors.white.withAlpha(140),
-              fontWeight: FontWeight.w500,
-            ),
-          ),
           if (detailsState.biography != null) ...[
             const SizedBox(height: 16),
-            Text(
-              detailsState.biography!,
-              style: GoogleFonts.outfit(
-                fontSize: 13,
-                color: Colors.white.withAlpha(180),
-                height: 1.5,
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withAlpha(10),
+                borderRadius: BorderRadius.circular(8),
               ),
-              maxLines: 4,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
+              child: Text(
+                detailsState.biography!,
+                style: GoogleFonts.outfit(
+                  fontSize: 12,
+                  color: Colors.white.withAlpha(180),
+                  height: 1.5,
+                ),
+                maxLines: 5,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+              ),
             ),
           ],
           const SizedBox(height: 12),
@@ -755,7 +762,7 @@ class _ArtistInitials extends StatelessWidget {
       child: Text(
         initials,
         style: GoogleFonts.spaceGrotesk(
-          fontSize: 48,
+          fontSize: 42,
           fontWeight: FontWeight.w800,
           color: Colors.white.withAlpha(200),
         ),
@@ -775,50 +782,70 @@ class _MetadataCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerLow,
-        borderRadius: AppRadius.largeBorderRadius,
+        color: Colors.white.withAlpha(8),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white.withAlpha(10)),
       ),
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'About this song',
-            style: GoogleFonts.spaceGrotesk(
-              fontSize: 16,
+            'TRACK INFO',
+            style: GoogleFonts.outfit(
+              fontSize: 10,
               fontWeight: FontWeight.w700,
-              color: Colors.white,
-              letterSpacing: -0.2,
+              color: Colors.white.withAlpha(100),
+              letterSpacing: 1.5,
             ),
           ),
           const SizedBox(height: 20),
           if (detailsState.songDescription != null) ...[
-            Text(
-              detailsState.songDescription!,
-              style: GoogleFonts.outfit(
-                fontSize: 13,
-                color: Colors.white.withAlpha(180),
-                height: 1.5,
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withAlpha(10),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                detailsState.songDescription!,
+                style: GoogleFonts.outfit(
+                  fontSize: 12,
+                  color: Colors.white.withAlpha(180),
+                  height: 1.5,
+                ),
               ),
             ),
             const SizedBox(height: 24),
           ],
-          _MetaRow(
-            icon: Icons.album_rounded,
-            label: 'Album',
-            value: song.album.isNotEmpty ? song.album : 'Unknown Album',
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              _InfoChip(
+                label: 'ALBUM',
+                value: song.album.isNotEmpty ? song.album : 'Single',
+                icon: Icons.album_rounded,
+              ),
+              _InfoChip(
+                label: 'DURATION',
+                value: _formatDuration(song.duration),
+                icon: Icons.timer_outlined,
+              ),
+              if (song.extras?['year'] != null)
+                _InfoChip(
+                  label: 'RELEASED',
+                  value: song.extras!['year'].toString(),
+                  icon: Icons.calendar_today_rounded,
+                ),
+            ],
           ),
           const SizedBox(height: 16),
           _MetaRow(
             icon: Icons.person_outline_rounded,
             label: 'Artist',
             value: song.artist,
-          ),
-          const SizedBox(height: 16),
-          _MetaRow(
-            icon: Icons.timer_outlined,
-            label: 'Duration',
-            value: _formatDuration(song.duration),
           ),
         ],
       ),
@@ -828,7 +855,61 @@ class _MetadataCard extends StatelessWidget {
   String _formatDuration(Duration d) {
     final m = d.inMinutes;
     final s = d.inSeconds % 60;
-    return '$m min ${s.toString().padLeft(2, '0')} sec';
+    return '${m}m ${s.toString().padLeft(2, '0')}s';
+  }
+}
+
+class _InfoChip extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+
+  const _InfoChip({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withAlpha(12),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 10, color: Colors.white.withAlpha(100)),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: GoogleFonts.outfit(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white.withAlpha(100),
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: GoogleFonts.outfit(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
