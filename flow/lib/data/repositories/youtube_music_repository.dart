@@ -284,9 +284,13 @@ class YoutubeMusicRepository implements MusicRepository {
       final missingIds = <String>[];
 
       for (final id in ids) {
-        final localMetadata = LocalStorage.instance.getDownloadMetadata(id);
+        final localMetadata = LocalStorage.instance.getDownloadMetadata(id) ??
+            LocalStorage.instance.getCachedMetadata('song_meta_$id');
         if (localMetadata != null) {
-          songs.add(SongModel.fromJson(localMetadata).toEntity());
+          songs.add(
+            SongModel.fromJson(Map<String, dynamic>.from(localMetadata as Map))
+                .toEntity(),
+          );
         } else {
           missingIds.add(id);
         }

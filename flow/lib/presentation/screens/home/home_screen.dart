@@ -1339,7 +1339,7 @@ class _QuickPickGenericTile extends StatelessWidget {
                   ? CachedNetworkImage(
                       imageUrl: imageUrl,
                       fit: BoxFit.fill,
-                      errorBuilder: (context, error, stackTrace) =>
+                      errorWidget: (context, url, error) =>
                           const Center(child: Icon(Icons.music_note_rounded)),
                     )
                   : const Center(child: Icon(Icons.music_note_rounded)),

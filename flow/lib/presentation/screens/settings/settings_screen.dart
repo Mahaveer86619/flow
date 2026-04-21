@@ -5,7 +5,6 @@ import '../../../core/auth/auth_cubit.dart';
 import '../../../core/storage/secure_storage_service.dart';
 import '../../cubits/home/home_cubit.dart';
 import '../../cubits/settings/settings_cubit.dart';
-import '../auth/login_screen.dart';
 import 'sub_screens/about_screen.dart';
 import 'sub_screens/appearance_screen.dart';
 import 'sub_screens/downloads_screen.dart';
@@ -39,24 +38,6 @@ class SettingsScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: 8),
         children: [
-          if (authState.isAuthenticated)
-            _AccountCard(
-              username: authState.username ?? '',
-              email: authState.email ?? '',
-              onLogout: () => context.read<AuthCubit>().logout(),
-            )
-          else
-            _Section(
-              title: 'Account',
-              children: [
-                _Tile(
-                  icon: Icons.login_rounded,
-                  title: 'Sign in',
-                  subtitle: 'Access your library and sources',
-                  onTap: () => _push(context, const LoginScreen()),
-                ),
-              ],
-            ),
           _Section(
             title: 'Sources',
             children: [
@@ -259,83 +240,6 @@ class _Tile extends StatelessWidget {
       subtitle: Text(subtitle),
       trailing: const Icon(Icons.chevron_right_rounded),
       onTap: onTap,
-    );
-  }
-}
-
-class _AccountCard extends StatelessWidget {
-  final String username;
-  final String email;
-  final VoidCallback onLogout;
-
-  const _AccountCard({
-    required this.username,
-    required this.email,
-    required this.onLogout,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final initial = username.isNotEmpty ? username[0].toUpperCase() : '?';
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: cs.surfaceContainerHigh,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: 28,
-              backgroundColor: cs.primaryContainer,
-              child: Text(
-                initial,
-                style: GoogleFonts.spaceGrotesk(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                  color: cs.onPrimaryContainer,
-                ),
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    username,
-                    style: GoogleFonts.outfit(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 16,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    email,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: cs.onSurface.withAlpha(140),
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            TextButton.icon(
-              onPressed: onLogout,
-              icon: const Icon(Icons.logout_rounded, size: 18),
-              label: const Text('Logout'),
-              style: TextButton.styleFrom(foregroundColor: cs.error),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

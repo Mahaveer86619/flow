@@ -190,7 +190,25 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
       },
       onError: (Object e, StackTrace st) async {
         if (isClosed) return;
-        AppLogger.e(_tag, 'Playback error (retry=$_retryCount)', e, st);
+
+        // Extract failed URI host from current player state instead of exception object
+        String? failedHost;
+        final currentIndex = _audioPlayer.currentIndex;
+        if (currentIndex != null && currentIndex < _playlist.length) {
+          final source = _playlist.children[currentIndex];
+          if (source is ja.UriAudioSource) {
+            failedHost = source.uri.host;
+          }
+        }
+
+        // If it's a known placeholder host, don't retry aggressively and don't skip immediately
+        // unless we've already tried to resolve it.
+        if (failedHost == 'flow.loading') {
+          AppLogger.d(_tag, 'Placeholder still loading, waiting for JIT resolution...');
+          return;
+        }
+
+        AppLogger.e(_tag, 'Playback error (retry=$_retryCount) host=$failedHost', e, st);
 
         if (_retryCount < 3) {
           _retryCount++;
@@ -292,6 +310,7 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
         final song = state.queue[idx];
         
         try {
+          if (idx >= _playlist.length) continue;
           final currentSource = _playlist.children[idx];
           // Check if it's a placeholder loading URL
           final isPlaceholder = currentSource is ja.UriAudioSource && 
@@ -302,15 +321,19 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
             AppLogger.d(_tag, 'JIT Resolving track at index $idx: ${song.title}');
             final realSource = await _buildAudioSource(song);
             
-            // Critical: check if the index is still valid and not playing
+            // Critical: check if the index is still valid
             if (!isClosed && idx < _playlist.length) {
               await _playlist.removeAt(idx);
               await _playlist.insert(idx, realSource);
               
-              // If this was the current track, we need to seek to it to refresh the source
-              if (idx == _audioPlayer.currentIndex && _audioPlayer.processingState == ja.ProcessingState.idle) {
-                 _audioPlayer.seek(Duration.zero, index: idx);
-                 _audioPlayer.play();
+              // If this was the current track, we might need to refresh just_audio's internal state
+              if (idx == _audioPlayer.currentIndex && 
+                  (_audioPlayer.processingState == ja.ProcessingState.idle || 
+                   _audioPlayer.processingState == ja.ProcessingState.loading)) {
+                 // Re-seeking to current position forces just_audio to reload the source if it was stuck
+                 final currentPos = _audioPlayer.position;
+                 await _audioPlayer.seek(currentPos, index: idx);
+                 if (state.isPlaying) _audioPlayer.play();
               }
             }
           }
@@ -649,13 +672,18 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
         // Use flow.loading host to identify placeholders
         streamUrl = 'https://flow.loading/${song.id}';
       } else {
-        streamUrl = await StreamResolver.instance.resolveYoutubeStream(song.id);
-        if (streamUrl != null) {
-          CacheService.instance.cacheSong(song);
+        try {
+          streamUrl = await StreamResolver.instance.resolveYoutubeStream(song.id);
+          if (streamUrl != null) {
+            CacheService.instance.cacheSong(song);
+          }
+        } catch (e) {
+          AppLogger.e(_tag, 'Failed to resolve stream during buildAudioSource', e);
         }
       }
       
       if (streamUrl == null || streamUrl.isEmpty) {
+        // Use a more descriptive error host that we can recognize in the error handler
         streamUrl = 'https://flow.error/${song.id}';
       }
       
@@ -703,6 +731,7 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
   }
 
   void _onSkipNext(SkipNextEvent event, Emitter<PlayerState> emit) {
+    _retryCount = 0;
     if (_audioPlayer.hasNext) {
       _audioPlayer.seekToNext();
     } else if (state.currentSong != null) {
@@ -711,6 +740,7 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
   }
 
   void _onSkipPrevious(SkipPreviousEvent event, Emitter<PlayerState> emit) {
+    _retryCount = 0;
     if (state.progress > 0.05 || !_audioPlayer.hasPrevious) {
       _audioPlayer.seek(Duration.zero);
     } else {

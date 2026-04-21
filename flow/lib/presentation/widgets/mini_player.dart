@@ -122,7 +122,7 @@ class MiniPlayer extends StatelessWidget {
                   // ── 2. Information, Controls & Progress ─────────────────
                   Expanded(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(2, 8, 16, 8),
+                      padding: const EdgeInsets.fromLTRB(2, 7, 16, 7),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         crossAxisAlignment: CrossAxisAlignment.start,
