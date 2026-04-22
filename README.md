@@ -35,7 +35,7 @@ Getting started with Flow is now easier than ever.
 - [Flutter SDK](https://docs.flutter.dev/get-started/install) installed on your machine.
 
 ### 2. Run the App
-1.  **Clone the repo:** `git clone https://github.com/your-repo/music-app.git`
+1.  **Clone the repo:** `[git clone https://github.com/Mahaveer86619/flow.git](https://github.com/Mahaveer86619/flow.git)`
 2.  **Navigate to the app:** `cd flow`
 3.  **Get dependencies:** `flutter pub get`
 4.  **Launch:** `flutter run`
