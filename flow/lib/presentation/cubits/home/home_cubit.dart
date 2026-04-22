@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:async';
+import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/app_event_bus.dart';
 import '../../../core/error/app_exception.dart';
@@ -46,34 +47,42 @@ class HomeCubit extends Cubit<HomeState> {
   }
 
   Future<void> _init() async {
-    // 1. Try loading from cache first for instant UI
     await _loadFromCache();
-    // 2. Trigger background refresh
     _load();
   }
 
   Future<void> _loadFromCache() async {
     try {
-      final cachedData = LocalStorage.instance.getCachedMetadata(HiveKeys.homeDataKey);
+      final cachedData = LocalStorage.instance.getCachedMetadata(
+        HiveKeys.homeDataKey,
+      );
       if (cachedData != null) {
         AppLogger.d(_tag, 'Found cached home data');
         final model = HomeDataModel.fromJson(jsonDecode(cachedData as String));
         final data = model.toEntity();
-        
-        final hour = DateTime.now().hour;
-        final greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
-        emit(state.copyWith(
-          isLoading: false,
-          greeting: greeting,
-          shelves: data.shelves,
-          trending: data.trending,
-          allSongs: data.allSongs,
-          profileUrl: data.profileUrl,
-          ytName: data.ytName,
-          musicVideos: data.musicVideos,
-          favArtistsSongs: data.favArtistsSongs,
-        ));
+        final hour = DateTime.now().hour;
+        final greeting = hour < 12
+            ? 'Good morning'
+            : hour < 17
+            ? 'Good afternoon'
+            : 'Good evening';
+
+        final deduplicatedShelves = _deduplicateShelves(data.shelves);
+
+        emit(
+          state.copyWith(
+            isLoading: false,
+            greeting: greeting,
+            shelves: deduplicatedShelves,
+            trending: data.trending,
+            allSongs: data.allSongs,
+            profileUrl: data.profileUrl,
+            ytName: data.ytName,
+            musicVideos: data.musicVideos,
+            favArtistsSongs: data.favArtistsSongs,
+          ),
+        );
       }
     } catch (e) {
       AppLogger.w(_tag, 'Failed to load home cache: $e');
@@ -100,15 +109,61 @@ class HomeCubit extends Cubit<HomeState> {
     return _load();
   }
 
+  List<HomeShelf> _deduplicateShelves(List<HomeShelf> shelves) {
+    final seenIds = <String>{};
+    final storage = LocalStorage.instance;
+    final topArtists = storage.topArtists;
+    final searchArtists = storage.searchArtistHistory;
+    final affinityArtists = {...topArtists, ...searchArtists}.toList();
+
+    return shelves.map((shelf) {
+      List<HomeItem> uniqueItems = shelf.items.where((item) {
+        if (item.type == HomeItemType.song && item.data is Song) {
+          final song = item.data as Song;
+          return seenIds.add(song.id);
+        }
+        return true;
+      }).toList();
+
+      // Behavioral Sorting for Quick Picks
+      if (shelf.section == 'quickPicks') {
+        final songs = uniqueItems
+            .where((it) => it.type == HomeItemType.song)
+            .map((it) => it.data as Song)
+            .toList();
+
+        songs.sort((a, b) {
+          final aAffinity = affinityArtists.indexOf(a.artist);
+          final bAffinity = affinityArtists.indexOf(b.artist);
+          if (aAffinity != -1 && bAffinity != -1)
+            return aAffinity.compareTo(bAffinity);
+          if (aAffinity != -1) return -1;
+          if (bAffinity != -1) return 1;
+          final aPlays = storage.artistPlayCounts[a.artist] ?? 0;
+          final bPlays = storage.artistPlayCounts[b.artist] ?? 0;
+          return bPlays.compareTo(aPlays);
+        });
+
+        uniqueItems = songs
+            .take(20)
+            .map((s) => HomeItem(type: HomeItemType.song, data: s))
+            .toList();
+      }
+
+      return HomeShelf(
+        title: shelf.title,
+        section: shelf.section,
+        items: uniqueItems,
+      );
+    }).toList();
+  }
+
   Future<void> _load() async {
-    // ── STANDALONE SOURCE CHECK (Phase 2) ──────────────────────────────────
-    // Check local secure storage for cookies.
     await SecureStorageService.instance.getYoutubeCookies();
 
     try {
       AppLogger.d(_tag, 'Fetching home data and history (Standalone)...');
       final dataFuture = _getHomeData(limit: 48);
-      // History is local, always fetchable
       final historyFuture = _musicRepository.getPersistentHistory();
 
       final results = await Future.wait([dataFuture, historyFuture]);
@@ -117,7 +172,6 @@ class HomeCubit extends Cubit<HomeState> {
 
       if (isClosed) return;
 
-      // Cache the new data
       _saveToCache(data);
 
       final hour = DateTime.now().hour;
@@ -127,22 +181,59 @@ class HomeCubit extends Cubit<HomeState> {
           ? 'Good afternoon'
           : 'Good evening';
 
-      AppLogger.i(
-        _tag,
-        'Loaded — allSongs=${data.allSongs.length}  greeting=$greeting',
-      );
-
       final recent = [
         ...history.today,
         ...history.thisWeek,
         ...history.thisMonth,
       ].take(12).toList();
 
+      List<HomeShelf> finalShelves = List.from(data.shelves);
+
+      // 1. Backfill Daily Rotation (Pure Music - SQUARE)
+      final listenAgainIdx = finalShelves.indexWhere(
+        (s) => s.section == 'listeningAgain',
+      );
+      List<Song> currentListenAgain = [];
+      if (listenAgainIdx != -1) {
+        currentListenAgain = finalShelves[listenAgainIdx].items
+            .where((it) => it.type == HomeItemType.song)
+            .map((e) => e.data as Song)
+            .toList();
+      }
+
+      final allHistory = [
+        ...history.today,
+        ...history.thisWeek,
+        ...history.thisMonth,
+        ...history.byMonth.values.expand((e) => e),
+      ];
+
+      final combinedListenAgain = [
+        ...currentListenAgain,
+        ...allHistory,
+      ].toSet().take(25).toList();
+
+      finalShelves[listenAgainIdx != -1 ? listenAgainIdx : 0] = HomeShelf(
+        title: 'Daily Rotation',
+        section: 'listeningAgain',
+        items: combinedListenAgain
+            .map((s) => HomeItem(type: HomeItemType.song, data: s))
+            .toList(),
+      );
+
+      // 2. Artist Affinity Discovery
+      final topArtists = _musicRepository.getTopArtists().take(5).toList();
+      for (final artist in topArtists) {
+        LocalStorage.instance.addToInterestList(artist);
+      }
+
+      final deduplicatedShelves = _deduplicateShelves(finalShelves);
+
       emit(
         HomeState(
           isLoading: false,
           greeting: greeting,
-          shelves: data.shelves,
+          shelves: deduplicatedShelves,
           trending: data.trending,
           recentlyPlayed: recent,
           allSongs: data.allSongs,
@@ -155,14 +246,12 @@ class HomeCubit extends Cubit<HomeState> {
     } on AppException catch (e) {
       if (isClosed) return;
       AppLogger.w(_tag, 'Load failed: ${e.message}');
-      // Only show error if we don't have cached data showing
-      if (state.shelves.isEmpty) {
+      if (state.shelves.isEmpty)
         emit(HomeState(isLoading: false, error: true, errorType: e.errorType));
-      }
     } catch (e, st) {
       if (isClosed) return;
       AppLogger.e(_tag, 'Unexpected error', e, st);
-      if (state.shelves.isEmpty) {
+      if (state.shelves.isEmpty)
         emit(
           const HomeState(
             isLoading: false,
@@ -170,53 +259,64 @@ class HomeCubit extends Cubit<HomeState> {
             errorType: AppErrorType.unknown,
           ),
         );
-      }
     }
   }
 
   void _saveToCache(HomeData data) {
     try {
-      // Use HomeDataModel to convert entity back to JSON
       final model = HomeDataModel(
-        rawShelves: data.shelves.map((s) => {
-          'title': s.title,
-          'section': s.section,
-          'items': s.items.map((i) {
-            String typeStr = 'song';
-            Map<String, dynamic> itemData = {};
-            
-            if (i.type == HomeItemType.song) {
-               typeStr = 'song';
-               itemData = SongModel.fromEntity(i.data as Song).toJson();
-            } else if (i.type == HomeItemType.artist) {
-               typeStr = 'artist';
-               final d = i.data as Map<String, dynamic>;
-               itemData = {
-                 'name': d['name'],
-                 'thumbnailUrl': d['thumbnailUrl'],
-               };
-            } else if (i.type == HomeItemType.album) {
-               typeStr = 'album';
-               itemData = PlaylistModel.fromEntity(i.data as Playlist).toJson();
-            } else if (i.type == HomeItemType.playlist) {
-               typeStr = 'playlist';
-               itemData = PlaylistModel.fromEntity(i.data as Playlist).toJson();
-            }
-            
-            return {
-              'type': typeStr,
-              'data': itemData,
-            };
-          }).toList(),
-        }).toList(),
-        trending: data.trending.map((s) => SongModel.fromEntity(s)).toList().cast<SongModel>(),
+        rawShelves: data.shelves
+            .map(
+              (s) => {
+                'title': s.title,
+                'section': s.section,
+                'items': s.items.map((i) {
+                  String typeStr = 'song';
+                  Map<String, dynamic> itemData = {};
+
+                  if (i.type == HomeItemType.song) {
+                    typeStr = 'song';
+                    itemData = SongModel.fromEntity(i.data as Song).toJson();
+                  } else if (i.type == HomeItemType.artist) {
+                    typeStr = 'artist';
+                    final d = i.data as Map<String, dynamic>;
+                    itemData = {
+                      'name': d['name'],
+                      'thumbnailUrl': d['thumbnailUrl'],
+                    };
+                  } else if (i.type == HomeItemType.album ||
+                      i.type == HomeItemType.playlist) {
+                    typeStr = i.type.name;
+                    itemData = PlaylistModel.fromEntity(
+                      i.data as Playlist,
+                    ).toJson();
+                  }
+
+                  return {'type': typeStr, 'data': itemData};
+                }).toList(),
+              },
+            )
+            .toList(),
+        trending: data.trending
+            .map((s) => SongModel.fromEntity(s))
+            .toList()
+            .cast<SongModel>(),
         profileUrl: data.profileUrl,
         ytName: data.ytName,
-        musicVideos: data.musicVideos.map((s) => SongModel.fromEntity(s)).toList().cast<SongModel>(),
-        favArtistsSongs: data.favArtistsSongs.map((s) => SongModel.fromEntity(s)).toList().cast<SongModel>(),
+        musicVideos: data.musicVideos
+            .map((s) => SongModel.fromEntity(s))
+            .toList()
+            .cast<SongModel>(),
+        favArtistsSongs: data.favArtistsSongs
+            .map((s) => SongModel.fromEntity(s))
+            .toList()
+            .cast<SongModel>(),
       );
-      
-      LocalStorage.instance.saveCachedMetadata(HiveKeys.homeDataKey, jsonEncode(model.toJson()));
+
+      LocalStorage.instance.saveCachedMetadata(
+        HiveKeys.homeDataKey,
+        jsonEncode(model.toJson()),
+      );
     } catch (e) {
       AppLogger.w(_tag, 'Failed to save home cache: $e');
     }

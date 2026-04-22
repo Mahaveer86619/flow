@@ -37,13 +37,11 @@ class _HomeScreenContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
 
     return BlocBuilder<HomeCubit, HomeState>(
       builder: (context, state) {
-        final theme = Theme.of(context);
-        final cs = theme.colorScheme;
-
         final hour = DateTime.now().hour;
         final localGreeting = hour < 12
             ? 'Good morning'
@@ -57,233 +55,186 @@ class _HomeScreenContent extends StatelessWidget {
             state.allSongs[i].id: i,
         };
 
-        return RefreshIndicator(
-          onRefresh: () => context.read<HomeCubit>().refresh(),
-          backgroundColor: cs.surfaceContainerHigh,
-          color: cs.primary,
-          edgeOffset: 110,
-          displacement: 40,
-          child: CustomScrollView(
-            cacheExtent: 2000,
-            physics: const BouncingScrollPhysics(
-              parent: AlwaysScrollableScrollPhysics(),
-            ),
-            slivers: [
-              SliverAppBar(
-                expandedHeight: 110,
-                floating: false,
-                pinned: true,
-                backgroundColor: theme.scaffoldBackgroundColor,
-                surfaceTintColor: Colors.transparent,
-                elevation: 0,
-                centerTitle: false,
-                title: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final top = constraints.biggest.height;
-                    final isCollapsed = top < 100;
-                    return AnimatedOpacity(
-                      duration: const Duration(milliseconds: 200),
-                      opacity: isCollapsed ? 1.0 : 0.0,
-                      child: Text(
-                        'Flow',
-                        style: GoogleFonts.spaceGrotesk(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.5,
+        return Scaffold(
+          backgroundColor: Colors.black,
+          body: RefreshIndicator(
+            onRefresh: () => context.read<HomeCubit>().refresh(),
+            backgroundColor: cs.surfaceContainerHigh,
+            color: cs.primary,
+            edgeOffset: 110,
+            displacement: 40,
+            child: CustomScrollView(
+              cacheExtent: 2000,
+              physics: const BouncingScrollPhysics(
+                parent: AlwaysScrollableScrollPhysics(),
+              ),
+              slivers: [
+                SliverAppBar(
+                  expandedHeight: 140,
+                  floating: false,
+                  pinned: true,
+                  backgroundColor: Colors.black.withAlpha(200),
+                  surfaceTintColor: Colors.transparent,
+                  elevation: 0,
+                  centerTitle: false,
+                  title: Text(
+                    'Flow',
+                    style: GoogleFonts.spaceGrotesk(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.5,
+                      color: Colors.white,
+                    ),
+                  ),
+                  actions: [
+                    IconButton(
+                      icon: const Icon(
+                        Icons.notifications_outlined,
+                        color: Colors.white,
+                      ),
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const NotificationsScreen(),
                         ),
                       ),
-                    );
-                  },
-                ),
-                flexibleSpace: FlexibleSpaceBar(
-                  background: Stack(
-                    children: [
-                      Positioned.fill(
-                        child: ShaderMask(
-                          shaderCallback: (rect) {
-                            return const LinearGradient(
-                              begin: Alignment.bottomCenter,
-                              end: Alignment.topCenter,
-                              colors: [Colors.transparent, Colors.black],
-                              stops: [0.0, 1.0],
-                            ).createShader(rect);
-                          },
-                          blendMode: BlendMode.dstIn,
-                          child: ClipRect(
-                            child: BackdropFilter(
-                              filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-                              child: Container(
-                                color: theme.scaffoldBackgroundColor.withAlpha(
-                                  80,
-                                ),
-                              ),
+                    ),
+                    IconButton(
+                      icon: const Icon(
+                        Icons.history_rounded,
+                        color: Colors.white,
+                      ),
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const RecentlyPlayedScreen(),
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(
+                        Icons.settings_outlined,
+                        color: Colors.white,
+                      ),
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const SettingsScreen(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  flexibleSpace: FlexibleSpaceBar(
+                    background: ClipRect(
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [Colors.black, Colors.black.withAlpha(0)],
                             ),
                           ),
-                        ),
-                      ),
-                      Padding(
-                        padding: EdgeInsets.fromLTRB(
-                          16,
-                          MediaQuery.paddingOf(context).top + 12,
-                          16,
-                          0,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
+                          child: Padding(
+                            padding: EdgeInsets.fromLTRB(
+                              16,
+                              MediaQuery.paddingOf(context).top + 50,
+                              16,
+                              0,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Flow',
-                                      style: GoogleFonts.spaceGrotesk(
-                                        fontSize: 32,
-                                        fontWeight: FontWeight.w800,
-                                        letterSpacing: -1.2,
-                                      ),
-                                    ),
-                                    Text(
-                                      greeting,
-                                      style: GoogleFonts.outfit(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w500,
-                                        color: colorScheme.onSurface.withAlpha(
-                                          140,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const Spacer(),
-                                IconButton(
-                                  icon: const Icon(Icons.history_rounded),
-                                  onPressed: () => Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) =>
-                                          const RecentlyPlayedScreen(),
-                                    ),
-                                  ),
-                                ),
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.notifications_outlined,
-                                  ),
-                                  onPressed: () => Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) =>
-                                          const NotificationsScreen(),
-                                    ),
-                                  ),
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.settings_outlined),
-                                  onPressed: () => Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => const SettingsScreen(),
-                                    ),
+                                Text(
+                                  greeting,
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.white.withAlpha(150),
                                   ),
                                 ),
                               ],
                             ),
-                          ],
+                          ),
                         ),
                       ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
 
-              if (state.isLoading && state.shelves.isEmpty)
-                const SliverFillRemaining(
-                  child: PersonalityBotView(isLoading: true),
-                )
-              else if (state.noSource)
-                const SliverFillRemaining(child: NoSourceView())
-              else if (state.error && state.shelves.isEmpty)
-                SliverFillRemaining(
-                  child: ErrorView(
-                    errorType: state.errorType,
-                    onRetry: () => context.read<HomeCubit>().reload(),
-                  ),
-                )
-              else ...[
-                ...() {
-                  final List<HomeShelf> displayShelves = List.from(
-                    state.shelves,
-                  );
-                  final requestedSections = [
-                    ('Quick picks', 'quickPicks', Icons.bolt_outlined),
-                    ('Listen again', 'listeningAgain', Icons.history_rounded),
-                    ('Fresh Picks', 'newArrivals', Icons.new_releases_outlined),
-                    (
-                      'Music Videos',
-                      'musicVideos',
-                      Icons.play_circle_outline_rounded,
+                if (state.isLoading && state.shelves.isEmpty)
+                  const SliverFillRemaining(
+                    child: PersonalityBotView(isLoading: true),
+                  )
+                else if (state.noSource)
+                  const SliverFillRemaining(child: NoSourceView())
+                else if (state.error && state.shelves.isEmpty)
+                  SliverFillRemaining(
+                    child: ErrorView(
+                      errorType: state.errorType,
+                      onRetry: () => context.read<HomeCubit>().reload(),
                     ),
-                    ('Albums', 'albumsForYou', Icons.album_rounded),
-                    ('Long Listening', 'longListening', Icons.timer_outlined),
-                    ('Podcasts', 'podcasts', Icons.podcasts_rounded),
-                  ];
+                  )
+                else ...[
+                  ...() {
+                    final List<HomeShelf> displayShelves = List.from(
+                      state.shelves,
+                    );
+                    final requestedSections = [
+                      (
+                        'Daily Rotation',
+                        'listeningAgain',
+                        Icons.replay_rounded,
+                      ),
+                      (
+                        'Listen Again',
+                        'quickPicks',
+                        Icons.grid_view_rounded,
+                      ), // This will be our 4-row grid
+                      (
+                        'Music Videos',
+                        'musicVideos',
+                        Icons.play_circle_filled_rounded,
+                      ),
+                      ('Albums', 'albumsForYou', Icons.album_rounded),
+                      ('Deep Dives', 'longListening', Icons.timer_rounded),
+                      ('Podcasts', 'podcasts', Icons.podcasts_rounded),
+                    ];
 
-                  // Merge mandatory layout shells
-                  for (final req in requestedSections) {
-                    if (!displayShelves.any((s) => s.section == req.$2)) {
-                      displayShelves.add(
-                        HomeShelf(
+                    final List<HomeShelf> orderedShelves = [];
+                    for (final req in requestedSections) {
+                      final shelf = displayShelves.firstWhere(
+                        (s) => s.section == req.$2,
+                        orElse: () => HomeShelf(
                           title: req.$1,
                           section: req.$2,
                           items: const [],
                         ),
                       );
+                      orderedShelves.add(shelf);
                     }
-                  }
 
-                  // Strict sorting
-                  displayShelves.sort((a, b) {
-                    final indexA = requestedSections.indexWhere(
-                      (r) => r.$2 == a.section,
-                    );
-                    final indexB = requestedSections.indexWhere(
-                      (r) => r.$2 == b.section,
-                    );
-                    if (indexA == -1 && indexB == -1) return 0;
-                    if (indexA == -1) return 1;
-                    if (indexB == -1) return -1;
-                    return indexA.compareTo(indexB);
-                  });
+                    return orderedShelves.map((shelf) {
+                      final req = requestedSections.firstWhere(
+                        (r) => r.$2 == shelf.section,
+                      );
 
-                  for (var i = 0; i < displayShelves.length; i++) {
-                    final s = displayShelves[i];
-                    debugPrint('HomeRenderer: Shelf [$i] Title: "${s.title}" | Section: ${s.section} | Items: ${s.items.length}');
-                    if (s.items.isNotEmpty) {
-                      final item = s.items.first;
-                      debugPrint(' -> First Item Type: ${item.type} | Data: ${item.data.runtimeType}');
-                    }
-                  }
-
-                  return displayShelves.map((shelf) {
-                    final req = requestedSections.firstWhere(
-                      (r) => r.$2 == shelf.section,
-                      orElse: () => ('', '', Icons.help_outline_rounded),
-                    );
-                    return SliverPadding(
-                      padding: const EdgeInsets.only(bottom: 18),
-                      sliver: _HomeShelfRenderer(
-                        shelf: shelf,
-                        allSongs: state.allSongs,
-                        songIndexMap: songIndexMap,
-                        profileUrl: state.profileUrl,
-                        ytName: state.ytName,
-                        icon: req.$3,
-                      ),
-                    );
-                  });
-                }(),
-                const SliverToBoxAdapter(child: SizedBox(height: 100)),
+                      return SliverPadding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        sliver: _HomeShelfRenderer(
+                          shelf: shelf,
+                          allSongs: state.allSongs,
+                          songIndexMap: songIndexMap,
+                          profileUrl: state.profileUrl,
+                          ytName: state.ytName,
+                          icon: req.$3,
+                        ),
+                      );
+                    });
+                  }(),
+                  const SliverToBoxAdapter(child: SizedBox(height: 140)),
+                ],
               ],
-            ],
+            ),
           ),
         );
       },
@@ -313,154 +264,114 @@ class _HomeShelfRenderer extends StatelessWidget {
     final section = shelf.section;
 
     switch (section) {
-      case 'quickPicks':
-        return shelf.items.isEmpty
-            ? _buildEmptySliver(
-                context,
-                shelf.title,
-                icon ?? Icons.bolt_outlined,
-                'No quick picks yet. Try playing some music!',
-              )
-            : _buildQuickAccessRow(
-                context,
-                'lets start with a radio',
-                null,
-                icon: icon,
-              );
-      case 'listeningAgain':
-        return shelf.items.isEmpty
-            ? _buildEmptySliver(
-                context,
-                shelf.title,
-                icon ?? Icons.history_rounded,
-                'Your recent history will appear here.',
-              )
-            : _buildListenAgainShelf(context, icon: icon);
-      case 'newArrivals':
-        return shelf.items.isEmpty
-            ? _buildEmptySliver(
-                context,
-                shelf.title,
-                icon ?? Icons.new_releases_outlined,
-                'Fetching "Your daily discover"...',
-              )
-            : _buildFreshFindsStaggered(
-                context,
-                'personalized for you',
-                null,
-                icon: icon,
-              );
+      case 'listeningAgain': // Daily Rotation
+        return _buildDailyRotation(context, icon: icon);
+      case 'quickPicks': // Listen Again (4-row grid)
+        return _buildListenAgainGrid(context, icon: icon);
       case 'musicVideos':
-        return shelf.items.isEmpty
-            ? _buildEmptySliver(
-                context,
-                shelf.title,
-                icon ?? Icons.play_circle_outline_rounded,
-                'Trending videos will appear here.',
-              )
-            : _buildVideoRow(context, icon: icon);
-      case 'longListening':
-        return shelf.items.isEmpty
-            ? _buildEmptySliver(
-                context,
-                shelf.title,
-                icon ?? Icons.timer_outlined,
-                'Long tracks and sets for your flow.',
-              )
-            : _buildPlaylistRow(
-                context,
-                'long tracks & sets',
-                null,
-                icon: icon,
-              );
-      case 'podcasts':
-        return shelf.items.isEmpty
-            ? _buildEmptySliver(
-                context,
-                shelf.title,
-                icon ?? Icons.podcasts_rounded,
-                'Discover your next favorite podcast.',
-              )
-            : _buildPlaylistRow(context, 'podcasts for you', null, icon: icon);
+        return _buildVideoRow(context, icon: icon);
       case 'albumsForYou':
-        return shelf.items.isEmpty
-            ? _buildEmptySliver(
-                context,
-                shelf.title,
-                icon ?? Icons.album_rounded,
-                'Discover your next favorite album.',
-              )
-            : _buildPlaylistRow(
-                context,
-                'albums for you',
-                null,
-                isAlbum: true,
-                icon: icon,
-              );
-      case 'mixedForYou':
         return _buildPlaylistRow(
           context,
-          'personalized for you',
+          'Expand your collection',
           null,
-          icon: icon ?? Icons.auto_awesome_rounded,
+          isAlbum: true,
+          icon: icon,
         );
-      case 'trending':
+      case 'longListening':
+        return _buildPlaylistRow(context, 'Extended tracks', null, icon: icon);
+      case 'podcasts':
         return _buildPlaylistRow(
           context,
+          'Stories and conversations',
           null,
-          null,
-          icon: icon ?? Icons.trending_up_rounded,
+          icon: icon,
         );
-      case 'trendingArtists':
-        return _buildArtistRow(context, 'Popular Artists', null, icon: icon);
       default:
-        final itemTypes = shelf.items.map((e) => e.type).toSet();
-        if (itemTypes.contains(HomeItemType.artist) && shelf.items.length > 2) {
-          return _buildArtistRow(context, null, null, icon: icon);
-        }
-        if (itemTypes.contains(HomeItemType.album) ||
-            itemTypes.contains(HomeItemType.playlist)) {
-          return _buildPlaylistRow(context, null, null, icon: icon);
-        }
         return _buildStandardRow(context, null, null, icon: icon);
     }
   }
 
-  Widget _buildEmptySliver(
-    BuildContext context,
-    String title,
-    IconData icon,
-    String message,
-  ) {
-    final cs = Theme.of(context).colorScheme;
+  Widget _buildDailyRotation(BuildContext context, {IconData? icon}) {
+    final songs = shelf.items
+        .where((i) => i.type == HomeItemType.song)
+        .map((i) => i.data as Song)
+        .toList();
+    if (songs.isEmpty)
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
+
     return SliverMainAxisGroup(
       slivers: [
         SliverToBoxAdapter(
-          child: SectionHeader(title: title, icon: icon),
+          child: SectionHeader(title: shelf.title, icon: icon),
         ),
         SliverToBoxAdapter(
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16),
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: cs.surfaceContainerLow,
-              borderRadius: AppRadius.largeBorderRadius,
-              border: Border.all(color: cs.outlineVariant.withAlpha(40)),
+          child: SizedBox(
+            height: 200,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: songs.length,
+              itemBuilder: (context, i) => Padding(
+                padding: const EdgeInsets.only(right: 14),
+                child: SongCard(
+                  song: songs[i],
+                  queue: allSongs,
+                  index: songIndexMap[songs[i].id] ?? 0,
+                  aspectRatio: 1.0,
+                  heroTag: 'daily_${songs[i].id}_$i',
+                  startRadio: true,
+                  skipPlayerScreen: true,
+                ),
+              ),
             ),
-            child: Row(
-              children: [
-                Icon(icon, color: cs.primary.withAlpha(80), size: 24),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    message,
-                    style: GoogleFonts.outfit(
-                      fontSize: 12,
-                      color: cs.onSurface.withAlpha(120),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildListenAgainGrid(BuildContext context, {IconData? icon}) {
+    if (shelf.items.isEmpty)
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
+
+    return SliverMainAxisGroup(
+      slivers: [
+        SliverToBoxAdapter(
+          child: SectionHeader(title: shelf.title, icon: icon),
+        ),
+        SliverToBoxAdapter(
+          child: SizedBox(
+            height: 260,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: (shelf.items.length / 4).ceil(),
+              itemBuilder: (context, colIndex) {
+                final columnItems = shelf.items
+                    .skip(colIndex * 4)
+                    .take(4)
+                    .toList();
+                return Padding(
+                  padding: const EdgeInsets.only(right: 24),
+                  child: SizedBox(
+                    width: 300,
+                    child: Column(
+                      children: columnItems.map((item) {
+                        if (item.type == HomeItemType.song) {
+                          return _QuickPickListTile(
+                            song: item.data as Song,
+                            allSongs: allSongs,
+                            index: songIndexMap[(item.data as Song).id] ?? 0,
+                            startRadio: true,
+                          );
+                        }
+                        return const SizedBox.shrink();
+                      }).toList(),
                     ),
                   ),
-                ),
-              ],
+                );
+              },
             ),
           ),
         ),
@@ -482,7 +393,7 @@ class _HomeShelfRenderer extends StatelessWidget {
         ),
         SliverToBoxAdapter(
           child: SizedBox(
-            height: 210,
+            height: 220,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -494,232 +405,9 @@ class _HomeShelfRenderer extends StatelessWidget {
                   queue: allSongs,
                   index: songIndexMap[songs[i].id] ?? 0,
                   aspectRatio: 16 / 9,
-                  heroTag: 'video_art_${songs[i].id}_${shelf.title}_$i',
+                  heroTag: 'video_${songs[i].id}_$i',
                   startRadio: true,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildListenAgainShelf(BuildContext context, {IconData? icon}) {
-    final songs = shelf.items
-        .where((i) => i.type == HomeItemType.song)
-        .map((i) => i.data as Song)
-        .toList();
-    if (songs.isEmpty)
-      return const SliverToBoxAdapter(child: SizedBox.shrink());
-    return SliverMainAxisGroup(
-      slivers: [
-        SliverToBoxAdapter(
-          child: SectionHeader(
-            title: shelf.title,
-            profileUrl: profileUrl,
-            profileName: ytName,
-            icon: icon,
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: SizedBox(
-            height: 210,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: songs.length,
-              itemBuilder: (context, i) => Padding(
-                padding: const EdgeInsets.only(right: 16),
-                child: SongCard(
-                  song: songs[i],
-                  queue: allSongs,
-                  index: songIndexMap[songs[i].id] ?? 0,
-                  aspectRatio: 1.0,
-                  heroTag: 'listen_again_${songs[i].id}_$i',
-                  startRadio: true,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildFreshFindsStaggered(
-    BuildContext context,
-    String? subtitle,
-    String? profileUrl, {
-    IconData? icon,
-  }) {
-    final items = shelf.items
-        .where(
-          (i) =>
-              i.type == HomeItemType.song ||
-              i.type == HomeItemType.album ||
-              i.type == HomeItemType.playlist,
-        )
-        .take(27)
-        .toList();
-    if (items.isEmpty)
-      return const SliverToBoxAdapter(child: SizedBox.shrink());
-    final List<List<HomeItem>> columns = [];
-    for (var i = 0; i < items.length; i += 3) {
-      columns.add(
-        items.sublist(i, (i + 3 < items.length) ? i + 3 : items.length),
-      );
-    }
-    return SliverMainAxisGroup(
-      slivers: [
-        SliverToBoxAdapter(
-          child: SectionHeader(
-            title: shelf.title,
-            subtitle: subtitle,
-            profileUrl: profileUrl,
-            icon: icon,
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: SizedBox(
-            height: 400,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: columns.length,
-              itemBuilder: (context, colIndex) {
-                final columnItems = columns[colIndex];
-                return Padding(
-                  padding: const EdgeInsets.only(right: 16),
-                  child: SizedBox(
-                    width: 150,
-                    child: Column(
-                      children: List.generate(columnItems.length, (rowIndex) {
-                        final item = columnItems[rowIndex];
-                        if (item.type == HomeItemType.song) {
-                          final song = item.data as Song;
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 16),
-                            child: _QuickPickStaggeredItem(
-                              song: song,
-                              isLarge: rowIndex == 0,
-                              allSongs: allSongs,
-                              index: songIndexMap[song.id] ?? 0,
-                              startRadio: true,
-                            ),
-                          );
-                        }
-                        return const SizedBox.shrink();
-                      }),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildQuickAccessRow(
-    BuildContext context,
-    String? subtitle,
-    String? profileUrl, {
-    IconData? icon,
-  }) {
-    if (shelf.items.isEmpty)
-      return const SliverToBoxAdapter(child: SizedBox.shrink());
-
-    return SliverMainAxisGroup(
-      slivers: [
-        SliverToBoxAdapter(
-          child: SectionHeader(
-            title: shelf.title,
-            subtitle: subtitle,
-            profileUrl: profileUrl,
-            icon: icon,
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: SizedBox(
-            height: 260,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: (shelf.items.length / 4).ceil(),
-              itemBuilder: (context, colIndex) {
-                final columnItems = shelf.items.skip(colIndex * 4).take(4).toList();
-                return Padding(
-                  padding: const EdgeInsets.only(right: 24),
-                  child: SizedBox(
-                    width: 300,
-                    child: Column(
-                      children: columnItems
-                          .map(
-                            (item) {
-                              if (item.type == HomeItemType.song) {
-                                final song = item.data as Song;
-                                return _QuickPickListTile(
-                                  song: song,
-                                  allSongs: allSongs,
-                                  index: songIndexMap[song.id] ?? 0,
-                                  startRadio: true,
-                                );
-                              }
-                              // Handle other types in the list tile format
-                              return _QuickPickGenericTile(item: item);
-                            }
-                          )
-                          .toList(),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildArtistRow(
-    BuildContext context,
-    String? subtitle,
-    String? profileUrl, {
-    IconData? icon,
-  }) {
-    final artists = shelf.items
-        .where((i) => i.type == HomeItemType.artist)
-        .map((i) => i.data as Map<String, dynamic>)
-        .toList();
-    return SliverMainAxisGroup(
-      slivers: [
-        SliverToBoxAdapter(
-          child: SectionHeader(
-            title: shelf.title,
-            subtitle: subtitle,
-            profileUrl: profileUrl,
-            icon: icon,
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: SizedBox(
-            height: 160,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: artists.length,
-              itemBuilder: (context, i) => Padding(
-                padding: const EdgeInsets.only(right: 14),
-                child: ArtistCard(
-                  artist: artists[i],
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          ArtistScreen(artist: artists[i], allSongs: allSongs),
-                    ),
-                  ),
+                  skipPlayerScreen: true,
                 ),
               ),
             ),
@@ -736,13 +424,15 @@ class _HomeShelfRenderer extends StatelessWidget {
     bool isAlbum = false,
     IconData? icon,
   }) {
+    final items = shelf.items;
+    if (items.isEmpty)
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
     return SliverMainAxisGroup(
       slivers: [
         SliverToBoxAdapter(
           child: SectionHeader(
             title: shelf.title,
             subtitle: subtitle,
-            profileUrl: profileUrl,
             icon: icon,
           ),
         ),
@@ -752,9 +442,9 @@ class _HomeShelfRenderer extends StatelessWidget {
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: shelf.items.length,
+              itemCount: items.length,
               itemBuilder: (context, i) {
-                final item = shelf.items[i];
+                final item = items[i];
                 return Padding(
                   padding: const EdgeInsets.only(right: 14),
                   child: item.type == HomeItemType.song
@@ -763,6 +453,7 @@ class _HomeShelfRenderer extends StatelessWidget {
                           queue: allSongs,
                           index: songIndexMap[(item.data as Song).id] ?? 0,
                           startRadio: true,
+                          skipPlayerScreen: true,
                         )
                       : _HomePlaylistCard(
                           playlist: item.data as Playlist,
@@ -781,7 +472,7 @@ class _HomeShelfRenderer extends StatelessWidget {
     BuildContext context,
     String? subtitle,
     String? profileUrl, {
-    double cardWidth = 135,
+    double cardWidth = 140,
     IconData? icon,
   }) {
     final songs = shelf.items
@@ -796,13 +487,12 @@ class _HomeShelfRenderer extends StatelessWidget {
           child: SectionHeader(
             title: shelf.title,
             subtitle: subtitle,
-            profileUrl: profileUrl,
             icon: icon,
           ),
         ),
         SliverToBoxAdapter(
           child: SizedBox(
-            height: cardWidth + 60,
+            height: cardWidth + 70,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -815,96 +505,9 @@ class _HomeShelfRenderer extends StatelessWidget {
                   index: songIndexMap[songs[i].id] ?? 0,
                   cardWidth: cardWidth,
                   startRadio: true,
+                  skipPlayerScreen: true,
                 ),
               ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTopCharts(BuildContext context, {IconData? icon}) {
-    final songs = shelf.items
-        .where((i) => i.type == HomeItemType.song)
-        .map((i) => i.data as Song)
-        .take(10)
-        .toList();
-    if (songs.isEmpty)
-      return const SliverToBoxAdapter(child: SizedBox.shrink());
-    return SliverMainAxisGroup(
-      slivers: [
-        SliverToBoxAdapter(
-          child: SectionHeader(title: shelf.title, icon: icon),
-        ),
-        SliverToBoxAdapter(
-          child: SizedBox(
-            height: 240,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: (songs.length / 3).ceil(),
-              itemBuilder: (context, colIndex) {
-                final columnSongs = songs.skip(colIndex * 3).take(3).toList();
-                return Padding(
-                  padding: const EdgeInsets.only(right: 24),
-                  child: SizedBox(
-                    width: 300,
-                    child: Column(
-                      children: List.generate(columnSongs.length, (rowIndex) {
-                        final song = columnSongs[rowIndex];
-                        return _ChartItem(
-                          song: song,
-                          rank: colIndex * 3 + rowIndex + 1,
-                          allSongs: allSongs,
-                          index: songIndexMap[song.id] ?? 0,
-                        );
-                      }),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildFeaturedGrid(BuildContext context, {IconData? icon}) {
-    final items = shelf.items.take(4).toList();
-    if (items.isEmpty)
-      return const SliverToBoxAdapter(child: SizedBox.shrink());
-    return SliverMainAxisGroup(
-      slivers: [
-        SliverToBoxAdapter(
-          child: SectionHeader(title: shelf.title, icon: icon),
-        ),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                mainAxisSpacing: 16,
-                crossAxisSpacing: 16,
-                childAspectRatio: 2.5,
-              ),
-              itemCount: items.length,
-              itemBuilder: (context, i) {
-                if (items[i].type == HomeItemType.song) {
-                  final song = items[i].data as Song;
-                  return _FeaturedSmallTile(
-                    song: song,
-                    allSongs: allSongs,
-                    index: songIndexMap[song.id] ?? 0,
-                    startRadio: true,
-                  );
-                }
-                return const SizedBox.shrink();
-              },
             ),
           ),
         ),
@@ -913,56 +516,48 @@ class _HomeShelfRenderer extends StatelessWidget {
   }
 }
 
-class _ChartItem extends StatelessWidget {
+class _QuickPickListTile extends StatelessWidget {
   final Song song;
-  final int rank;
   final List<Song> allSongs;
   final int index;
-  const _ChartItem({
+  final bool startRadio;
+  const _QuickPickListTile({
     required this.song,
-    required this.rank,
     required this.allSongs,
     required this.index,
+    this.startRadio = false,
   });
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return InkWell(
       onTap: () {
-        context.read<PlayerBloc>().add(PlayRadioEvent(song));
-        if (!Breakpoints.isDesktop(MediaQuery.sizeOf(context).width))
-          PlayerScreen.show(context);
+        if (startRadio) {
+          context.read<PlayerBloc>().add(PlayRadioEvent(song));
+        } else {
+          context.read<PlayerBloc>().add(
+            PlayQueueEvent(songs: List.from(allSongs), startIndex: index),
+          );
+        }
       },
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.symmetric(vertical: 6),
         child: Row(
           children: [
-            SizedBox(
-              width: 32,
-              child: Text(
-                '$rank',
-                style: GoogleFonts.spaceGrotesk(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: theme.colorScheme.onSurface.withAlpha(100),
-                ),
-              ),
-            ),
             Container(
-              width: 56,
-              height: 56,
+              width: 52,
+              height: 52,
               decoration: BoxDecoration(
-                borderRadius: AppRadius.mediumBorderRadius,
+                borderRadius: AppRadius.smallBorderRadius,
                 color: theme.colorScheme.surfaceContainerHigh,
               ),
               clipBehavior: Clip.antiAlias,
               child: song.thumbnailUrl != null
                   ? CachedNetworkImage(
                       imageUrl: song.thumbnailUrl!,
-                      fit: BoxFit.fill,
+                      fit: BoxFit.cover,
                     )
-                  : _fallback(song),
+                  : Container(color: song.colorPrimary),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -973,7 +568,7 @@ class _ChartItem extends StatelessWidget {
                     song.title,
                     style: const TextStyle(
                       fontWeight: FontWeight.w600,
-                      fontSize: 14,
+                      fontSize: 13,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -981,8 +576,8 @@ class _ChartItem extends StatelessWidget {
                   Text(
                     song.artist,
                     style: TextStyle(
-                      fontSize: 12,
-                      color: theme.colorScheme.onSurface.withAlpha(140),
+                      fontSize: 11,
+                      color: Colors.white.withAlpha(140),
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -990,86 +585,6 @@ class _ChartItem extends StatelessWidget {
                 ],
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _fallback(Song s) => Container(
-    decoration: BoxDecoration(
-      gradient: LinearGradient(colors: [s.colorPrimary, s.colorSecondary]),
-    ),
-    child: Center(
-      child: Text(
-        'f',
-        style: GoogleFonts.spaceGrotesk(
-          fontSize: 24,
-          fontWeight: FontWeight.w800,
-          color: Colors.white,
-        ),
-      ),
-    ),
-  );
-}
-
-class _FeaturedSmallTile extends StatelessWidget {
-  final Song song;
-  final List<Song> allSongs;
-  final int index;
-  final bool startRadio;
-  const _FeaturedSmallTile({
-    required this.song,
-    required this.allSongs,
-    required this.index,
-    this.startRadio = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return InkWell(
-      onTap: () {
-        if (startRadio) {
-          context.read<PlayerBloc>().add(PlayRadioEvent(song));
-        } else {
-          context.read<PlayerBloc>().add(
-            PlayQueueEvent(songs: allSongs, startIndex: index),
-          );
-        }
-        if (!Breakpoints.isDesktop(MediaQuery.sizeOf(context).width))
-          PlayerScreen.show(context);
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHigh,
-          borderRadius: AppRadius.largeBorderRadius,
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Row(
-          children: [
-            AspectRatio(
-              aspectRatio: 1,
-              child: song.thumbnailUrl != null
-                  ? CachedNetworkImage(
-                      imageUrl: song.thumbnailUrl!,
-                      fit: BoxFit.fill,
-                    )
-                  : Container(color: song.colorPrimary),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                song.title,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const SizedBox(width: 8),
           ],
         ),
       ),
@@ -1089,7 +604,6 @@ class _HomePlaylistCardState extends State<_HomePlaylistCard> {
   bool _isHovered = false;
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
@@ -1121,7 +635,7 @@ class _HomePlaylistCardState extends State<_HomePlaylistCard> {
                     child: widget.playlist.thumbnailUrl != null
                         ? CachedNetworkImage(
                             imageUrl: widget.playlist.thumbnailUrl!,
-                            fit: BoxFit.fill,
+                            fit: BoxFit.cover,
                           )
                         : const Center(
                             child: Icon(
@@ -1147,309 +661,13 @@ class _HomePlaylistCardState extends State<_HomePlaylistCard> {
                 widget.playlist.description,
                 style: TextStyle(
                   fontSize: 12,
-                  color: cs.onSurface.withAlpha(140),
+                  color: Colors.white.withAlpha(140),
                 ),
                 overflow: TextOverflow.ellipsis,
                 maxLines: 1,
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _QuickPickStaggeredItem extends StatefulWidget {
-  final Song song;
-  final bool isLarge;
-  final List<Song> allSongs;
-  final int index;
-  final bool startRadio;
-  const _QuickPickStaggeredItem({
-    required this.song,
-    required this.isLarge,
-    required this.allSongs,
-    required this.index,
-    this.startRadio = false,
-  });
-  @override
-  State<_QuickPickStaggeredItem> createState() =>
-      _QuickPickStaggeredItemState();
-}
-
-class _QuickPickStaggeredItemState extends State<_QuickPickStaggeredItem> {
-  bool _isHovered = false;
-  @override
-  Widget build(BuildContext context) {
-    final size = widget.isLarge ? 150.0 : 100.0;
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: GestureDetector(
-        onTap: () {
-          if (widget.startRadio) {
-            context.read<PlayerBloc>().add(PlayRadioEvent(widget.song));
-          } else {
-            context.read<PlayerBloc>().add(
-              PlayQueueEvent(songs: widget.allSongs, startIndex: widget.index),
-            );
-          }
-          if (!Breakpoints.isDesktop(MediaQuery.sizeOf(context).width))
-            PlayerScreen.show(context);
-        },
-        child: Container(
-          width: 150,
-          height: size,
-          decoration: BoxDecoration(borderRadius: AppRadius.mediumBorderRadius),
-          clipBehavior: Clip.antiAlias,
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: widget.song.thumbnailUrl != null
-                    ? CachedNetworkImage(
-                        imageUrl: widget.song.thumbnailUrl!,
-                        fit: BoxFit.fill,
-                      )
-                    : Container(color: widget.song.colorPrimary),
-              ),
-              Positioned(
-                bottom: 0,
-                left: 0,
-                right: 0,
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.bottomCenter,
-                      end: Alignment.topCenter,
-                      colors: [Colors.black.withAlpha(200), Colors.transparent],
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      TextCarousel(
-                        text: widget.song.title,
-                        style: GoogleFonts.outfit(
-                          fontWeight: FontWeight.w700,
-                          fontSize: widget.isLarge ? 13 : 10,
-                          color: Colors.white,
-                        ),
-                      ),
-                      Text(
-                        widget.song.artist,
-                        style: GoogleFonts.outfit(
-                          fontSize: widget.isLarge ? 11 : 8,
-                          color: Colors.white.withAlpha(180),
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              if (_isHovered)
-                Positioned.fill(
-                  child: Container(
-                    color: Colors.black.withAlpha(40),
-                    child: const Center(
-                      child: Icon(
-                        Icons.play_arrow_rounded,
-                        color: Colors.white,
-                        size: 38,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _QuickPickGenericTile extends StatelessWidget {
-  final HomeItem item;
-  const _QuickPickGenericTile({required this.item});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-
-    String title = 'Unknown';
-    String? subtitle;
-    String? imageUrl;
-    Color? color;
-
-    if (item.type == HomeItemType.artist) {
-      final data = item.data as Map<String, dynamic>;
-      title = data['name'] ?? 'Unknown Artist';
-      imageUrl = data['thumbnailUrl'];
-    } else if (item.type == HomeItemType.album ||
-        item.type == HomeItemType.playlist) {
-      final data = item.data as Playlist;
-      title = data.name;
-      subtitle = data.description;
-      imageUrl = data.thumbnailUrl;
-      color = data.color;
-    }
-
-    return InkWell(
-      onTap: () {
-        if (item.type == HomeItemType.artist) {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => ArtistScreen(
-                artist: item.data as Map<String, dynamic>,
-                allSongs: const [],
-              ),
-            ),
-          );
-        } else {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => PlaylistScreen(
-                playlist: item.data as Playlist,
-                isAlbum: item.type == HomeItemType.album,
-              ),
-            ),
-          );
-        }
-      },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                borderRadius: item.type == HomeItemType.artist
-                    ? BorderRadius.circular(24)
-                    : AppRadius.smallBorderRadius,
-                color: color ?? cs.surfaceContainerHigh,
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: imageUrl != null
-                  ? CachedNetworkImage(
-                      imageUrl: imageUrl,
-                      fit: BoxFit.fill,
-                      errorWidget: (context, url, error) =>
-                          const Center(child: Icon(Icons.music_note_rounded)),
-                    )
-                  : const Center(child: Icon(Icons.music_note_rounded)),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (subtitle != null)
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: cs.onSurface.withAlpha(140),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _QuickPickListTile extends StatelessWidget {
-  final Song song;
-  final List<Song> allSongs;
-  final int index;
-  final bool startRadio;
-  const _QuickPickListTile({
-    required this.song,
-    required this.allSongs,
-    required this.index,
-    this.startRadio = false,
-  });
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return InkWell(
-      onTap: () {
-        if (startRadio) {
-          context.read<PlayerBloc>().add(PlayRadioEvent(song));
-        } else {
-          context.read<PlayerBloc>().add(
-            PlayQueueEvent(songs: List.from(allSongs), startIndex: index),
-          );
-        }
-        if (!Breakpoints.isDesktop(MediaQuery.sizeOf(context).width))
-          PlayerScreen.show(context);
-      },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                borderRadius: AppRadius.smallBorderRadius,
-                color: theme.colorScheme.surfaceContainerHigh,
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: song.thumbnailUrl != null
-                  ? CachedNetworkImage(
-                      imageUrl: song.thumbnailUrl!,
-                      fit: BoxFit.fill,
-                    )
-                  : Container(color: song.colorPrimary),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    song.title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(
-                    song.artist,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: theme.colorScheme.onSurface.withAlpha(140),
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-          ],
         ),
       ),
     );

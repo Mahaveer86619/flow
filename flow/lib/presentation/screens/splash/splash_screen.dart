@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/responsive/responsive_layout.dart';
 import '../main/desktop_shell.dart';
-import '../main/main_screen.dart';
+import '../../widgets/main_shell.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -69,7 +69,7 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF07070F),
+      backgroundColor: const Color(0xFF000000),
       body: Center(
         child: AnimatedBuilder(
           animation: _controller,
@@ -117,9 +117,6 @@ class _SplashScreenState extends State<SplashScreen>
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RootShell — picks the correct layout shell based on screen size.
-//
-// This is the first real screen after the splash; it is never popped off the
-// navigator stack. Resize the window on desktop and the shell switches live.
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _RootShell extends StatelessWidget {
@@ -128,7 +125,7 @@ class _RootShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ResponsiveLayout(
-      mobile: (_) => const MainScreen(),
+      mobile: (_) => const MainShell(),
       desktop: (_) => const DesktopShell(),
     );
   }

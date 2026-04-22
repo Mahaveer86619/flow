@@ -23,6 +23,7 @@ class SongCard extends StatefulWidget {
   final double aspectRatio;
   final String? heroTag;
   final bool startRadio;
+  final bool skipPlayerScreen;
 
   const SongCard({
     super.key,
@@ -33,6 +34,7 @@ class SongCard extends StatefulWidget {
     this.aspectRatio = 1.0,
     this.heroTag,
     this.startRadio = false,
+    this.skipPlayerScreen = false,
   });
 
   @override
@@ -49,13 +51,16 @@ class _SongCardState extends State<SongCard> {
       (bloc) => bloc.state.isLiked(widget.song),
     );
 
-    final resolvedAspectRatio = widget.song.thumbnailWidth != null && widget.song.thumbnailHeight != null
+    final resolvedAspectRatio =
+        widget.song.thumbnailWidth != null &&
+            widget.song.thumbnailHeight != null
         ? widget.song.thumbnailWidth! / widget.song.thumbnailHeight!
         : widget.aspectRatio;
 
     // Use a fixed artwork height to keep the row consistent
     const double artworkHeight = 130;
-    final double calculatedWidth = widget.cardWidth ?? (artworkHeight * resolvedAspectRatio);
+    final double calculatedWidth =
+        widget.cardWidth ?? (artworkHeight * resolvedAspectRatio);
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
@@ -151,13 +156,14 @@ class _SongCardState extends State<SongCard> {
       context.read<PlayerBloc>().add(PlayRadioEvent(widget.song));
     } else {
       context.read<PlayerBloc>().add(
-            PlayQueueEvent(
-              songs: List<Song>.from(widget.queue),
-              startIndex: widget.index,
-            ),
-          );
+        PlayQueueEvent(
+          songs: List<Song>.from(widget.queue),
+          startIndex: widget.index,
+        ),
+      );
     }
-    if (!Breakpoints.isDesktop(MediaQuery.sizeOf(context).width)) {
+    if (!widget.skipPlayerScreen &&
+        !Breakpoints.isDesktop(MediaQuery.sizeOf(context).width)) {
       PlayerScreen.show(context);
     }
   }
@@ -179,7 +185,9 @@ class _SongCardState extends State<SongCard> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Theme.of(modalContext).colorScheme.onSurface.withAlpha(40),
+                color: Theme.of(
+                  modalContext,
+                ).colorScheme.onSurface.withAlpha(40),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -198,7 +206,8 @@ class _SongCardState extends State<SongCard> {
               onTap: () {
                 context.read<PlayerBloc>().add(PlayRadioEvent(widget.song));
                 Navigator.pop(modalContext);
-                if (!Breakpoints.isDesktop(MediaQuery.sizeOf(context).width)) {
+                if (!widget.skipPlayerScreen &&
+                    !Breakpoints.isDesktop(MediaQuery.sizeOf(context).width)) {
                   PlayerScreen.show(context);
                 }
               },
@@ -277,7 +286,7 @@ class _Artwork extends StatelessWidget {
                     thumbUrl,
                     width: size,
                     height: size / aspectRatio,
-                    fit: BoxFit.fill,
+                    fit: BoxFit.cover,
                     cacheWidth: 640,
                     cacheHeight: (640 / aspectRatio).round(),
                     headers: const {
@@ -293,7 +302,7 @@ class _Artwork extends StatelessWidget {
                       file,
                       width: size,
                       height: size / aspectRatio,
-                      fit: BoxFit.fill,
+                      fit: BoxFit.cover,
                       cacheWidth: 640,
                       cacheHeight: (640 / aspectRatio).round(),
                       errorBuilder: (context, error, stackTrace) => _fallback(),
@@ -306,7 +315,7 @@ class _Artwork extends StatelessWidget {
                       song.thumbnailUrl!,
                       width: size,
                       height: size / aspectRatio,
-                      fit: BoxFit.fill,
+                      fit: BoxFit.cover,
                       cacheWidth: 640,
                       cacheHeight: (640 / aspectRatio).round(),
                       errorBuilder: (context, error, stackTrace) => _fallback(),

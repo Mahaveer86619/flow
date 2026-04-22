@@ -14,7 +14,6 @@ import 'music_data_source.dart';
 import 'stream_resolver.dart';
 
 class YoutubeMusicDataSource implements MusicDataSource {
-  // Use the authenticated singleton for metadata to ensure cookies/auth are sent
   final Dio _dio = DioClient.instance.dio;
   final YoutubeExplode _ytExplode = YoutubeExplode();
   final StreamResolver _resolver = StreamResolver.instance;
@@ -39,12 +38,11 @@ class YoutubeMusicDataSource implements MusicDataSource {
   @override
   Future<HomeDataModel> fetchHomeData({int limit = 25}) async {
     try {
-      AppLogger.i(_tag, 'fetchHomeData starting');
+      AppLogger.i(_tag, 'fetchHomeData starting (Parallel Shell Execution)');
       final visitorData =
           LocalStorage.instance.getCachedMetadata('yt_visitor_data') as String?;
 
-      // Primary Home Feed
-      final response = await _dio.post(
+      final primaryFuture = _dio.post(
         '$_ytmBase/browse?prettyPrint=false',
         data: {
           "browseId": "FEmusic_home",
@@ -55,153 +53,107 @@ class YoutubeMusicDataSource implements MusicDataSource {
         },
       );
 
-      if (response.statusCode != 200)
+      final subFeedSpecs = [
+        ('FEmusic_listen_again', null, 'listeningAgain'),
+        ('FEmusic_home', 'EgWKAQIIAWoQEAMQBBAJEAoQCxAEEAoQAA==', 'quickPicks'),
+        (
+          'FEmusic_home',
+          'ggNCSgQIDBADSgQICBABSgQIDhABSgQICRABSgQIBxABSgQIBRAB',
+          'podcasts',
+        ),
+        (
+          'FEmusic_home',
+          'ggNCSgQIDBABSgQICBABSgQIDhABSgQICRABSgQIBxADSgQIBRAB',
+          'relax',
+        ),
+      ];
+
+      final subFeedFutures = subFeedSpecs.map(
+        (spec) => _fetchShelf(spec.$1, params: spec.$2, forcedSection: spec.$3),
+      );
+      final results = await Future.wait([primaryFuture, ...subFeedFutures]);
+
+      final primaryResponse = results[0] as Response;
+      if (primaryResponse.statusCode != 200)
         return const HomeDataModel(rawShelves: []);
 
-      final data = response.data as Map<String, dynamic>;
+      final primaryData = primaryResponse.data as Map<String, dynamic>;
+      final mainModel = _parseHomeDataInternal(primaryData);
+      final List<Map<String, dynamic>> finalShelves = [];
 
-      // DEBUG: Dump raw response to a file if needed
-      // File('home_response_dump.json').writeAsStringSync(jsonEncode(data));
+      // 2. Merge Sub-feeds (STRICT Filtering for Square vs Rectangle)
+      for (int i = 0; i < subFeedSpecs.length; i++) {
+        final sectionType = subFeedSpecs[i].$3;
+        final shelves = results[i + 1] as List<Map<String, dynamic>>;
 
-      // visitorData update
-      final newVisitorData = data['responseContext']?['visitorData'];
-      if (newVisitorData != null) {
-        LocalStorage.instance.saveCachedMetadata(
-          'yt_visitor_data',
-          newVisitorData,
-        );
+        if (shelves.isNotEmpty) {
+          final shelfCopy = Map<String, dynamic>.from(shelves.first);
+          shelfCopy['section'] = sectionType;
+
+          final items = List<Map<String, dynamic>>.from(
+            shelfCopy['items'] ?? [],
+          );
+
+          if (sectionType == 'listeningAgain' || sectionType == 'quickPicks') {
+            // Strictly SQUARE audio songs for these (relaxed slightly to 1.3)
+            shelfCopy['items'] = items.where((it) {
+              if (it['type'] != 'song') return false;
+              final data = it['data'] as Map<String, dynamic>;
+              final w = data['thumbnailWidth'] as int? ?? 1;
+              final h = data['thumbnailHeight'] as int? ?? 1;
+              return (w / h) < 1.3; // Filter out very wide 16:9 videos
+            }).toList();
+          }
+          finalShelves.add(shelfCopy);
+        }
       }
 
-      var model = _parseHomeDataInternal(data);
+      // 3. Post-process Music Videos (Rectangle check)
+      final List<Map<String, dynamic>> musicVideoItems = [];
+      final allCandidateShelves = [...mainModel.rawShelves, ...finalShelves];
 
-      // Check for missing key shelves and try dedicated endpoints
-      final hasListeningAgain = model.rawShelves.any(
-        (s) => s['section'] == 'listeningAgain',
-      );
-      final hasQuickPicks = model.rawShelves.any(
-        (s) => s['section'] == 'quickPicks',
-      );
-
-      if (!hasListeningAgain || !hasQuickPicks) {
-        AppLogger.i(_tag, 'Missing personalized shelves, trying sub-feeds...');
-        final List<(String, String)> subFeeds = [];
-        if (!hasListeningAgain)
-          subFeeds.add(('FEmusic_listen_again', 'listeningAgain'));
-        if (!hasQuickPicks) subFeeds.add(('FEmusic_home', 'quickPicks'));
-
-        for (final feed in subFeeds) {
-          try {
-            final subResponse = await _dio.post(
-              '$_ytmBase/browse?prettyPrint=false',
-              data: {
-                "browseId": feed.$1,
-                if (feed.$2 == 'quickPicks' && feed.$1 == 'FEmusic_home')
-                  "params": "EgWKAQIIAWoQEAMQBBAJEAoQCxAEEAoQAA==",
-                "context": _context, // Use clean context for sub-feeds
-              },
-            );
-            if (subResponse.statusCode == 200) {
-              final subData = subResponse.data as Map<String, dynamic>;
-              final subModel = _parseHomeDataInternal(subData);
-
-              // Find any shelf from the sub-feed that matches our target type
-              final targetShelves = subModel.rawShelves
-                  .where((s) => s['section'] == feed.$2)
-                  .toList();
-
-              if (targetShelves.isNotEmpty) {
-                final newShelves = List<Map<String, dynamic>>.from(
-                  model.rawShelves,
-                );
-                for (final ts in targetShelves) {
-                  final shelfCopy = Map<String, dynamic>.from(ts);
-                  shelfCopy['section'] = feed.$2;
-
-                  if (!newShelves.any(
-                    (s) => s['title'] == shelfCopy['title'],
-                  )) {
-                    // Insert at beginning to prioritize personalized sections
-                    newShelves.insert(0, shelfCopy);
-                  }
-                }
-                model = HomeDataModel(
-                  rawShelves: newShelves,
-                  profileUrl: model.profileUrl,
-                  ytName: model.ytName,
-                  trending: model.trending,
-                  musicVideos: model.musicVideos,
-                  favArtistsSongs: model.favArtistsSongs,
-                );
-              } else if (subModel.rawShelves.isNotEmpty) {
-                // Fallback: look for a shelf that matches the target title or is generic
-                final targetTitlePart = feed.$2 == 'quickPicks'
-                    ? 'pick'
-                    : 'listen';
-
-                for (final candidate in subModel.rawShelves) {
-                  final t = (candidate['title'] as String? ?? '').toLowerCase();
-                  final currentSection =
-                      candidate['section'] as String? ?? 'standard';
-
-                  // Don't hijack if it's already a different specialized section
-                  if (feed.$2 == 'quickPicks' &&
-                      currentSection == 'listeningAgain') continue;
-                  if (feed.$2 == 'listeningAgain' &&
-                      currentSection == 'quickPicks') continue;
-
-                  if (t.contains(targetTitlePart) ||
-                      currentSection == 'standard' ||
-                      currentSection == 'mixedForYou') {
-                    final shelfCopy = Map<String, dynamic>.from(candidate);
-                    shelfCopy['section'] = feed.$2;
-
-                    final newShelves = List<Map<String, dynamic>>.from(
-                      model.rawShelves,
-                    );
-                    if (!newShelves.any(
-                      (s) => s['title'] == shelfCopy['title'],
-                    )) {
-                      newShelves.insert(0, shelfCopy);
-                      model = HomeDataModel(
-                        rawShelves: newShelves,
-                        profileUrl: model.profileUrl,
-                        ytName: model.ytName,
-                        trending: model.trending,
-                        musicVideos: model.musicVideos,
-                        favArtistsSongs: model.favArtistsSongs,
-                      );
-                      break; // Only take one candidate per sub-feed
-                    }
-                  }
-                }
-              }
-            }
-          } catch (e) {
-            AppLogger.w(_tag, 'Failed to fetch sub-feed ${feed.$1}: $e');
+      for (var shelf in allCandidateShelves) {
+        final items = shelf['items'] as List<Map<String, dynamic>>;
+        for (var item in items) {
+          if (item['type'] == 'song') {
+            final data = item['data'] as Map<String, dynamic>;
+            final w = data['thumbnailWidth'] as int? ?? 1;
+            final h = data['thumbnailHeight'] as int? ?? 1;
+            if (w / h >= 1.3) musicVideoItems.add(item);
           }
         }
       }
 
-      // Fallback to trending if still empty
-      if (model.rawShelves.isEmpty) {
-        AppLogger.w(_tag, 'Home feed empty, fetching trending fallback...');
-        final trending = await searchSongs('trending hits');
-        if (trending.isNotEmpty) {
-          model = HomeDataModel(
-            rawShelves: [
-              {
-                'title': 'Trending Hits',
-                'section': 'trending',
-                'items': trending
-                    .map((s) => {'type': 'song', 'data': s.toJson()})
-                    .toList(),
-              },
-            ],
-          );
+      if (musicVideoItems.isNotEmpty) {
+        finalShelves.add({
+          'title': 'Music Videos',
+          'section': 'musicVideos',
+          'items': musicVideoItems.toSet().toList(),
+        });
+      }
+
+      // 4. Merge all other shelves from main feed that aren't already there
+      for (var shelf in mainModel.rawShelves) {
+        final section = shelf['section'] as String;
+        final title = shelf['title'] as String;
+
+        // Skip if we already have this section or title
+        bool alreadyExists = finalShelves.any(
+          (s) => s['section'] == section || s['title'] == title,
+        );
+
+        if (!alreadyExists) {
+          finalShelves.add(shelf);
         }
       }
 
-      return model;
+      return HomeDataModel(
+        rawShelves: finalShelves
+            .where((s) => (s['items'] as List).isNotEmpty)
+            .toList(),
+        profileUrl: mainModel.profileUrl,
+        ytName: mainModel.ytName,
+      );
     } catch (e, st) {
       AppLogger.e(_tag, 'fetchHomeData failed', e, st);
       return const HomeDataModel(rawShelves: []);
@@ -227,61 +179,37 @@ class YoutubeMusicDataSource implements MusicDataSource {
           section['musicCarouselShelfRenderer'] ??
           section['musicShelfRenderer'] ??
           section['musicTastebuilderShelfRenderer'] ??
+          section['gridRenderer'] ??
           section['itemSectionRenderer'];
       if (shelf == null) continue;
 
       final header =
           shelf['header']?['musicCarouselShelfBasicHeaderRenderer'] ??
-          shelf['header']?['musicHeaderRenderer'];
+          shelf['header']?['musicHeaderRenderer'] ??
+          shelf['header']?['gridHeaderRenderer'];
 
       final title =
           header?['title']?['runs']?[0]?['text'] ??
           header?['title']?['simpleText'] ??
           shelf['primaryText']?['runs']?[0]?['text'] ??
-          shelf['primaryText']?['simpleText'];
-
-      if (title != null) {
-        AppLogger.d(_tag, 'Parsed shelf title: "$title"');
-      }
+          shelf['title']?['runs']?[0]?['text'] ??
+          shelf['title']?['simpleText'];
 
       String sectionType = forcedSectionType ?? 'standard';
       if (forcedSectionType == null && title != null) {
         final t = title.toLowerCase();
-        if (t.contains('listen again') ||
-            t.contains('recent') ||
-            t.contains('frequent')) {
+        if (t.contains('listen again') || t.contains('recent'))
           sectionType = 'listeningAgain';
-        } else if (t.contains('quick picks') ||
-            t.contains('start radio') ||
-            t.contains('speed dial') ||
-            t.contains('picks')) {
+        else if (t.contains('quick picks') || t.contains('picks'))
           sectionType = 'quickPicks';
-        } else if (t.contains('mixed for you') ||
-            t.contains('recommended') ||
-            t.contains('mixes') ||
-            t.contains('picked for you') ||
-            t.contains('create a mix')) {
-          sectionType = 'mixedForYou';
-        } else if (t.contains('trending') ||
-            t.contains('romance') ||
-            t.contains('charts') ||
-            t.contains('hits')) {
-          sectionType = 'trending';
-        } else if (t.contains('music video') || t.contains('videos for you')) {
+        else if (t.contains('music video') || t.contains('videos for you'))
           sectionType = 'musicVideos';
-        } else if (t.contains('long listening')) {
-          sectionType = 'longListening';
-        } else if (t.contains('podcast')) {
-          sectionType = 'podcasts';
-        } else if (t.contains('daily discover') ||
-            t.contains('new arrival') ||
-            t.contains('new release') ||
-            t.contains('latest')) {
-          sectionType = 'newArrivals';
-        } else if (t.contains('album') || t.contains('spotlight')) {
-          // Map "Spotlight" shelves to Albums For You as requested
+        else if (t.contains('album') || t.contains('spotlight'))
           sectionType = 'albumsForYou';
-        }
+        else if (t.contains('podcast'))
+          sectionType = 'podcasts';
+        else if (t.contains('lofi') || t.contains('long listening'))
+          sectionType = 'longListening';
       }
 
       final items = <Map<String, dynamic>>[];
@@ -305,7 +233,6 @@ class YoutubeMusicDataSource implements MusicDataSource {
         });
       }
     }
-
     return HomeDataModel(rawShelves: shelves);
   }
 
@@ -313,14 +240,10 @@ class YoutubeMusicDataSource implements MusicDataSource {
     final renderer =
         item['musicTwoColumnItemRenderer'] ??
         item['musicResponsiveListItemRenderer'] ??
-        item['musicNavigationButtonRenderer'] ??
         item['musicItemRenderer'] ??
-        item['musicMultiRowListItemRenderer'] ??
-        item['musicWideButtonRenderer'] ??
         item['musicPlaylistRenderer'] ??
         item['musicVideoRenderer'] ??
         item['gridVideoRenderer'] ??
-        item['gridPlaylistRenderer'] ??
         item['musicTwoRowItemRenderer'] ??
         item['playlistPanelVideoRenderer'];
     if (renderer == null) return null;
@@ -341,24 +264,17 @@ class YoutubeMusicDataSource implements MusicDataSource {
       subtitle =
           renderer['subtitle']?['simpleText'] ??
           renderer['description']?['runs']?[0]?['text'] ??
-          renderer['longBylineText']?['runs']?[0]?['text'] ??
-          renderer['shortBylineText']?['runs']?[0]?['text'];
+          renderer['longBylineText']?['runs']?[0]?['text'];
     }
 
     final nav =
         renderer['navigationEndpoint'] ??
         renderer['onTap']?['navigationEndpoint'];
-    String? videoId =
-        nav?['watchEndpoint']?['videoId'] ??
-        renderer['videoId'] ??
-        renderer['playlistItemData']?['videoId'];
-
+    String? videoId = nav?['watchEndpoint']?['videoId'] ?? renderer['videoId'];
     String? browseId =
-        nav?['browseEndpoint']?['browseId'] ??
-        renderer['browseId'] ??
-        renderer['navigationEndpoint']?['browseEndpoint']?['browseId'];
+        nav?['browseEndpoint']?['browseId'] ?? renderer['browseId'];
 
-    // Support for musicResponsiveListItemRenderer flexColumns (common in search results)
+    // CRITICAL FIX: Add flexColumns support for search results
     if (item['musicResponsiveListItemRenderer'] != null) {
       final flexCols =
           item['musicResponsiveListItemRenderer']['flexColumns'] as List?;
@@ -374,7 +290,7 @@ class YoutubeMusicDataSource implements MusicDataSource {
               flexCols[1]['musicResponsiveListItemFlexColumnRenderer'];
           final runs = secondCol?['text']?['runs'] as List?;
           if (runs != null) {
-            subtitle ??= runs.map((r) => r['text']).join();
+            subtitle ??= runs.map((r) => r['text']).join('');
             for (final run in runs) {
               final bId =
                   run['navigationEndpoint']?['browseEndpoint']?['browseId'];
@@ -393,32 +309,29 @@ class YoutubeMusicDataSource implements MusicDataSource {
     final thumbNode =
         renderer['thumbnailRenderer']?['musicThumbnailRenderer']?['thumbnail']?['thumbnails']
             ?.last ??
-        renderer['thumbnail']?['thumbnails']?.last ??
-        renderer['thumbnail']?['musicThumbnailRenderer']?['thumbnail']?['thumbnails']
-            ?.last;
+        renderer['thumbnail']?['thumbnails']?.last;
 
-    final thumb = thumbNode?['url'];
+    final thumb = thumbNode?['url'] as String?;
     final width = thumbNode?['width'] as int?;
     final height = thumbNode?['height'] as int?;
 
     String? highResThumb = thumb;
     if (thumb != null) {
-      if (thumb.contains('=w') && thumb.contains('-h')) {
-        // Force square 512x512 with smart crop (-p)
-        highResThumb = thumb.replaceAll(RegExp(r'=w\d+-h\d+.*'), '=w512-h512-p-l90-rj');
-      } else if (thumb.contains('googleusercontent.com')) {
-        if (!thumb.contains('=')) {
-          highResThumb = '$thumb=w512-h512-p-l90-rj';
-        } else {
-          highResThumb = thumb.replaceAll(RegExp(r'=.*'), '=w512-h512-p-l90-rj');
-        }
+      if (thumb.contains('googleusercontent.com') ||
+          thumb.contains('ggpht.com')) {
+        highResThumb = thumb.replaceAll(
+          RegExp(r'=w\d+-h\d+.*'),
+          '=w512-h512-l90-rj',
+        );
+        if (!highResThumb.contains('='))
+          highResThumb = '$highResThumb=w512-h512-l90-rj';
       } else if (thumb.contains('ytimg.com') && videoId != null) {
-        // Video thumbnails are 16:9. hqdefault is 480x360.
-        highResThumb = 'https://i.ytimg.com/vi/$videoId/hqdefault.jpg';
+        highResThumb = 'https://i.ytimg.com/vi/$videoId/maxresdefault.jpg';
       }
     }
 
     if (videoId != null) {
+      final views = _parseViews(renderer);
       return {
         'type': 'song',
         'data': {
@@ -428,12 +341,17 @@ class YoutubeMusicDataSource implements MusicDataSource {
           'thumbnailUrl': highResThumb,
           'thumbnailWidth': width,
           'thumbnailHeight': height,
+          'extras': views != null ? {'views': views} : null,
         },
       };
     } else if (browseId != null) {
       final isArtist = browseId.startsWith('UC') || browseId.startsWith('FBA');
+      final isAlbum =
+          browseId.startsWith('FEmusic_album') ||
+          (subtitle?.toLowerCase().contains('album') ?? false);
+
       return {
-        'type': isArtist ? 'artist' : 'playlist',
+        'type': isArtist ? 'artist' : (isAlbum ? 'album' : 'playlist'),
         'data': {
           'id': browseId,
           'name': title,
@@ -441,16 +359,86 @@ class YoutubeMusicDataSource implements MusicDataSource {
           'thumbnailWidth': width,
           'thumbnailHeight': height,
           'description': subtitle ?? '',
+          'isAlbum': isAlbum,
         },
       };
     }
     return null;
   }
 
+  int? _parseViews(dynamic renderer) {
+    try {
+      final flexColumns = renderer['flexColumns'] as List?;
+      if (flexColumns == null || flexColumns.isEmpty) return null;
+
+      // Views are usually in the 3rd column for responsive items
+      String? viewText;
+      if (flexColumns.length >= 3) {
+        final col = flexColumns[2]['musicResponsiveListItemFlexColumnRenderer'];
+        viewText = col?['text']?['runs']?[0]?['text'];
+      }
+
+      // Fallback: check subtitle if 3rd column didn't work
+      if (viewText == null || !viewText.contains('play')) {
+        final subtitleRuns = renderer['subtitle']?['runs'] as List?;
+        if (subtitleRuns != null) {
+          for (final run in subtitleRuns) {
+            final t = run['text'] as String;
+            if (t.contains('play') || t.contains('view')) {
+              viewText = t;
+              break;
+            }
+          }
+        }
+      }
+
+      // Final fallback: check for explicit view count fields
+      viewText ??=
+          renderer['shortViewCountText']?['runs']?[0]?['text'] ??
+          renderer['viewCountText']?['runs']?[0]?['text'] ??
+          renderer['shortViewCountText']?['simpleText'] ??
+          renderer['viewCountText']?['simpleText'];
+
+      if (viewText == null) return null;
+      return _parseViewCount(viewText);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  int? _parseViewCount(String text) {
+    try {
+      final clean = text
+          .toLowerCase()
+          .replaceAll('plays', '')
+          .replaceAll('views', '')
+          .replaceAll(' ', '')
+          .trim();
+      double multiplier = 1;
+      String numberPart = clean;
+
+      if (clean.endsWith('k')) {
+        multiplier = 1000;
+        numberPart = clean.substring(0, clean.length - 1);
+      } else if (clean.endsWith('m')) {
+        multiplier = 1000000;
+        numberPart = clean.substring(0, clean.length - 1);
+      } else if (clean.endsWith('b')) {
+        multiplier = 1000000000;
+        numberPart = clean.substring(0, clean.length - 1);
+      }
+
+      return (double.parse(numberPart) * multiplier).toInt();
+    } catch (_) {
+      return null;
+    }
+  }
+
   @override
   Future<List<SongModel>> searchSongs(String query, {int limit = 25}) async {
     try {
-      AppLogger.i(_tag, 'searchSongs standalone: $query');
+      // We try searching with the "Songs" filter first for quality,
+      // but we will also look for "did you mean" or top results.
       final response = await _dio.post(
         '$_ytmBase/search?prettyPrint=false',
         data: {
@@ -459,43 +447,86 @@ class YoutubeMusicDataSource implements MusicDataSource {
           "context": _context,
         },
       );
-
       if (response.statusCode != 200) return [];
       final data = response.data as Map<String, dynamic>;
 
-      final List<dynamic> shelves =
+      final tracks = <SongModel>[];
+
+      // Navigate to contents
+      final List<dynamic> contents =
           data['contents']?['tabbedSearchResultsRenderer']?['tabs']?[0]?['tabRenderer']?['content']?['sectionListRenderer']?['contents'] ??
           [];
 
-      final tracks = <SongModel>[];
-      for (final shelf in shelves) {
-        final musicShelf =
-            shelf['musicShelfRenderer'] ?? shelf['musicCardShelfRenderer'];
-        if (musicShelf == null) continue;
+      for (final section in contents) {
+        // 1. Regular Shelves (Songs, Videos, etc.)
+        final shelf =
+            section['musicShelfRenderer'] ?? section['musicCardShelfRenderer'];
+        if (shelf != null) {
+          for (final item in shelf['contents'] ?? []) {
+            final mapped = _parseMytmItem(item);
+            if (mapped != null && mapped['type'] == 'song') {
+              final sData = mapped['data'] as Map<String, dynamic>;
+              if (!tracks.any((t) => t.id == sData['id'])) {
+                final colors = _colorsForId(sData['id']);
+                tracks.add(
+                  SongModel(
+                    id: sData['id'],
+                    title: sData['title'],
+                    artist: sData['artist'],
+                    album: '',
+                    duration: Duration.zero,
+                    thumbnailUrl: sData['thumbnailUrl'],
+                    thumbnailWidth: sData['thumbnailWidth'],
+                    thumbnailHeight: sData['thumbnailHeight'],
+                    colorPrimary: colors.$1,
+                    colorSecondary: colors.$2,
+                    extras: sData['extras'] as Map<String, dynamic>?,
+                  ),
+                );
+              }
+            }
+          }
+        }
 
-        final List<dynamic> results = musicShelf['contents'] ?? [];
-        for (final item in results) {
-          final mapped = _parseMytmItem(item);
-          if (mapped != null && mapped['type'] == 'song') {
-            final sData = mapped['data'] as Map<String, dynamic>;
-            final colors = _colorsForId(sData['id']);
-            tracks.add(
-              SongModel(
-                id: sData['id'],
-                title: sData['title'],
-                artist: sData['artist'],
-                album: '',
-                duration: Duration.zero,
-                thumbnailUrl: sData['thumbnailUrl'],
-                thumbnailWidth: sData['thumbnailWidth'],
-                thumbnailHeight: sData['thumbnailHeight'],
-                colorPrimary: colors.$1,
-                colorSecondary: colors.$2,
-              ),
-            );
+        // 2. Item Sections (Top result, Corrections)
+        final itemSection = section['itemSectionRenderer'];
+        if (itemSection != null) {
+          for (final item in itemSection['contents'] ?? []) {
+            final mapped = _parseMytmItem(item);
+            if (mapped != null && mapped['type'] == 'song') {
+              // ... same addition logic as above ...
+              final sData = mapped['data'] as Map<String, dynamic>;
+              if (!tracks.any((t) => t.id == sData['id'])) {
+                final colors = _colorsForId(sData['id']);
+                tracks.add(
+                  SongModel(
+                    id: sData['id'],
+                    title: sData['title'],
+                    artist: sData['artist'],
+                    album: '',
+                    duration: Duration.zero,
+                    thumbnailUrl: sData['thumbnailUrl'],
+                    colorPrimary: colors.$1,
+                    colorSecondary: colors.$2,
+                    extras: sData['extras'] as Map<String, dynamic>?,
+                  ),
+                );
+              }
+            }
           }
         }
       }
+
+      // Sort by view count descending
+      tracks.sort((a, b) {
+        final vA = a.extras?['views'] as int? ?? 0;
+        final vB = b.extras?['views'] as int? ?? 0;
+        return vB.compareTo(vA);
+      });
+
+      // If we still have very few results, maybe try a search without params?
+      // (Skipping for now to avoid extra latency unless requested)
+
       return tracks.take(limit).toList();
     } catch (e) {
       return [];
@@ -503,7 +534,15 @@ class YoutubeMusicDataSource implements MusicDataSource {
   }
 
   @override
-  Future<List<PlaylistModel>> fetchPlaylists() async => [];
+  Future<List<PlaylistModel>> fetchPlaylists() async {
+    final List<PlaylistModel> allPlaylists = [];
+    try {
+      final locals = LocalStorage.instance.localPlaylists;
+      for (final l in locals)
+        allPlaylists.add(PlaylistModel.fromJson({...l, 'type': 'local'}));
+    } catch (_) {}
+    return allPlaylists;
+  }
 
   @override
   Future<List<SongModel>> fetchPlaylistTracks(
@@ -516,7 +555,6 @@ class YoutubeMusicDataSource implements MusicDataSource {
           .getVideos(playlistId)
           .take(limit)
           .toList();
-
       final tracks = <SongModel>[];
       for (final v in videos) {
         final colors = _colorsForId(v.id.value);
@@ -549,21 +587,15 @@ class YoutubeMusicDataSource implements MusicDataSource {
         '$_ytmBase/browse?prettyPrint=false',
         data: {"browseId": browseId, "context": _context},
       );
-
       if (response.statusCode != 200) return [];
       final data = response.data as Map<String, dynamic>;
-
       final List<dynamic> contents =
           data['contents']?['twoColumnBrowseResultsRenderer']?['secondaryContents']?['sectionListRenderer']?['contents'] ??
           [];
       final shelf = contents.firstOrNull?['musicShelfRenderer'];
       if (shelf == null) return [];
-
-      final items = shelf['contents'] as List?;
-      if (items == null) return [];
-
       final tracks = <SongModel>[];
-      for (final item in items) {
+      for (final item in shelf['contents'] as List? ?? []) {
         final mapped = _parseMytmItem(item);
         if (mapped != null && mapped['type'] == 'song') {
           final sData = mapped['data'] as Map<String, dynamic>;
@@ -574,10 +606,8 @@ class YoutubeMusicDataSource implements MusicDataSource {
               title: sData['title'],
               artist: sData['artist'],
               album: '',
-              duration: Duration(milliseconds: sData['durationMs'] ?? 0),
+              duration: Duration.zero,
               thumbnailUrl: sData['thumbnailUrl'],
-              thumbnailWidth: sData['thumbnailWidth'],
-              thumbnailHeight: sData['thumbnailHeight'],
               colorPrimary: colors.$1,
               colorSecondary: colors.$2,
             ),
@@ -597,26 +627,19 @@ class YoutubeMusicDataSource implements MusicDataSource {
         '$_ytmBase/browse?prettyPrint=false',
         data: {"browseId": channelId, "context": _context},
       );
-
       if (response.statusCode != 200) return [];
       final data = response.data as Map<String, dynamic>;
-
       final sectionList =
           data['contents']?['singleColumnBrowseResultsRenderer']?['tabs']?[0]?['tabRenderer']?['content']?['sectionListRenderer']?['contents']
               as List?;
       if (sectionList == null) return [];
-
       final tracks = <SongModel>[];
       for (final section in sectionList) {
         final shelf =
             section['musicShelfRenderer'] ??
             section['musicCarouselShelfRenderer'];
         if (shelf == null) continue;
-
-        final items = shelf['contents'] as List?;
-        if (items == null) continue;
-
-        for (final item in items) {
+        for (final item in shelf['contents'] as List? ?? []) {
           final mapped = _parseMytmItem(item);
           if (mapped != null && mapped['type'] == 'song') {
             final sData = mapped['data'] as Map<String, dynamic>;
@@ -627,10 +650,8 @@ class YoutubeMusicDataSource implements MusicDataSource {
                 title: sData['title'],
                 artist: sData['artist'],
                 album: '',
-                duration: Duration(milliseconds: sData['durationMs'] ?? 0),
+                duration: Duration.zero,
                 thumbnailUrl: sData['thumbnailUrl'],
-                thumbnailWidth: sData['thumbnailWidth'],
-                thumbnailHeight: sData['thumbnailHeight'],
                 colorPrimary: colors.$1,
                 colorSecondary: colors.$2,
               ),
@@ -650,7 +671,6 @@ class YoutubeMusicDataSource implements MusicDataSource {
     int limit = 25,
   }) async {
     try {
-      AppLogger.i(_tag, 'fetchRadioTracks: $videoId');
       final response = await _dio.post(
         '$_ytmBase/next?prettyPrint=false',
         data: {
@@ -659,60 +679,22 @@ class YoutubeMusicDataSource implements MusicDataSource {
           "context": _context,
         },
       );
-
-      if (response.statusCode != 200) {
-        AppLogger.e(_tag, 'fetchRadioTracks failed: ${response.statusCode}');
-        return [];
-      }
-
+      if (response.statusCode != 200) return [];
       final data = response.data as Map<String, dynamic>;
       final watchNext =
           data['contents']?['singleColumnMusicWatchNextResultsRenderer'] ??
           data['contents']?['twoColumnWatchNextResultsRenderer'];
-
-      if (watchNext == null) {
-        AppLogger.w(_tag, 'fetchRadioTracks: watchNext not found');
-        return [];
-      }
-
-      List<dynamic>? contents;
-
-      // Try to find the queue in tabbed renderer
-      final tabbed =
-          watchNext['tabbedRenderer']?['watchNextTabbedResultsRenderer'];
-      if (tabbed != null) {
-        final tabs = tabbed['tabs'] as List?;
-        if (tabs != null) {
-          for (final tab in tabs) {
-            final content = tab['tabRenderer']?['content'];
-            final queue =
-                content?['musicQueueRenderer']?['content']?['playlistPanelRenderer'];
-            if (queue != null) {
-              contents = queue['contents'] as List?;
-              break;
-            }
-          }
-        }
-      }
-
-      // Fallback for non-tabbed renderer
-      contents ??=
+      if (watchNext == null) return [];
+      final contents =
           watchNext['content']?['musicQueueRenderer']?['content']?['playlistPanelRenderer']?['contents']
               as List?;
-
-      if (contents == null || contents.isEmpty) {
-        AppLogger.w(_tag, 'fetchRadioTracks: No suggestions found in response');
-        return [];
-      }
-
+      if (contents == null) return [];
       final tracks = <SongModel>[];
       for (final item in contents) {
         final mapped = _parseMytmItem(item);
         if (mapped != null && mapped['type'] == 'song') {
           final sData = mapped['data'] as Map<String, dynamic>;
-          // Skip the current video if it's in the suggestions
           if (sData['id'] == videoId) continue;
-
           final colors = _colorsForId(sData['id']);
           tracks.add(
             SongModel(
@@ -720,21 +702,16 @@ class YoutubeMusicDataSource implements MusicDataSource {
               title: sData['title'],
               artist: sData['artist'],
               album: '',
-              duration: Duration(milliseconds: sData['durationMs'] ?? 0),
+              duration: Duration.zero,
               thumbnailUrl: sData['thumbnailUrl'],
-              thumbnailWidth: sData['thumbnailWidth'],
-              thumbnailHeight: sData['thumbnailHeight'],
               colorPrimary: colors.$1,
               colorSecondary: colors.$2,
             ),
           );
         }
       }
-
-      AppLogger.d(_tag, 'fetchRadioTracks: Found ${tracks.length} tracks');
       return tracks;
-    } catch (e, st) {
-      AppLogger.e(_tag, 'fetchRadioTracks error', e, st);
+    } catch (e) {
       return [];
     }
   }
@@ -758,7 +735,7 @@ class YoutubeMusicDataSource implements MusicDataSource {
             colorSecondary: colors.$2,
           ),
         );
-      } catch (e) {}
+      } catch (_) {}
     }
     return songs;
   }
@@ -772,23 +749,13 @@ class YoutubeMusicDataSource implements MusicDataSource {
   Future<void> recordPlay(SongModel song) async {
     try {
       final storage = LocalStorage.instance;
-      // 1. Save full song metadata for future reconstruction
       storage.saveCachedMetadata('song_meta_${song.id}', song.toJson());
-
-      // 2. Add to persistent history list with timestamp
-      final historyKey = 'persistent_history_events';
-      final List<dynamic> history =
-          storage.getCachedMetadata(historyKey) as List? ?? [];
-
-      // Keep only last 200 plays to avoid box bloat
+      final history =
+          storage.getCachedMetadata('persistent_history_events') as List? ?? [];
       if (history.length > 200) history.removeAt(0);
-
       history.add({'id': song.id, 'ts': DateTime.now().millisecondsSinceEpoch});
-      storage.saveCachedMetadata(historyKey, history);
-      AppLogger.d(_tag, 'Recorded persistent play for: ${song.title}');
-    } catch (e) {
-      AppLogger.w(_tag, 'Failed to record play: $e');
-    }
+      storage.saveCachedMetadata('persistent_history_events', history);
+    } catch (_) {}
   }
 
   @override
@@ -797,54 +764,34 @@ class YoutubeMusicDataSource implements MusicDataSource {
       final storage = LocalStorage.instance;
       final history =
           storage.getCachedMetadata('persistent_history_events') as List? ?? [];
-
       final now = DateTime.now();
       final today = <SongModel>[];
       final thisWeek = <SongModel>[];
       final thisMonth = <SongModel>[];
-      final Map<String, List<SongModel>> byMonth = {};
-
-      // Process in reverse to get most recent first
       final processedIds = <String>{};
-
       for (final event in history.reversed) {
         final id = event['id'] as String;
-        final ts = DateTime.fromMillisecondsSinceEpoch(event['ts'] as int);
-
-        // Only include unique songs in each section for a cleaner UI
-        if (processedIds.contains(id)) continue;
-
+        if (!processedIds.add(id)) continue;
         final songData = storage.getCachedMetadata('song_meta_$id');
         if (songData == null) continue;
-
         final song = SongModel.fromJson(
           Map<String, dynamic>.from(songData as Map),
         );
-        processedIds.add(id);
-
+        final ts = DateTime.fromMillisecondsSinceEpoch(event['ts'] as int);
         final diff = now.difference(ts);
-        if (diff.inDays == 0 && now.day == ts.day) {
+        if (diff.inDays == 0 && now.day == ts.day)
           today.add(song);
-        } else if (diff.inDays < 7) {
+        else if (diff.inDays < 7)
           thisWeek.add(song);
-        } else if (diff.inDays < 30) {
+        else if (diff.inDays < 30)
           thisMonth.add(song);
-        } else {
-          final monthKey = '${ts.year}-${ts.month.toString().padLeft(2, '0')}';
-          byMonth.putIfAbsent(monthKey, () => []).add(song);
-        }
       }
-
       return {
         'today': today.map((s) => s.toJson()).toList(),
         'thisWeek': thisWeek.map((s) => s.toJson()).toList(),
         'thisMonth': thisMonth.map((s) => s.toJson()).toList(),
-        'byMonth': byMonth.map(
-          (k, v) => MapEntry(k, v.map((s) => s.toJson()).toList()),
-        ),
       };
-    } catch (e) {
-      AppLogger.e(_tag, 'fetchPersistentHistory failed', e);
+    } catch (_) {
       return {};
     }
   }
@@ -860,10 +807,8 @@ class YoutubeMusicDataSource implements MusicDataSource {
           "params": videoId,
         },
       );
-
       final data = response.data as Map<String, dynamic>;
-      final Map<String, dynamic> details = {'videoId': videoId};
-
+      final details = {'videoId': videoId};
       final sectionList =
           data['contents']?['singleColumnBrowseResultsRenderer']?['tabs']?[0]?['tabRenderer']?['content']?['sectionListRenderer']?['contents']
               as List?;
@@ -872,13 +817,12 @@ class YoutubeMusicDataSource implements MusicDataSource {
           final shelf = section['musicDescriptionShelfRenderer'];
           if (shelf != null) {
             details['description'] = shelf['description']?['runs']?[0]?['text'];
-            details['footer'] = shelf['footer']?['runs']?[0]?['text'];
             break;
           }
         }
       }
       return details;
-    } catch (e) {
+    } catch (_) {
       return {};
     }
   }
@@ -890,35 +834,19 @@ class YoutubeMusicDataSource implements MusicDataSource {
         '$_ytmBase/browse?prettyPrint=false',
         data: {"browseId": browseId, "context": _context},
       );
-
       final data = response.data as Map<String, dynamic>;
-      final Map<String, dynamic> details = {'browseId': browseId};
-
+      final details = {'browseId': browseId};
       final header =
           data['header']?['musicImmersiveHeaderRenderer'] ??
           data['header']?['musicVisualHeaderRenderer'];
       if (header != null) {
         details['name'] = header['title']?['runs']?[0]?['text'];
-        final thumb =
+        details['thumbnailUrl'] =
             header['thumbnail']?['musicThumbnailRenderer']?['thumbnail']?['thumbnails']
                 ?.last?['url'];
-        details['thumbnailUrl'] = thumb;
-      }
-
-      final sectionList =
-          data['contents']?['singleColumnBrowseResultsRenderer']?['tabs']?[0]?['tabRenderer']?['content']?['sectionListRenderer']?['contents']
-              as List?;
-      if (sectionList != null) {
-        for (final section in sectionList) {
-          final shelf = section['musicDescriptionShelfRenderer'];
-          if (shelf != null) {
-            details['biography'] = shelf['description']?['runs']?[0]?['text'];
-            break;
-          }
-        }
       }
       return details;
-    } catch (e) {
+    } catch (_) {
       return {};
     }
   }
@@ -929,22 +857,12 @@ class YoutubeMusicDataSource implements MusicDataSource {
       {
         'name': 'Chill',
         'params': 'EgWKAQIIAWoQEAMQBBAJEAoQCxAEEAoQAA==',
-        'color': const Color(0xFF7C3AED).value,
+        'color': 0xFF7C3AED,
       },
       {
         'name': 'Energy',
         'params': 'EgWKAQIIAWoQEAMQBBAJEAoQCxAEEAoQAA==',
-        'color': const Color(0xFFEF4444).value,
-      },
-      {
-        'name': 'Focus',
-        'params': 'EgWKAQIIAWoQEAMQBBAJEAoQCxAEEAoQAA==',
-        'color': const Color(0xFF059669).value,
-      },
-      {
-        'name': 'Workout',
-        'params': 'EgWKAQIIAWoQEAMQBBAJEAoQCxAEEAoQAA==',
-        'color': const Color(0xFFF59E0B).value,
+        'color': 0xFFEF4444,
       },
     ];
   }
@@ -982,7 +900,6 @@ class YoutubeMusicDataSource implements MusicDataSource {
   Future<void> likeArtist(String channelId) async {}
   @override
   Future<void> unlikeArtist(String channelId) async {}
-
   @override
   Future<PlaylistModel> createFlowPlaylist({
     required String title,
@@ -992,9 +909,8 @@ class YoutubeMusicDataSource implements MusicDataSource {
     id: '',
     name: title,
     description: description,
-    color: _colorPairs[0].$1,
+    color: const Color(0xFF7C3AED),
   );
-
   @override
   Future<PlaylistModel> updateFlowPlaylist(
     String playlistId, {
@@ -1005,9 +921,8 @@ class YoutubeMusicDataSource implements MusicDataSource {
     id: playlistId,
     name: title ?? '',
     description: description ?? '',
-    color: _colorPairs[0].$1,
+    color: const Color(0xFF7C3AED),
   );
-
   @override
   Future<void> deleteFlowPlaylist(String playlistId) async {}
   @override
@@ -1025,17 +940,36 @@ class YoutubeMusicDataSource implements MusicDataSource {
   @override
   Future<void> removeCollaborator(String playlistId, String userCode) async {}
 
-  static (Color, Color) _colorsForId(String id) {
-    final hash = id.codeUnits.fold(0, (a, b) => a + b);
-    return _colorPairs[hash % _colorPairs.length];
+  Future<List<Map<String, dynamic>>> _fetchShelf(
+    String browseId, {
+    String? params,
+    String? forcedSection,
+  }) async {
+    try {
+      final response = await _dio.post(
+        '$_ytmBase/browse?prettyPrint=false',
+        data: {
+          "browseId": browseId,
+          if (params != null) "params": params,
+          "context": _context,
+        },
+      );
+      if (response.statusCode != 200) return [];
+      return _parseHomeDataInternal(
+        response.data as Map<String, dynamic>,
+        forcedSectionType: forcedSection,
+      ).rawShelves;
+    } catch (_) {
+      return [];
+    }
   }
 
-  static const _colorPairs = [
-    (Color(0xFF7C3AED), Color(0xFF2563EB)),
-    (Color(0xFFEC4899), Color(0xFFEF4444)),
-    (Color(0xFF059669), Color(0xFF0891B2)),
-    (Color(0xFFF59E0B), Color(0xFF6366F1)),
-    (Color(0xFF8B5CF6), Color(0xFF4C1D95)),
-    (Color(0xFFE879F9), Color(0xFFBE185D)),
-  ];
+  static (Color, Color) _colorsForId(String id) {
+    final hash = id.codeUnits.fold(0, (a, b) => a + b);
+    final pairs = [
+      (const Color(0xFF7C3AED), const Color(0xFF2563EB)),
+      (const Color(0xFFEC4899), const Color(0xFFEF4444)),
+    ];
+    return pairs[hash % pairs.length];
+  }
 }

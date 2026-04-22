@@ -27,7 +27,7 @@ class YoutubeMusicRepository implements MusicRepository {
   @override
   Future<HomeData> getHomeData({int limit = 25}) async {
     final cacheKey = 'home_data_$limit';
-    /* 
+    /*
     try {
       final cached = LocalStorage.instance.getCachedMetadata(cacheKey);
       if (cached != null && cached is Map) {
@@ -116,8 +116,9 @@ class YoutubeMusicRepository implements MusicRepository {
           final list = cached['data'] as List;
           return list
               .map(
-                (e) => SongModel.fromJson(Map<String, dynamic>.from(e as Map))
-                    .toEntity(),
+                (e) => SongModel.fromJson(
+                  Map<String, dynamic>.from(e as Map),
+                ).toEntity(),
               )
               .toList();
         }
@@ -167,8 +168,9 @@ class YoutubeMusicRepository implements MusicRepository {
           final list = cached['data'] as List;
           return list
               .map(
-                (e) => SongModel.fromJson(Map<String, dynamic>.from(e as Map))
-                    .toEntity(),
+                (e) => SongModel.fromJson(
+                  Map<String, dynamic>.from(e as Map),
+                ).toEntity(),
               )
               .toList();
         }
@@ -212,8 +214,9 @@ class YoutubeMusicRepository implements MusicRepository {
           final list = cached['data'] as List;
           return list
               .map(
-                (e) => SongModel.fromJson(Map<String, dynamic>.from(e as Map))
-                    .toEntity(),
+                (e) => SongModel.fromJson(
+                  Map<String, dynamic>.from(e as Map),
+                ).toEntity(),
               )
               .toList();
         }
@@ -284,12 +287,14 @@ class YoutubeMusicRepository implements MusicRepository {
       final missingIds = <String>[];
 
       for (final id in ids) {
-        final localMetadata = LocalStorage.instance.getDownloadMetadata(id) ??
+        final localMetadata =
+            LocalStorage.instance.getDownloadMetadata(id) ??
             LocalStorage.instance.getCachedMetadata('song_meta_$id');
         if (localMetadata != null) {
           songs.add(
-            SongModel.fromJson(Map<String, dynamic>.from(localMetadata as Map))
-                .toEntity(),
+            SongModel.fromJson(
+              Map<String, dynamic>.from(localMetadata as Map),
+            ).toEntity(),
           );
         } else {
           missingIds.add(id);
@@ -349,9 +354,51 @@ class YoutubeMusicRepository implements MusicRepository {
         isDownloaded: song.isDownloaded,
       );
       await _source.recordPlay(model);
+      LocalStorage.instance.incrementArtistPlayCount(song.artist);
+
+      // Keywords for special shelves
+      final t = song.title.toLowerCase();
+      final a = song.artist.toLowerCase();
+      if (t.contains('lofi') || t.contains('lo-fi') || t.contains('chillhop')) {
+        LocalStorage.instance.recordLofiInterest(song.artist);
+      } else if (t.contains('podcast') ||
+          a.contains('podcast') ||
+          song.duration > const Duration(minutes: 20)) {
+        LocalStorage.instance.recordPodcastInterest(song.artist);
+      }
     } catch (e) {
       AppLogger.w(_tag, 'Failed to record play history: $e');
     }
+  }
+
+  @override
+  Future<void> recordSearch(String query) async {
+    // Basic heuristic: if query is a name-like string, record as artist search
+    if (query.length > 3) {
+      LocalStorage.instance.recordArtistSearch(query);
+
+      final q = query.toLowerCase();
+      if (q.contains('lofi') || q.contains('chillhop')) {
+        LocalStorage.instance.recordLofiInterest(query);
+      } else if (q.contains('podcast')) {
+        LocalStorage.instance.recordPodcastInterest(query);
+      }
+    }
+  }
+
+  @override
+  List<String> getTopArtists() {
+    return LocalStorage.instance.topArtists;
+  }
+
+  @override
+  void recordPodcastInterest(String artistName) {
+    LocalStorage.instance.recordPodcastInterest(artistName);
+  }
+
+  @override
+  void recordLofiInterest(String artistName) {
+    LocalStorage.instance.recordLofiInterest(artistName);
   }
 
   @override

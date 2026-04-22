@@ -1,0 +1,174 @@
+import 'dart:ui';
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../screens/home/home_screen.dart';
+import '../screens/search/search_screen.dart';
+import '../screens/library/library_screen.dart';
+import 'mini_player.dart';
+
+class MainShell extends StatefulWidget {
+  const MainShell({super.key});
+
+  @override
+  State<MainShell> createState() => _MainShellState();
+}
+
+class _MainShellState extends State<MainShell> {
+  int _currentIndex = 0;
+
+  // Keys to maintain state for each tab's navigator
+  final List<GlobalKey<NavigatorState>> _navigatorKeys = [
+    GlobalKey<NavigatorState>(),
+    GlobalKey<NavigatorState>(),
+    GlobalKey<NavigatorState>(),
+  ];
+
+  void _onTabTapped(int index) {
+    if (_currentIndex == index) {
+      // Pop to first route if user taps the active tab
+      _navigatorKeys[index].currentState?.popUntil((route) => route.isFirst);
+    } else {
+      setState(() => _currentIndex = index);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final padding = MediaQuery.paddingOf(context);
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          // Content with Nested Navigators
+          Positioned.fill(
+            child: IndexedStack(
+              index: _currentIndex,
+              children: [
+                _buildTabNav(0, const HomeScreen()),
+                _buildTabNav(1, const SearchScreen()),
+                _buildTabNav(2, const LibraryScreen()),
+              ],
+            ),
+          ),
+
+          // Persistent Bottom UI
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const MiniPlayer(),
+                ClipRect(
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
+                    child: Container(
+                      height: 64 + padding.bottom,
+                      padding: EdgeInsets.only(bottom: padding.bottom),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withAlpha(200),
+                        border: Border(
+                          top: BorderSide(
+                            color: Colors.white.withAlpha(20),
+                            width: 0.5,
+                          ),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          _BottomTabItem(
+                            icon: Icons.home_rounded,
+                            label: 'Home',
+                            isActive: _currentIndex == 0,
+                            onTap: () => _onTabTapped(0),
+                          ),
+                          _BottomTabItem(
+                            icon: Icons.search_rounded,
+                            label: 'Search',
+                            isActive: _currentIndex == 1,
+                            onTap: () => _onTabTapped(1),
+                          ),
+                          _BottomTabItem(
+                            icon: Icons.library_music_rounded,
+                            label: 'Library',
+                            isActive: _currentIndex == 2,
+                            onTap: () => _onTabTapped(2),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabNav(int index, Widget root) {
+    return Navigator(
+      key: _navigatorKeys[index],
+      onGenerateRoute: (settings) =>
+          MaterialPageRoute(builder: (_) => root, settings: settings),
+    );
+  }
+}
+
+class _BottomTabItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool isActive;
+  final VoidCallback onTap;
+
+  const _BottomTabItem({
+    required this.icon,
+    required this.label,
+    required this.isActive,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        width: 80,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              decoration: BoxDecoration(
+                color: isActive ? cs.primary.withAlpha(40) : Colors.transparent,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Icon(
+                icon,
+                color: isActive ? cs.primary : Colors.white.withAlpha(120),
+                size: 24,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: GoogleFonts.outfit(
+                fontSize: 10,
+                fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                color: isActive ? cs.primary : Colors.white.withAlpha(120),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

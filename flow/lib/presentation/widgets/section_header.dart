@@ -30,73 +30,56 @@ class SectionHeader extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          if (profileUrl != null)
+          if (icon != null)
             Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: CircleAvatar(
-                radius: 18,
-                backgroundImage: NetworkImage(profileUrl!),
-                backgroundColor: colorScheme.surfaceContainerHigh,
-              ),
+              padding: const EdgeInsets.only(right: 12, bottom: 4),
+              child: Icon(icon, size: 22, color: colorScheme.primary),
             ),
-          if (icon != null && profileUrl == null)
-            Padding(
-              padding: const EdgeInsets.only(right: 10),
-              child: Icon(
-                icon,
-                size: 20,
-                color: colorScheme.primary.withAlpha(180),
-              ),
-            ),
-
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                if (profileName != null)
-                  Text(
-                    profileName!,
-                    style: GoogleFonts.outfit(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: colorScheme.onSurface.withAlpha(140),
-                    ),
-                  )
-                else if (subtitle != null)
+                if (subtitle != null)
                   Text(
                     subtitle!.toUpperCase(),
                     style: GoogleFonts.outfit(
-                      fontSize: 11,
+                      fontSize: 10,
                       fontWeight: FontWeight.w700,
                       color: colorScheme.onSurface.withAlpha(100),
-                      letterSpacing: 1.0,
+                      letterSpacing: 1.5,
                     ),
                   ),
                 Text(
                   title,
                   style: GoogleFonts.spaceGrotesk(
-                    fontSize: isSmall ? 20.0 : 24.0,
+                    fontSize: isSmall ? 22.0 : 28.0,
                     fontWeight: FontWeight.w800,
-                    letterSpacing: -0.5,
+                    letterSpacing: -1.0,
+                    height: 1.1,
                   ),
                 ),
               ],
             ),
           ),
           if (onSeeAll != null)
-            GestureDetector(
-              onTap: onSeeAll,
-              child: MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: Text(
-                  'See all',
-                  style: GoogleFonts.outfit(
-                    color: colorScheme.primary,
-                    fontSize: isSmall ? 13.0 : 14.0,
-                    fontWeight: FontWeight.w600,
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: GestureDetector(
+                onTap: onSeeAll,
+                child: MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: Text(
+                    'See all',
+                    style: GoogleFonts.outfit(
+                      color: colorScheme.primary,
+                      fontSize: 13.0,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ),

@@ -1,14 +1,19 @@
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../storage/secure_storage_service.dart';
 import '../logger/app_logger.dart';
 
 class YoutubeInterceptor extends Interceptor {
   @override
-  Future<void> onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
+  Future<void> onRequest(
+    RequestOptions options,
+    RequestInterceptorHandler handler,
+  ) async {
     // Only apply to YouTube domains
-    if (options.path.contains('youtube.com') || options.path.contains('youtubei.googleapis.com')) {
+    if (options.path.contains('youtube.com') ||
+        options.path.contains('youtubei.googleapis.com')) {
       String? cookies;
       String? userAgent;
 
@@ -22,12 +27,16 @@ class YoutubeInterceptor extends Interceptor {
 
       if (cookies != null && cookies.isNotEmpty) {
         options.headers['Cookie'] = cookies;
-        AppLogger.d('YoutubeInterceptor', 'Injected cookies for ${options.path}');
+        AppLogger.d(
+          'YoutubeInterceptor',
+          'Injected cookies for ${options.path}',
+        );
 
         // Generate SAPISIDHASH for Authorization header if SAPISID exists
         final sapisid = _extractCookie(cookies, 'SAPISID');
         if (sapisid != null) {
-          final origin = options.headers['Origin'] ?? 'https://music.youtube.com';
+          final origin =
+              options.headers['Origin'] ?? 'https://music.youtube.com';
           final authHeader = _generateSapisidHash(sapisid, origin);
           options.headers['Authorization'] = 'SAPISIDHASH $authHeader';
         }
@@ -37,15 +46,18 @@ class YoutubeInterceptor extends Interceptor {
         options.headers['User-Agent'] = userAgent;
       } else {
         // Default modern user agent if not set
-        options.headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
+        options.headers['User-Agent'] =
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
       }
-      
+
       // Mandatory headers for YouTube Music API
       options.headers['Origin'] = 'https://music.youtube.com';
       options.headers['Referer'] = 'https://music.youtube.com/';
       options.headers['X-Goog-AuthUser'] = '0';
+      options.headers['X-YouTube-Client-Name'] = '1';
+      options.headers['X-YouTube-Client-Version'] = '19.30.36';
     }
-    
+
     return handler.next(options);
   }
 

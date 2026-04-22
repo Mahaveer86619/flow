@@ -30,11 +30,11 @@ import 'presentation/cubits/search/search_cubit.dart';
 import 'presentation/cubits/song_details/song_details_cubit.dart';
 import 'presentation/screens/auth/login_screen.dart';
 import 'presentation/screens/splash/splash_screen.dart';
+import 'presentation/widgets/main_shell.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // ── 1. Background audio (Android / iOS / macOS only) ─────────────────────────
   if (defaultTargetPlatform == TargetPlatform.android ||
       defaultTargetPlatform == TargetPlatform.iOS ||
       defaultTargetPlatform == TargetPlatform.macOS) {
@@ -50,43 +50,26 @@ void main() async {
     );
   }
 
-  // ── 3. Load .env ─────────────────────────────────────────────────────────────
   await dotenv.load(fileName: '.env');
-
-  // ── 4. Logger (needs DEBUG flag from .env) ────────────────────────────────────
   AppLogger.init();
-  AppLogger.i('main', 'Flow starting up');
-
-  // ── 3. Local storage ──────────────────────────────────────────────────────────
   await LocalStorage.instance.init();
-
-  // ── 3c. Download service ────────────────────────────────────────────────────
   await DownloadService.instance.init();
   await CacheService.instance.init();
 
-  // ── 3d. Version Check ────────────────────────────────────────────────────────
   final currentVersion = dotenv.env['APP_VERSION'] ?? '1.0.0';
   final storedVersion = LocalStorage.instance.appVersion;
 
   if (storedVersion != currentVersion) {
-    AppLogger.w(
-      'main',
-      'Version changed ($storedVersion -> $currentVersion). Cleaning cache...',
-    );
     await LocalStorage.instance.clearCacheOnVersionChange();
-    await CacheService.instance.clearCache();
+    try {
+      await CacheService.instance.clearCache();
+    } catch (_) {}
     LocalStorage.instance.saveAppVersion(currentVersion);
-  } else {
-    AppLogger.i('main', 'Version match: $currentVersion');
   }
 
-  // ── 4. Connectivity ───────────────────────────────────────────────────────────
   await ConnectivityService.instance.init();
-
-  // ── 4b. Permissions ───────────────────────────────────────────────────────────
   await PermissionService.instance.init();
 
-  // ── 5. System UI ──────────────────────────────────────────────────────────────
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -96,24 +79,14 @@ void main() async {
   );
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
-  // ── 6. Dependency graph ───────────────────────────────────────────────────────
   final useMock = dotenv.env['USE_MOCK'] == 'true';
-
-  AppLogger.i(
-    'main',
-    'Source: ${useMock ? "mock" : "Standalone (YoutubeMusicDataSource)"}',
-  );
-
   final dataSource = useMock ? MockSongDataSource() : YoutubeMusicDataSource();
-
   final repository = YoutubeMusicRepository(dataSource);
 
   final getHomeData = GetHomeDataUseCase(repository);
   final getPlaylists = GetPlaylistsUseCase(repository);
   final getCategories = GetCategoriesUseCase(repository);
   final searchSongs = SearchSongsUseCase(repository);
-
-  AppLogger.i('main', 'DI graph built — launching app');
 
   runApp(
     MultiRepositoryProvider(
@@ -132,8 +105,10 @@ void main() async {
                 SettingsCubit(authCubit: context.read<AuthCubit>()),
           ),
           BlocProvider(
-            create: (_) =>
-                HomeCubit(getHomeData: getHomeData, musicRepository: repository),
+            create: (_) => HomeCubit(
+              getHomeData: getHomeData,
+              musicRepository: repository,
+            ),
           ),
           BlocProvider(
             create: (_) => SearchCubit(
@@ -167,6 +142,7 @@ class FlowApp extends StatelessWidget {
     final themeMode = context.select<SettingsCubit, ThemeMode>(
       (c) => c.state.themeMode,
     );
+
     return MaterialApp(
       title: 'flow',
       navigatorKey: navigatorKey,
@@ -177,15 +153,8 @@ class FlowApp extends StatelessWidget {
       home: const SplashScreen(),
       builder: (context, child) {
         return BlocListener<AuthCubit, AuthState>(
-          listenWhen: (prev, curr) =>
-              prev.isAuthenticated != curr.isAuthenticated ||
-              prev.isLoading != curr.isLoading,
           listener: (context, state) {
             if (!state.isAuthenticated && !state.isLoading) {
-              AppLogger.i(
-                'FlowApp',
-                'User unauthenticated, redirecting to Login',
-              );
               navigatorKey.currentState?.pushAndRemoveUntil(
                 MaterialPageRoute(builder: (_) => const LoginScreen()),
                 (route) => false,
@@ -205,7 +174,7 @@ class FlowApp extends StatelessWidget {
     final colorScheme = ColorScheme.fromSeed(
       seedColor: seedColor,
       brightness: brightness,
-      surface: isDark ? const Color(0xFF07070F) : const Color(0xFFFBFBFF),
+      surface: isDark ? const Color(0xFF000000) : const Color(0xFFFBFBFF),
       onSurface: isDark ? Colors.white : const Color(0xFF07070F),
     );
 
@@ -216,45 +185,14 @@ class FlowApp extends StatelessWidget {
     return base.copyWith(
       colorScheme: colorScheme,
       scaffoldBackgroundColor: colorScheme.surface,
-      cardTheme: CardThemeData(
-        shape: AppRadius.mediumShape,
-        elevation: 0,
-        clipBehavior: Clip.antiAlias,
-      ),
-      chipTheme: ChipThemeData(
-        shape: AppRadius.smallShape,
-        side: BorderSide.none,
-      ),
-      dialogTheme: DialogThemeData(shape: AppRadius.mediumShape),
-      filledButtonTheme: FilledButtonThemeData(
-        style: FilledButton.styleFrom(shape: AppRadius.mediumShape),
-      ),
-      outlinedButtonTheme: OutlinedButtonThemeData(
-        style: OutlinedButton.styleFrom(shape: AppRadius.mediumShape),
-      ),
-      textButtonTheme: TextButtonThemeData(
-        style: TextButton.styleFrom(shape: AppRadius.mediumShape),
-      ),
       textTheme: GoogleFonts.outfitTextTheme(base.textTheme).apply(
         bodyColor: colorScheme.onSurface,
         displayColor: colorScheme.onSurface,
-      ),
-      navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: colorScheme.surface,
-        indicatorColor: colorScheme.primary.withAlpha(isDark ? 40 : 25),
-        labelTextStyle: WidgetStatePropertyAll(
-          GoogleFonts.outfit(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: colorScheme.onSurface,
-          ),
-        ),
       ),
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        scrolledUnderElevation: 0,
         centerTitle: false,
         titleTextStyle: GoogleFonts.spaceGrotesk(
           fontSize: 22,

@@ -21,13 +21,14 @@ class PlayerScreen extends StatefulWidget {
   static Future<void> show(BuildContext context) {
     final playerBloc = context.read<PlayerBloc>();
     final detailsCubit = context.read<SongDetailsCubit>();
-    
+
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       useSafeArea: false,
       enableDrag: false,
+      useRootNavigator: true,
       builder: (context) => MultiBlocProvider(
         providers: [
           BlocProvider<PlayerBloc>.value(value: playerBloc),
@@ -653,21 +654,24 @@ class _ArtistCard extends StatelessWidget {
                 ),
               ),
               if (detailsState.artistThumbnail != null)
-                 Container(
-                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                   decoration: BoxDecoration(
-                     color: cs.primary.withAlpha(40),
-                     borderRadius: BorderRadius.circular(20),
-                   ),
-                   child: Text(
-                     'Official',
-                     style: GoogleFonts.outfit(
-                       fontSize: 9,
-                       fontWeight: FontWeight.w700,
-                       color: cs.primary,
-                     ),
-                   ),
-                 ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: cs.primary.withAlpha(40),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    'Official',
+                    style: GoogleFonts.outfit(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                      color: cs.primary,
+                    ),
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 20),
@@ -694,13 +698,16 @@ class _ArtistCard extends StatelessWidget {
                             _ArtistInitials(initials: initials, song: song),
                       )
                     : (song.thumbnailUrl != null
-                        ? Image.network(
-                            song.thumbnailUrl!,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) =>
-                                _ArtistInitials(initials: initials, song: song),
-                          )
-                        : _ArtistInitials(initials: initials, song: song)),
+                          ? Image.network(
+                              song.thumbnailUrl!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  _ArtistInitials(
+                                    initials: initials,
+                                    song: song,
+                                  ),
+                            )
+                          : _ArtistInitials(initials: initials, song: song)),
               ),
             ),
           ),
@@ -966,4 +973,3 @@ class _MetaRow extends StatelessWidget {
     );
   }
 }
-
