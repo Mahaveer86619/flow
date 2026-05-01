@@ -22,30 +22,23 @@ import '../../../domain/entities/track.dart' as domain;
 import '../../../core/intelligence/app_intelligence.dart';
 import '../../../domain/entities/scoring_graph.dart' as domain;
 import '../../../domain/engines/mood_engine.dart';
-
-
-
-
-
 import '../../../core/network/download_service.dart';
 import '../../../core/network/cache_service.dart';
 import '../../../domain/repositories/music_repository.dart';
 import '../../../data/sources/stream_resolver.dart';
+import '../../../core/network/lan_stream_bridge.dart';
+import '../../cubits/settings/settings_cubit.dart';
+import '../../cubits/settings/settings_state.dart';
 
 part 'player_event.dart';
 part 'player_state.dart';
-
-// ── PlayerBloc ────────────────────────────────────────────────────────────────
-//
-// Drives actual audio playback via just_audio (AudioPlayer).
-// Uses ConcatenatingAudioSource for smooth transitions and pre-buffering.
-// ─────────────────────────────────────────────────────────────────────────────
 
 class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
   final AudioPlayer _audioPlayer;
   final LocalStorage _storage;
   final WindowsMediaSession _mediaSession;
   final MusicRepository _musicRepository;
+  final SettingsCubit _settingsCubit;
 
   bool _isChangingSource = false;
   bool _isFetchingRadio = false;
@@ -59,7 +52,6 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
   StreamSubscription<int?>? _currentIndexSub;
   StreamSubscription<Map<String, double>>? _downloadSub;
 
-  /// The active playlist for just_audio.
   final ConcatenatingAudioSource _playlist = ConcatenatingAudioSource(
     children: [],
   );
@@ -68,10 +60,12 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
 
   PlayerBloc({
     required MusicRepository musicRepository,
+    required SettingsCubit settingsCubit,
     LocalStorage? storage,
     AudioPlayer? audioPlayer,
     WindowsMediaSession? mediaSession,
   }) : _musicRepository = musicRepository,
+       _settingsCubit = settingsCubit,
        _storage = storage ?? LocalStorage.instance,
        _audioPlayer = audioPlayer ?? AudioPlayer(),
        _mediaSession = mediaSession ?? WindowsMediaSession.instance,
@@ -119,30 +113,15 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     _subscribeToDownloads();
     add(const _RestoreStateEvent());
 
-    // Initialise Windows SMTC — no-op on other platforms
     _mediaSession.init(
-      onPlay: () {
-        if (!isClosed) add(const PlayEvent());
-      },
-      onPause: () {
-        if (!isClosed) add(const PauseEvent());
-      },
-      onNext: () {
-        if (!isClosed) add(const SkipNextEvent());
-      },
-      onPrevious: () {
-        if (!isClosed) add(const SkipPreviousEvent());
-      },
-      onFastForward: () {
-        if (!isClosed) add(const FastForwardEvent());
-      },
-      onRewind: () {
-        if (!isClosed) add(const RewindEvent());
-      },
+      onPlay: () { if (!isClosed) add(const PlayEvent()); },
+      onPause: () { if (!isClosed) add(const PauseEvent()); },
+      onNext: () { if (!isClosed) add(const SkipNextEvent()); },
+      onPrevious: () { if (!isClosed) add(const SkipPreviousEvent()); },
+      onFastForward: () { if (!isClosed) add(const FastForwardEvent()); },
+      onRewind: () { if (!isClosed) add(const RewindEvent()); },
     );
   }
-
-  // ── AudioPlayer subscriptions ─────────────────────────────────────────────
 
   void _subscribeToPlayer() {
     DateTime lastPositionUpdate = DateTime.fromMillisecondsSinceEpoch(0);
@@ -151,7 +130,6 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     _positionSub = _audioPlayer.positionStream.listen((pos) {
       if (isClosed) return;
       final now = DateTime.now();
-      // Throttle position updates to ~5 times per second (200ms)
       if (now.difference(lastPositionUpdate).inMilliseconds > 200) {
         lastPositionUpdate = now;
         add(_PositionUpdateEvent(pos, _audioPlayer.duration));
@@ -167,7 +145,6 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     _bufferedSub = _audioPlayer.bufferedPositionStream.listen((pos) {
       if (isClosed) return;
       final now = DateTime.now();
-      // Throttle buffered updates to once per second
       if (now.difference(lastBufferedUpdate).inMilliseconds > 1000) {
         lastBufferedUpdate = now;
         add(_BufferedPositionChangedEvent(pos));
@@ -179,89 +156,39 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
       if (ps.processingState == ja.ProcessingState.completed) {
         add(const _TrackCompletedEvent());
       } else {
-        final buffering =
-            ps.processingState == ja.ProcessingState.loading ||
-            ps.processingState == ja.ProcessingState.buffering;
-
-        // Safety: ensure isInitialLoading is cleared once we are ready or playing
-        if (state.isInitialLoading &&
-            (ps.processingState == ja.ProcessingState.ready || ps.playing)) {
+        final buffering = ps.processingState == ja.ProcessingState.loading || ps.processingState == ja.ProcessingState.buffering;
+        if (state.isInitialLoading && (ps.processingState == ja.ProcessingState.ready || ps.playing)) {
           add(const _InitialLoadingChangedEvent(false));
         }
-
-        add(
-          _BufferingChangedEvent(isBuffering: buffering, isPlaying: ps.playing),
-        );
+        add(_BufferingChangedEvent(isBuffering: buffering, isPlaying: ps.playing));
       }
     });
 
-    _playbackErrorSub = _audioPlayer.playbackEventStream.listen(
-      (event) {
-        // This stream also emits regular events, but we care about errors
-      },
-      onError: (Object e, StackTrace st) async {
-        if (isClosed) return;
-
-        // Extract failed URI host from current player state instead of exception object
-        String? failedHost;
-        final currentIndex = _audioPlayer.currentIndex;
-        if (currentIndex != null && currentIndex < _playlist.length) {
-          final source = _playlist.children[currentIndex];
-          if (source is ja.UriAudioSource) {
-            failedHost = source.uri.host;
-          }
-        }
-
-        // If it's a known placeholder host, don't retry aggressively and don't skip immediately
-        // unless we've already tried to resolve it.
-        if (failedHost == 'flow-jit') {
-          AppLogger.d(
-            _tag,
-            'Placeholder still loading, waiting for JIT resolution...',
-          );
-          return;
-        }
-
-        AppLogger.e(
-          _tag,
-          'Playback error (retry=$_retryCount) host=$failedHost',
-          e,
-          st,
-        );
-
-        if (_retryCount < 3) {
-          _retryCount++;
-          // Wait a bit before retrying to allow network to recover
-          await Future.delayed(Duration(seconds: _retryCount));
-          if (!isClosed) {
-            _audioPlayer.play();
-          }
-        } else {
-          AppLogger.w(_tag, 'Retry limit reached, skipping to next track');
-          _retryCount = 0;
-          add(const SkipNextEvent());
-        }
-      },
-    );
+    _playbackErrorSub = _audioPlayer.playbackEventStream.listen((event) {}, onError: (Object e, StackTrace st) async {
+      if (isClosed) return;
+      String? failedHost;
+      final currentIndex = _audioPlayer.currentIndex;
+      if (currentIndex != null && currentIndex < _playlist.length) {
+        final source = _playlist.children[currentIndex];
+        if (source is ja.UriAudioSource) failedHost = source.uri.host;
+      }
+      if (failedHost == 'flow-jit') return;
+      AppLogger.e(_tag, 'Playback error (retry=$_retryCount) host=$failedHost', e, st);
+      if (_retryCount < 3) {
+        _retryCount++;
+        await Future.delayed(Duration(seconds: _retryCount));
+        if (!isClosed) _audioPlayer.play();
+      } else {
+        _retryCount = 0;
+        add(const SkipNextEvent());
+      }
+    });
 
     _currentIndexSub = _audioPlayer.currentIndexStream.listen((idx) {
-      if (isClosed ||
-          idx == null ||
-          _isChangingSource ||
-          idx >= state.queue.length) {
-        return;
-      }
+      if (isClosed || idx == null || _isChangingSource || idx >= state.queue.length) return;
       if (idx != state.queueIndex) {
-        // If the upcoming track is a placeholder, ensure we prefetch it immediately
-        final isPlaceholder =
-            idx < _playlist.length &&
-            _playlist.children[idx] is ja.UriAudioSource &&
-            (_playlist.children[idx] as ja.UriAudioSource).uri.host ==
-                'flow-jit';
-
-        if (isPlaceholder) {
-          _prefetchSurroundingTracks(idx);
-        }
+        final isPlaceholder = idx < _playlist.length && _playlist.children[idx] is ja.UriAudioSource && (_playlist.children[idx] as ja.UriAudioSource).uri.host == 'flow-jit';
+        if (isPlaceholder) _prefetchSurroundingTracks(idx);
         add(_TrackChangedEvent(idx));
       }
     });
@@ -276,109 +203,48 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
   void _onTrackChanged(_TrackChangedEvent event, Emitter<PlayerState> emit) {
     final newIndex = event.index;
     if (newIndex >= state.queue.length) return;
-
-    _retryCount = 0; // Reset for new track
+    _retryCount = 0;
     final song = state.queue[newIndex];
-    AppLogger.i(_tag, 'Auto-advanced to: "${song.title}" (idx=$newIndex)');
-
-    // Record play in persistent history
     _musicRepository.recordPlay(song);
-
-    final recent = [
-      song,
-      ...state.recentlyPlayed.where((s) => s.id != song.id),
-    ];
+    final recent = [song, ...state.recentlyPlayed.where((s) => s.id != song.id)];
     if (recent.length > 20) recent.removeLast();
     _storage.saveRecentlyPlayedIds(recent.map((s) => s.id).toList());
-
     _mediaSession.updateSong(song);
-
-    // Prefetch radio if we're near the end of the queue
-    if (state.isEndlessRadio &&
-        state.queue.length - newIndex < 3 &&
-        state.queue.isNotEmpty) {
-      _fetchMoreRadioTracks();
-    }
-
-    // Prefetch surrounding tracks with JIT resolution
+    if (state.isEndlessRadio && state.queue.length - newIndex < 3 && state.queue.isNotEmpty) _fetchMoreRadioTracks();
     _prefetchSurroundingTracks(newIndex);
-
-    emit(
-      state.copyWith(
-        currentSong: song,
-        queueIndex: newIndex,
-        recentlyPlayed: recent,
-        position: Duration.zero,
-        bufferedPosition: Duration.zero,
-        clearActualDuration: true,
-        clearCustomColors: true,
-      ),
-    );
-
+    emit(state.copyWith(currentSong: song, queueIndex: newIndex, recentlyPlayed: recent, position: Duration.zero, bufferedPosition: Duration.zero, clearActualDuration: true, clearCustomColors: true));
     _extractPalette(song);
   }
 
   void _prefetchSurroundingTracks(int currentIndex) async {
     if (state.queue.isEmpty) return;
-
-    final List<int> indicesToPrefetch = [];
-
-    // Current (if by any chance it's still a placeholder)
-    indicesToPrefetch.add(currentIndex);
-
-    // Neighbors
-    if (currentIndex + 1 < state.queue.length) {
-      indicesToPrefetch.add(currentIndex + 1);
-    }
-    if (currentIndex > 0) {
-      indicesToPrefetch.add(currentIndex - 1);
-    }
+    final List<int> indicesToPrefetch = [currentIndex];
+    if (currentIndex + 1 < state.queue.length) indicesToPrefetch.add(currentIndex + 1);
+    if (currentIndex > 0) indicesToPrefetch.add(currentIndex - 1);
 
     for (final idx in indicesToPrefetch.toSet()) {
       if (idx >= 0 && idx < state.queue.length) {
         final song = state.queue[idx];
-
         try {
           if (idx >= _playlist.length) continue;
           final currentSource = _playlist.children[idx];
-          // Check if it's a placeholder loading URL
-          final isPlaceholder =
-              currentSource is ja.UriAudioSource &&
-              (currentSource.uri.host == 'flow-jit' ||
-                  currentSource.uri.host == 'flow.error');
-
+          final isPlaceholder = currentSource is ja.UriAudioSource && (currentSource.uri.host == 'flow-jit' || currentSource.uri.host == 'flow.error');
           if (isPlaceholder) {
-            AppLogger.d(
-              _tag,
-              'JIT Resolving track at index $idx: ${song.title}',
-            );
             final realSource = await _buildAudioSource(song);
-
-            // Critical: check if the index is still valid
             if (!isClosed && idx < _playlist.length) {
               await _playlist.removeAt(idx);
               await _playlist.insert(idx, realSource);
-
-              // If this was the current track, we might need to refresh just_audio's internal state
-              if (idx == _audioPlayer.currentIndex &&
-                  (_audioPlayer.processingState == ja.ProcessingState.idle ||
-                      _audioPlayer.processingState ==
-                          ja.ProcessingState.loading)) {
-                // Re-seeking to current position forces just_audio to reload the source if it was stuck
+              if (idx == _audioPlayer.currentIndex && (_audioPlayer.processingState == ja.ProcessingState.idle || _audioPlayer.processingState == ja.ProcessingState.loading)) {
                 final currentPos = _audioPlayer.position;
                 await _audioPlayer.seek(currentPos, index: idx);
                 if (state.isPlaying) _audioPlayer.play();
               }
             }
           }
-        } catch (e) {
-          AppLogger.w(_tag, 'Prefetch resolution failed for index $idx: $e');
-        }
+        } catch (e) { AppLogger.w(_tag, 'Prefetch resolution failed for index $idx: $e'); }
       }
     }
   }
-
-  // ── Restore ───────────────────────────────────────────────────────────────
 
   void _onRestoreState(_RestoreStateEvent event, Emitter<PlayerState> emit) {
     final likedIds = _storage.likedSongIds;
@@ -386,133 +252,48 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     final volume = _storage.volume;
     final shuffle = _storage.isShuffle;
     final repeat = _storage.isRepeat;
-
-    AppLogger.i(
-      _tag,
-      'Restored — liked=${likedIds.length} recent=${recentIds.length} '
-      'vol=$volume shuffle=$shuffle repeat=$repeat',
-    );
-
     _audioPlayer.setVolume(volume);
-
-    emit(
-      state.copyWith(
-        likedSongIds: likedIds,
-        recentlyPlayedIds: recentIds,
-        volume: volume,
-        isShuffle: shuffle,
-        isRepeat: repeat,
-      ),
-    );
-
-    if (recentIds.isNotEmpty) {
-      _hydrateRecentlyPlayed(recentIds);
-    }
+    emit(state.copyWith(likedSongIds: likedIds, recentlyPlayedIds: recentIds, volume: volume, isShuffle: shuffle, isRepeat: repeat));
+    if (recentIds.isNotEmpty) _hydrateRecentlyPlayed(recentIds);
   }
 
   Future<void> _hydrateRecentlyPlayed(List<String> ids) async {
     try {
       final songs = await _musicRepository.getSongsByIds(ids);
-      if (!isClosed) {
-        add(_RecentlyPlayedUpdatedEvent(songs));
-      }
-    } catch (e) {
-      AppLogger.w(_tag, 'Failed to hydrate recently played: $e');
-    }
+      if (!isClosed) add(_RecentlyPlayedUpdatedEvent(songs));
+    } catch (e) { AppLogger.w(_tag, 'Failed to hydrate recently played: $e'); }
   }
 
-  void _onRecentlyPlayedUpdated(
-    _RecentlyPlayedUpdatedEvent event,
-    Emitter<PlayerState> emit,
-  ) {
+  void _onRecentlyPlayedUpdated(_RecentlyPlayedUpdatedEvent event, Emitter<PlayerState> emit) {
     emit(state.copyWith(recentlyPlayed: event.recentlyPlayed));
   }
 
-  // ── Event handlers ────────────────────────────────────────────────────────
-
-  Future<void> _onPlayQueue(
-    PlayQueueEvent event,
-    Emitter<PlayerState> emit,
-  ) async {
+  Future<void> _onPlayQueue(PlayQueueEvent event, Emitter<PlayerState> emit) async {
     if (event.songs.isEmpty) return;
     _retryCount = 0;
-
-    // Auto-start radio if playing a single song that isn't from a playlist/album source
-    // (Inferred by songs.length == 1 for now, or can use a explicit flag)
-    final bool shouldAutoRadio =
-        event.songs.length == 1 && !state.isEndlessRadio;
-
-    if (shouldAutoRadio) {
-      add(PlayRadioEvent(event.songs[0]));
-      return;
-    }
-
+    if (event.songs.length == 1 && !state.isEndlessRadio) { add(PlayRadioEvent(event.songs[0])); return; }
     final idx = event.startIndex.clamp(0, event.songs.length - 1);
     final song = event.songs[idx];
     _musicRepository.recordPlay(song);
     await _audioPlayer.stop();
-
-    emit(
-      state.copyWith(
-        queue: List.from(event.songs),
-        queueIndex: idx,
-        currentSong: song,
-        isPlaying: false,
-        isInitialLoading: true,
-        isEndlessRadio: false, // Reset endless radio for explicit queues
-        position: Duration.zero,
-        bufferedPosition: Duration.zero,
-        clearActualDuration: true,
-        clearCustomColors: true,
-      ),
-    );
-
+    emit(state.copyWith(queue: List.from(event.songs), queueIndex: idx, currentSong: song, isPlaying: false, isInitialLoading: true, isEndlessRadio: false, position: Duration.zero, bufferedPosition: Duration.zero, clearActualDuration: true, clearCustomColors: true));
     _extractPalette(song);
     await _updatePlaylist(event.songs, initialIndex: idx);
   }
 
-  Future<void> _onPlaySingle(
-    PlaySingleEvent event,
-    Emitter<PlayerState> emit,
-  ) async {
+  Future<void> _onPlaySingle(PlaySingleEvent event, Emitter<PlayerState> emit) async {
     _retryCount = 0;
     _musicRepository.recordPlay(event.song);
     await _audioPlayer.stop();
-
-    emit(
-      state.copyWith(
-        queue: [event.song],
-        queueIndex: 0,
-        currentSong: event.song,
-        isPlaying: false,
-        isInitialLoading: true,
-        position: Duration.zero,
-        bufferedPosition: Duration.zero,
-        clearActualDuration: true,
-        clearCustomColors: true,
-      ),
-    );
-
+    emit(state.copyWith(queue: [event.song], queueIndex: 0, currentSong: event.song, isPlaying: false, isInitialLoading: true, position: Duration.zero, bufferedPosition: Duration.zero, clearActualDuration: true, clearCustomColors: true));
     _extractPalette(event.song);
     await _updatePlaylist([event.song]);
   }
 
-  Future<void> _onPlayRadio(
-    PlayRadioEvent event,
-    Emitter<PlayerState> emit,
-  ) async {
+  Future<void> _onPlayRadio(PlayRadioEvent event, Emitter<PlayerState> emit) async {
     _retryCount = 0;
     _musicRepository.recordPlay(event.song);
-    emit(
-      state.copyWith(
-        queue: [event.song],
-        queueIndex: 0,
-        currentSong: event.song,
-        isInitialLoading: true,
-        isEndlessRadio: true,
-        clearCustomColors: true,
-      ),
-    );
+    emit(state.copyWith(queue: [event.song], queueIndex: 0, currentSong: event.song, isInitialLoading: true, isEndlessRadio: true, clearCustomColors: true));
     _extractPalette(event.song);
     await _updatePlaylist([event.song]);
     _fetchMoreRadioTracks();
@@ -525,12 +306,8 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     try {
       final tracks = await _musicRepository.getRadioTracks(anchor.id);
       if (isClosed) return;
-
       final existingIds = state.queue.map((s) => s.id).toSet();
-      final newTracks = tracks
-          .where((t) => !existingIds.contains(t.id))
-          .toList();
-
+      final newTracks = tracks.where((t) => !existingIds.contains(t.id)).toList();
       if (newTracks.isNotEmpty) {
         final updatedQueue = [...state.queue, ...newTracks];
         for (final t in newTracks) {
@@ -540,707 +317,229 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
         add(_QueueUpdatedEvent(updatedQueue));
         _prefetchSurroundingTracks(state.queueIndex);
       }
-    } catch (e, st) {
-      AppLogger.e(_tag, 'Failed to fetch radio tracks', e, st);
-    } finally {
-      _isFetchingRadio = false;
-    }
+    } catch (e, st) { AppLogger.e(_tag, 'Failed to fetch radio tracks', e, st); } finally { _isFetchingRadio = false; }
   }
 
   void _onQueueUpdated(_QueueUpdatedEvent event, Emitter<PlayerState> emit) {
     final playerIdx = _audioPlayer.currentIndex;
-    if (playerIdx != null &&
-        playerIdx != state.queueIndex &&
-        playerIdx < event.queue.length) {
-      add(_TrackChangedEvent(playerIdx));
-    }
+    if (playerIdx != null && playerIdx != state.queueIndex && playerIdx < event.queue.length) add(_TrackChangedEvent(playerIdx));
     emit(state.copyWith(queue: event.queue));
-
-    if (_audioPlayer.processingState == ja.ProcessingState.completed &&
-        _audioPlayer.hasNext) {
-      _audioPlayer.seekToNext();
-      _audioPlayer.play();
-    }
+    if (_audioPlayer.processingState == ja.ProcessingState.completed && _audioPlayer.hasNext) { _audioPlayer.seekToNext(); _audioPlayer.play(); }
   }
 
-  Future<void> _onResetPlayer(
-    ResetPlayerEvent event,
-    Emitter<PlayerState> emit,
-  ) async {
-    _isChangingSource = true;
-    _isFetchingRadio = false;
-    _retryCount = 0;
-    try {
-      await _audioPlayer.stop();
-      await _playlist.clear();
-      _mediaSession.setStopped();
-    } catch (e) {
-      AppLogger.e(_tag, 'Failed to stop or clear player during reset', e);
-    } finally {
-      _isChangingSource = false;
-    }
-    emit(
-      state.copyWith(
-        isPlaying: false,
-        isBuffering: false,
-        isInitialLoading: false,
-        position: Duration.zero,
-        bufferedPosition: Duration.zero,
-        queue: [],
-        queueIndex: -1,
-        currentSong: null,
-        clearActualDuration: true,
-        clearCustomColors: true,
-      ),
-    );
+  Future<void> _onResetPlayer(ResetPlayerEvent event, Emitter<PlayerState> emit) async {
+    _isChangingSource = true; _isFetchingRadio = false; _retryCount = 0;
+    try { await _audioPlayer.stop(); await _playlist.clear(); _mediaSession.setStopped(); } catch (e) { AppLogger.e(_tag, 'Failed to stop/clear player', e); } finally { _isChangingSource = false; }
+    emit(state.copyWith(isPlaying: false, isBuffering: false, isInitialLoading: false, position: Duration.zero, bufferedPosition: Duration.zero, queue: [], queueIndex: -1, currentSong: null, clearActualDuration: true, clearCustomColors: true));
   }
 
   Future<void> _updatePlaylist(List<Song> songs, {int initialIndex = 0}) async {
     try {
-      _isChangingSource = true;
-      await _playlist.clear();
+      _isChangingSource = true; await _playlist.clear();
       final List<AudioSource> children = [];
       for (int i = 0; i < songs.length; i++) {
-        final s = songs[i];
-        if (i == initialIndex) {
-          children.add(await _buildAudioSource(s));
-        } else {
-          children.add(await _buildAudioSource(s, isPlaceholder: true));
-        }
+        children.add(await _buildAudioSource(songs[i], isPlaceholder: i != initialIndex));
       }
       await _playlist.addAll(children);
-      await _audioPlayer.setAudioSource(
-        _playlist,
-        initialIndex: initialIndex,
-        initialPosition: Duration.zero,
-      );
-      final current = songs[initialIndex];
-      _mediaSession.updateSong(current);
+      await _audioPlayer.setAudioSource(_playlist, initialIndex: initialIndex, initialPosition: Duration.zero);
+      _mediaSession.updateSong(songs[initialIndex]);
       _mediaSession.setPlaybackStatus(true);
       _prefetchSurroundingTracks(initialIndex);
       add(const _InitialLoadingChangedEvent(false));
       await Future.delayed(const Duration(milliseconds: 200));
       _isChangingSource = false;
       await _audioPlayer.play();
-    } catch (e, st) {
-      AppLogger.e(_tag, 'Failed to update playlist', e, st);
-      _isChangingSource = false;
-    }
+    } catch (e, st) { AppLogger.e(_tag, 'Failed to update playlist', e, st); _isChangingSource = false; }
   }
 
-  void _onPlayStateChanged(
-    _PlayStateChangedEvent event,
-    Emitter<PlayerState> emit,
-  ) {
-    emit(state.copyWith(isPlaying: event.isPlaying));
-  }
+  void _onPlayStateChanged(_PlayStateChangedEvent event, Emitter<PlayerState> emit) { emit(state.copyWith(isPlaying: event.isPlaying)); }
 
-  Future<AudioSource> _buildAudioSource(
-    Song song, {
-    bool? isLikedOverride,
-    bool isPlaceholder = false,
-  }) async {
+  Future<AudioSource> _buildAudioSource(Song song, {bool? isLikedOverride, bool isPlaceholder = false}) async {
     final isLiked = isLikedOverride ?? state.likedSongIds.contains(song.id);
     final downloadMetadata = _storage.getDownloadMetadata(song.id);
     final downloadedPath = _storage.getDownloadedPath(song.id);
-
-    bool useLocal = false;
-    File? localFile;
-    String? effectiveThumbnailUrl = song.thumbnailUrl;
-    Duration effectiveDuration = song.duration;
-
+    bool useLocal = false; File? localFile; String? effectiveThumbnailUrl = song.thumbnailUrl; Duration effectiveDuration = song.duration;
     if (downloadedPath != null) {
       localFile = File(downloadedPath);
       if (await localFile.exists()) {
         useLocal = true;
         if (downloadMetadata != null) {
-          if (downloadMetadata['thumbnailUrl'] != null) {
-            effectiveThumbnailUrl = downloadMetadata['thumbnailUrl'] as String;
-          }
-          if (downloadMetadata['durationMs'] != null) {
-            effectiveDuration = Duration(
-              milliseconds: downloadMetadata['durationMs'] as int,
-            );
-          }
+          if (downloadMetadata['thumbnailUrl'] != null) effectiveThumbnailUrl = downloadMetadata['thumbnailUrl'] as String;
+          if (downloadMetadata['durationMs'] != null) effectiveDuration = Duration(milliseconds: downloadMetadata['durationMs'] as int);
         }
       }
     }
-
-    if (!useLocal) {
-      localFile = await CacheService.instance.getCachedFile(song.id);
-      if (localFile != null) {
-        useLocal = true;
-      }
-    }
-
+    if (!useLocal) { localFile = await CacheService.instance.getCachedFile(song.id); if (localFile != null) useLocal = true; }
     Uri? artUri;
     if (effectiveThumbnailUrl != null) {
-      if (effectiveThumbnailUrl.startsWith('http')) {
-        artUri = Uri.parse(effectiveThumbnailUrl);
-      } else {
+      if (effectiveThumbnailUrl.startsWith('http')) { artUri = Uri.parse(effectiveThumbnailUrl); } else {
         final thumbFile = File(effectiveThumbnailUrl);
-        if (await thumbFile.exists()) {
-          artUri = Uri.file(effectiveThumbnailUrl);
-        } else if (song.thumbnailUrl != null &&
-            song.thumbnailUrl!.startsWith('http')) {
-          artUri = Uri.parse(song.thumbnailUrl!);
-        }
+        if (await thumbFile.exists()) { artUri = Uri.file(effectiveThumbnailUrl); } else if (song.thumbnailUrl != null && song.thumbnailUrl!.startsWith('http')) { artUri = Uri.parse(song.thumbnailUrl!); }
       }
     }
+    final mediaItem = MediaItem(id: song.id, title: song.title, artist: song.artist, album: song.album.isNotEmpty ? song.album : song.artist, duration: effectiveDuration, artUri: artUri, rating: Rating.newHeartRating(isLiked), extras: <String, dynamic>{'isLiked': isLiked, 'isLocal': useLocal, 'isDownloaded': useLocal, 'androidCompactControlIndices': [0, 1, 2], 'displayRating': true});
 
-    final mediaItem = MediaItem(
-      id: song.id,
-      title: song.title,
-      artist: song.artist,
-      album: song.album.isNotEmpty ? song.album : song.artist,
-      duration: effectiveDuration,
-      artUri: artUri,
-      rating: Rating.newHeartRating(isLiked),
-      extras: <String, dynamic>{
-        'isLiked': isLiked,
-        'isLocal': useLocal,
-        'isDownloaded': useLocal,
-        'androidCompactControlIndices': [0, 1, 2],
-        'displayRating': true,
-      },
-    );
-
-    if (useLocal && localFile != null) {
-      return AudioSource.uri(Uri.file(localFile.path), tag: mediaItem);
-    } else {
+    if (useLocal && localFile != null) { return AudioSource.uri(Uri.file(localFile.path), tag: mediaItem); } else {
       String? streamUrl;
-      if (isPlaceholder) {
-        // Use flow-jit host to identify placeholders
-        streamUrl = 'https://flow-jit/${song.id}';
-      } else {
+      if (isPlaceholder) { streamUrl = 'https://flow-jit/${song.id}'; } else {
+        final mode = _settingsCubit.state.streamingMode;
         try {
-          streamUrl = await StreamResolver.instance.resolveYoutubeStream(
-            song.id,
-          );
-          if (streamUrl != null) {
-            CacheService.instance.cacheSong(song);
-          }
-        } catch (e) {
-          AppLogger.e(
-            _tag,
-            'Failed to resolve stream during buildAudioSource',
-            e,
-          );
-        }
+          if (mode == StreamingMode.relayFromPeer) {
+            // streamUrl = LanStreamBridge.instance.getProxyUrl(song.id, activePeer);
+            streamUrl ??= await StreamResolver.instance.resolveYoutubeStream(song.id);
+          } else if (mode == StreamingMode.hybridPreferLocal) {
+            streamUrl = await StreamResolver.instance.resolveYoutubeStream(song.id);
+            // if (streamUrl == null) streamUrl = LanStreamBridge.instance.getProxyUrl(song.id, activePeer);
+          } else { streamUrl = await StreamResolver.instance.resolveYoutubeStream(song.id); }
+          if (streamUrl != null) CacheService.instance.cacheSong(song);
+        } catch (e) { AppLogger.e(_tag, 'Failed to resolve stream', e); }
       }
-
-      if (streamUrl == null || streamUrl.isEmpty) {
-        // Use a more descriptive error host that we can recognize in the error handler
-        streamUrl = 'https://flow.error/${song.id}';
-      }
-
+      if (streamUrl == null || streamUrl.isEmpty) streamUrl = 'https://flow.error/${song.id}';
       final uri = Uri.parse(streamUrl);
-      final headers = {
-        'User-Agent':
-            'com.google.android.youtube/19.29.37 (Linux; U; Android 13; en_US) gzip',
-        'Origin': 'https://www.youtube.com',
-        'Referer': 'https://www.youtube.com/',
-      };
-
-      if (uri.host.contains('googlevideo.com')) {
-        return AudioSource.uri(uri, headers: headers, tag: mediaItem);
-      }
-      if (Platform.isWindows || isPlaceholder) {
-        return AudioSource.uri(uri, headers: headers, tag: mediaItem);
-      }
+      final headers = {'User-Agent': 'com.google.android.youtube/19.29.37 (Linux; U; Android 13; en_US) gzip', 'Origin': 'https://www.youtube.com', 'Referer': 'https://www.youtube.com/'};
+      if (uri.host.contains('googlevideo.com')) return AudioSource.uri(uri, headers: headers, tag: mediaItem);
+      if (Platform.isWindows || isPlaceholder) return AudioSource.uri(uri, headers: headers, tag: mediaItem);
       return LockCachingAudioSource(uri, headers: headers, tag: mediaItem);
     }
   }
 
-  void _onTogglePlayPause(
-    TogglePlayPauseEvent event,
-    Emitter<PlayerState> emit,
-  ) {
-    if (state.isPlaying) {
-      add(const PauseEvent());
-    } else {
-      add(const PlayEvent());
-    }
-  }
-
-  void _onPlay(PlayEvent event, Emitter<PlayerState> emit) {
-    _audioPlayer.play();
-    _mediaSession.setPlaybackStatus(true);
-  }
-
-  void _onPause(PauseEvent event, Emitter<PlayerState> emit) {
-    _audioPlayer.pause();
-    _mediaSession.setPlaybackStatus(false);
-  }
-
-  void _onSeekTo(SeekToEvent event, Emitter<PlayerState> emit) {
-    final dur =
-        _audioPlayer.duration ??
-        state.actualDuration ??
-        state.currentSong?.duration;
-    if (dur != null) {
-      final target = Duration(
-        milliseconds: (event.fraction * dur.inMilliseconds).round(),
-      );
-      _audioPlayer.seek(target);
-    }
-  }
-
+  void _onTogglePlayPause(TogglePlayPauseEvent event, Emitter<PlayerState> emit) { if (state.isPlaying) { add(const PauseEvent()); } else { add(const PlayEvent()); } }
+  void _onPlay(PlayEvent event, Emitter<PlayerState> emit) { _audioPlayer.play(); _mediaSession.setPlaybackStatus(true); }
+  void _onPause(PauseEvent event, Emitter<PlayerState> emit) { _audioPlayer.pause(); _mediaSession.setPlaybackStatus(false); }
+  void _onSeekTo(SeekToEvent event, Emitter<PlayerState> emit) { final dur = _audioPlayer.duration ?? state.actualDuration ?? state.currentSong?.duration; if (dur != null) { _audioPlayer.seek(Duration(milliseconds: (event.fraction * dur.inMilliseconds).round())); } }
   void _onSkipNext(SkipNextEvent event, Emitter<PlayerState> emit) {
     if (state.currentSong != null) {
       final isEarly = state.position.inSeconds < 30;
-      AppIntelligence.instance.recordEvent(
-        domain.Track.fromSong(state.currentSong!),
-        isEarly ? domain.ListenEvent.skippedEarly : domain.ListenEvent.skippedMid,
-      );
-
-    }
-
-    _retryCount = 0;
-    if (_audioPlayer.hasNext) {
-      _audioPlayer.seekToNext();
-    } else if (state.currentSong != null) {
-      add(PlayRadioEvent(state.currentSong!));
-    }
-  }
-
-  void _onSkipPrevious(SkipPreviousEvent event, Emitter<PlayerState> emit) {
-    if (state.currentSong != null && state.position.inSeconds > 2) {
-      // If user restarts the song after 2 seconds, it might be a "replay" intent
-      // but for now we'll just treat it as a mid-skip if they skip away immediately after
+      AppIntelligence.instance.recordEvent(domain.Track.fromSong(state.currentSong!), isEarly ? domain.ListenEvent.skippedEarly : domain.ListenEvent.skippedMid);
     }
     _retryCount = 0;
-    if (state.progress > 0.05 || !_audioPlayer.hasPrevious) {
-      _audioPlayer.seek(Duration.zero);
-    } else {
-      _audioPlayer.seekToPrevious();
-    }
+    if (_audioPlayer.hasNext) { _audioPlayer.seekToNext(); } else if (state.currentSong != null) { add(PlayRadioEvent(state.currentSong!)); }
   }
-
-
-  void _onRewind(RewindEvent event, Emitter<PlayerState> emit) {
-    final target = _audioPlayer.position - const Duration(seconds: 10);
-    _audioPlayer.seek(target > Duration.zero ? target : Duration.zero);
-  }
-
-  void _onFastForward(FastForwardEvent event, Emitter<PlayerState> emit) {
-    final target = _audioPlayer.position + const Duration(seconds: 10);
-    final total = _audioPlayer.duration ?? Duration.zero;
-    if (target < total) {
-      _audioPlayer.seek(target);
-    } else {
-      _audioPlayer.seekToNext();
-    }
-  }
-
-  void _onToggleShuffle(ToggleShuffleEvent event, Emitter<PlayerState> emit) {
-    final next = !state.isShuffle;
-    _storage.saveShuffle(next);
-    _audioPlayer.setShuffleModeEnabled(next);
-    emit(state.copyWith(isShuffle: next));
-  }
-
-  void _onToggleRepeat(ToggleRepeatEvent event, Emitter<PlayerState> emit) {
-    final next = !state.isRepeat;
-    _storage.saveRepeat(next);
-    _audioPlayer.setLoopMode(next ? LoopMode.one : LoopMode.off);
-    emit(state.copyWith(isRepeat: next));
-  }
-
-  void _onToggleEndlessRadio(
-    ToggleEndlessRadioEvent event,
-    Emitter<PlayerState> emit,
-  ) {
-    final next = !state.isEndlessRadio;
-    emit(state.copyWith(isEndlessRadio: next));
-    if (next && state.queue.length - state.queueIndex < 3) {
-      _fetchMoreRadioTracks();
-    }
-  }
-
-  Future<void> _onPlayDownloadedRadio(
-    PlayDownloadedRadioEvent event,
-    Emitter<PlayerState> emit,
-  ) async {
-    final ids = DownloadService.instance.getDownloadedIds();
-    if (ids.isEmpty) return;
+  void _onSkipPrevious(SkipPreviousEvent event, Emitter<PlayerState> emit) { _retryCount = 0; if (state.progress > 0.05 || !_audioPlayer.hasPrevious) { _audioPlayer.seek(Duration.zero); } else { _audioPlayer.seekToPrevious(); } }
+  void _onRewind(RewindEvent event, Emitter<PlayerState> emit) { final target = _audioPlayer.position - const Duration(seconds: 10); _audioPlayer.seek(target > Duration.zero ? target : Duration.zero); }
+  void _onFastForward(FastForwardEvent event, Emitter<PlayerState> emit) { final target = _audioPlayer.position + const Duration(seconds: 10); final total = _audioPlayer.duration ?? Duration.zero; if (target < total) { _audioPlayer.seek(target); } else { _audioPlayer.seekToNext(); } }
+  void _onToggleShuffle(ToggleShuffleEvent event, Emitter<PlayerState> emit) { final next = !state.isShuffle; _storage.saveShuffle(next); _audioPlayer.setShuffleModeEnabled(next); emit(state.copyWith(isShuffle: next)); }
+  void _onToggleRepeat(ToggleRepeatEvent event, Emitter<PlayerState> emit) { final next = !state.isRepeat; _storage.saveRepeat(next); _audioPlayer.setLoopMode(next ? LoopMode.one : LoopMode.off); emit(state.copyWith(isRepeat: next)); }
+  void _onToggleEndlessRadio(ToggleEndlessRadioEvent event, Emitter<PlayerState> emit) { final next = !state.isEndlessRadio; emit(state.copyWith(isEndlessRadio: next)); if (next && state.queue.length - state.queueIndex < 3) _fetchMoreRadioTracks(); }
+  Future<void> _onPlayDownloadedRadio(PlayDownloadedRadioEvent event, Emitter<PlayerState> emit) async {
+    final ids = DownloadService.instance.getDownloadedIds(); if (ids.isEmpty) return;
     emit(state.copyWith(isInitialLoading: true));
     try {
-      final songs = await _musicRepository.getSongsByIds(ids);
-      if (songs.isEmpty) {
-        emit(state.copyWith(isInitialLoading: false));
-        return;
-      }
+      final songs = await _musicRepository.getSongsByIds(ids); if (songs.isEmpty) { emit(state.copyWith(isInitialLoading: false)); return; }
       final shuffled = List<Song>.from(songs)..shuffle();
-      emit(
-        state.copyWith(
-          queue: shuffled,
-          queueIndex: 0,
-          currentSong: shuffled[0],
-          isInitialLoading: true,
-          isEndlessRadio: false,
-          clearCustomColors: true,
-        ),
-      );
-      _extractPalette(shuffled[0]);
-      await _updatePlaylist(shuffled);
-    } catch (e) {
-      AppLogger.e(_tag, 'Failed to start downloaded radio', e);
-      emit(state.copyWith(isInitialLoading: false));
-    }
+      emit(state.copyWith(queue: shuffled, queueIndex: 0, currentSong: shuffled[0], isInitialLoading: true, isEndlessRadio: false, clearCustomColors: true));
+      _extractPalette(shuffled[0]); await _updatePlaylist(shuffled);
+    } catch (e) { AppLogger.e(_tag, 'Failed downloaded radio', e); emit(state.copyWith(isInitialLoading: false)); }
   }
-
   void _onToggleLike(ToggleLikeEvent event, Emitter<PlayerState> emit) {
-    final liked = List<String>.from(state.likedSongIds);
-    final isNowLiked = !liked.contains(event.song.id);
-    if (liked.contains(event.song.id)) {
-      liked.remove(event.song.id);
-    } else {
-      liked.add(event.song.id);
-    }
+    final liked = List<String>.from(state.likedSongIds); final isNowLiked = !liked.contains(event.song.id);
+    if (liked.contains(event.song.id)) { liked.remove(event.song.id); } else { liked.add(event.song.id); }
     _storage.saveLikedSongIds(liked);
     final idx = state.queue.indexWhere((s) => s.id == event.song.id);
-    if (idx != -1) {
-      _buildAudioSource(event.song, isLikedOverride: isNowLiked).then((
-        newSource,
-      ) {
-        if (!isClosed) {
-          final currentIndex = _audioPlayer.currentIndex;
-          if (idx != currentIndex) {
-            _playlist.removeAt(idx);
-            _playlist.insert(idx, newSource);
-          }
-        }
-      });
-    }
+    if (idx != -1) { _buildAudioSource(event.song, isLikedOverride: isNowLiked).then((newSource) { if (!isClosed) { final currentIndex = _audioPlayer.currentIndex; if (idx != currentIndex) { _playlist.removeAt(idx); _playlist.insert(idx, newSource); } } }); }
     emit(state.copyWith(likedSongIds: liked));
   }
-
-  Future<void> _onToggleDownload(
-    ToggleDownloadEvent event,
-    Emitter<PlayerState> emit,
-  ) async {
-    final song = event.song;
-    final isDownloaded = await DownloadService.instance.isDownloaded(song.id);
+  Future<void> _onToggleDownload(ToggleDownloadEvent event, Emitter<PlayerState> emit) async {
+    final song = event.song; final isDownloaded = await DownloadService.instance.isDownloaded(song.id);
     try {
-      if (isDownloaded) {
-        await DownloadService.instance.deleteDownload(song.id);
-      } else {
-        await DownloadService.instance.downloadSong(song);
-      }
-      if (state.currentSong?.id == song.id) {
-        emit(
-          state.copyWith(
-            currentSong: state.currentSong!.copyWith(
-              isDownloaded: !isDownloaded,
-            ),
-          ),
-        );
-      }
-      final newQueue = state.queue
-          .map(
-            (s) =>
-                s.id == song.id ? s.copyWith(isDownloaded: !isDownloaded) : s,
-          )
-          .toList();
+      if (isDownloaded) { await DownloadService.instance.deleteDownload(song.id); } else { await DownloadService.instance.downloadSong(song); }
+      if (state.currentSong?.id == song.id) { emit(state.copyWith(currentSong: state.currentSong!.copyWith(isDownloaded: !isDownloaded))); }
+      final newQueue = state.queue.map((s) => s.id == song.id ? s.copyWith(isDownloaded: !isDownloaded) : s).toList();
       emit(state.copyWith(queue: newQueue));
-    } catch (e) {
-      AppLogger.e(_tag, 'Toggle download failed', e);
-    }
+    } catch (e) { AppLogger.e(_tag, 'Toggle download failed', e); }
   }
-
-  void _onSetVolume(SetVolumeEvent event, Emitter<PlayerState> emit) {
-    final vol = event.volume.clamp(0.0, 1.0);
-    _audioPlayer.setVolume(vol);
-    _storage.saveVolume(vol);
-    emit(state.copyWith(volume: vol));
+  void _onSetVolume(SetVolumeEvent event, Emitter<PlayerState> emit) { final vol = event.volume.clamp(0.0, 1.0); _audioPlayer.setVolume(vol); _storage.saveVolume(vol); emit(state.copyWith(volume: vol)); }
+  void _onPositionUpdate(_PositionUpdateEvent event, Emitter<PlayerState> emit) {
+    final isFullyCached = _audioPlayer.bufferedPosition >= (event.duration ?? Duration.zero);
+    emit(state.copyWith(position: event.position, actualDuration: event.duration, bufferedPosition: isFullyCached ? event.duration : null));
+    if (event.duration != null && event.position.inSeconds % 2 == 0) _mediaSession.updateTimeline(event.position, event.duration!);
   }
-
-  void _onPositionUpdate(
-    _PositionUpdateEvent event,
-    Emitter<PlayerState> emit,
-  ) {
-    final isFullyCached =
-        _audioPlayer.bufferedPosition >= (event.duration ?? Duration.zero);
-    emit(
-      state.copyWith(
-        position: event.position,
-        actualDuration: event.duration,
-        bufferedPosition: isFullyCached ? event.duration : null,
-      ),
-    );
-    if (event.duration != null && event.position.inSeconds % 2 == 0) {
-      _mediaSession.updateTimeline(event.position, event.duration!);
-    }
-  }
-
-  void _onBufferedPositionChanged(
-    _BufferedPositionChangedEvent event,
-    Emitter<PlayerState> emit,
-  ) {
-    emit(state.copyWith(bufferedPosition: event.bufferedPosition));
-  }
-
-  void _onBufferingChanged(
-    _BufferingChangedEvent event,
-    Emitter<PlayerState> emit,
-  ) {
-    emit(
-      state.copyWith(
-        isBuffering: event.isBuffering,
-        isPlaying: _audioPlayer.playing,
-      ),
-    );
-  }
-
-  void _onInitialLoadingChanged(
-    _InitialLoadingChangedEvent event,
-    Emitter<PlayerState> emit,
-  ) {
-    emit(state.copyWith(isInitialLoading: event.isInitialLoading));
-  }
-
-  void _onDownloadProgressUpdated(
-    _DownloadProgressUpdatedEvent event,
-    Emitter<PlayerState> emit,
-  ) {
-    emit(state.copyWith(downloadProgress: event.progress));
-  }
-
-  Future<void> _onSkipToQueueIndex(
-    SkipToQueueIndexEvent event,
-    Emitter<PlayerState> emit,
-  ) async {
+  void _onBufferedPositionChanged(_BufferedPositionChangedEvent event, Emitter<PlayerState> emit) { emit(state.copyWith(bufferedPosition: event.bufferedPosition)); }
+  void _onBufferingChanged(_BufferingChangedEvent event, Emitter<PlayerState> emit) { emit(state.copyWith(isBuffering: event.isBuffering, isPlaying: _audioPlayer.playing)); }
+  void _onInitialLoadingChanged(_InitialLoadingChangedEvent event, Emitter<PlayerState> emit) { emit(state.copyWith(isInitialLoading: event.isInitialLoading)); }
+  void _onDownloadProgressUpdated(_DownloadProgressUpdatedEvent event, Emitter<PlayerState> emit) { emit(state.copyWith(downloadProgress: event.progress)); }
+  Future<void> _onSkipToQueueIndex(SkipToQueueIndexEvent event, Emitter<PlayerState> emit) async {
     if (event.index >= 0 && event.index < state.queue.length) {
       final song = state.queue[event.index];
-
-      // If it's a placeholder, resolve it first to prevent skipping loop
       try {
         final currentSource = _playlist.children[event.index];
-        final isPlaceholder =
-            currentSource is ja.UriAudioSource &&
-            currentSource.uri.host == 'flow.loading';
-
-        if (isPlaceholder) {
-          AppLogger.i(_tag, 'User skipped to placeholder. Resolving JIT...');
-          emit(state.copyWith(isBuffering: true));
-          final realSource = await _buildAudioSource(song);
-          await _playlist.removeAt(event.index);
-          await _playlist.insert(event.index, realSource);
+        if (currentSource is ja.UriAudioSource && currentSource.uri.host == 'flow.loading') {
+          AppLogger.i(_tag, 'JIT Resolve on skip...'); emit(state.copyWith(isBuffering: true));
+          final realSource = await _buildAudioSource(song); await _playlist.removeAt(event.index); await _playlist.insert(event.index, realSource);
         }
-      } catch (e) {
-        AppLogger.w(_tag, 'Failed to check/resolve placeholder on skip: $e');
-      }
-
-      await _audioPlayer.seek(Duration.zero, index: event.index);
-      _audioPlayer.play();
+      } catch (e) { AppLogger.w(_tag, 'JIT skip failed: $e'); }
+      await _audioPlayer.seek(Duration.zero, index: event.index); _audioPlayer.play();
     }
   }
-
-  Future<void> _onInsertNext(
-    InsertNextEvent event,
-    Emitter<PlayerState> emit,
-  ) async {
+  Future<void> _onInsertNext(InsertNextEvent event, Emitter<PlayerState> emit) async {
     final bool wasEmpty = state.queue.isEmpty;
-    final updatedQueue = List<Song>.from(state.queue)
-      ..removeWhere((s) => s.id == event.song.id);
-    final currentIdxAfterRemoval = updatedQueue.indexWhere(
-      (s) => s.id == state.currentSong?.id,
-    );
-    final targetIdx = (currentIdxAfterRemoval != -1)
-        ? currentIdxAfterRemoval + 1
-        : 0;
+    final updatedQueue = List<Song>.from(state.queue)..removeWhere((s) => s.id == event.song.id);
+    final currentIdxAfterRemoval = updatedQueue.indexWhere((s) => s.id == state.currentSong?.id);
+    final targetIdx = (currentIdxAfterRemoval != -1) ? currentIdxAfterRemoval + 1 : 0;
     updatedQueue.insert(targetIdx, event.song);
     final source = await _buildAudioSource(event.song);
-    final existingIdxInPlaylist = state.queue.indexWhere(
-      (s) => s.id == event.song.id,
-    );
-    if (existingIdxInPlaylist != -1)
-      await _playlist.removeAt(existingIdxInPlaylist);
+    final existingIdxInPlaylist = state.queue.indexWhere((s) => s.id == event.song.id);
+    if (existingIdxInPlaylist != -1) await _playlist.removeAt(existingIdxInPlaylist);
     await _playlist.insert(targetIdx, source);
-    if (wasEmpty) {
-      add(PlayQueueEvent(songs: [event.song], startIndex: 0));
-    } else {
-      emit(
-        state.copyWith(
-          queue: updatedQueue,
-          queueIndex: updatedQueue.indexWhere(
-            (s) => s.id == state.currentSong?.id,
-          ),
-        ),
-      );
-    }
+    if (wasEmpty) { add(PlayQueueEvent(songs: [event.song], startIndex: 0)); } else { emit(state.copyWith(queue: updatedQueue, queueIndex: updatedQueue.indexWhere((s) => s.id == state.currentSong?.id))); }
   }
-
-  Future<void> _onAppendToQueue(
-    AppendToQueueEvent event,
-    Emitter<PlayerState> emit,
-  ) async {
+  Future<void> _onAppendToQueue(AppendToQueueEvent event, Emitter<PlayerState> emit) async {
     if (state.queue.any((s) => s.id == event.song.id)) return;
     final bool wasEmpty = state.queue.isEmpty;
     final updatedQueue = [...state.queue, event.song];
     final source = await _buildAudioSource(event.song);
     await _playlist.add(source);
-    if (wasEmpty) {
-      add(PlayQueueEvent(songs: [event.song], startIndex: 0));
-    } else {
-      emit(state.copyWith(queue: updatedQueue));
-    }
+    if (wasEmpty) { add(PlayQueueEvent(songs: [event.song], startIndex: 0)); } else { emit(state.copyWith(queue: updatedQueue)); }
   }
-
-  Future<void> _onRemoveFromQueue(
-    RemoveFromQueueEvent event,
-    Emitter<PlayerState> emit,
-  ) async {
+  Future<void> _onRemoveFromQueue(RemoveFromQueueEvent event, Emitter<PlayerState> emit) async {
     if (event.index < 0 || event.index >= state.queue.length) return;
     if (event.index == state.queueIndex) add(const SkipNextEvent());
     final updatedQueue = List<Song>.from(state.queue)..removeAt(event.index);
     await _playlist.removeAt(event.index);
-    emit(
-      state.copyWith(
-        queue: updatedQueue,
-        queueIndex: _audioPlayer.currentIndex ?? state.queueIndex,
-      ),
-    );
+    emit(state.copyWith(queue: updatedQueue, queueIndex: _audioPlayer.currentIndex ?? state.queueIndex));
   }
-
-  Future<void> _onReorderQueue(
-    ReorderQueueEvent event,
-    Emitter<PlayerState> emit,
-  ) async {
-    int oldIdx = event.oldIndex;
-    int newIdx = event.newIndex;
-    if (oldIdx < newIdx) newIdx -= 1;
-    final updatedQueue = List<Song>.from(state.queue);
-    final song = updatedQueue.removeAt(oldIdx);
-    updatedQueue.insert(newIdx, song);
-    await _playlist.move(oldIdx, newIdx);
-    emit(
-      state.copyWith(
-        queue: updatedQueue,
-        queueIndex: _audioPlayer.currentIndex ?? state.queueIndex,
-      ),
-    );
+  Future<void> _onReorderQueue(ReorderQueueEvent event, Emitter<PlayerState> emit) async {
+    int oldIdx = event.oldIndex; int newIdx = event.newIndex; if (oldIdx < newIdx) newIdx -= 1;
+    final updatedQueue = List<Song>.from(state.queue); final song = updatedQueue.removeAt(oldIdx); updatedQueue.insert(newIdx, song);
+    await _playlist.move(oldIdx, newIdx); emit(state.copyWith(queue: updatedQueue, queueIndex: _audioPlayer.currentIndex ?? state.queueIndex));
   }
-
-  void _onTrackCompleted(
-    _TrackCompletedEvent event,
-    Emitter<PlayerState> emit,
-  ) {
-    if (state.currentSong != null) {
-      AppIntelligence.instance.recordEvent(
-        domain.Track.fromSong(state.currentSong!),
-        domain.ListenEvent.fullListen,
-      );
-
-    }
+  void _onTrackCompleted(_TrackCompletedEvent event, Emitter<PlayerState> emit) {
+    if (state.currentSong != null) { AppIntelligence.instance.recordEvent(domain.Track.fromSong(state.currentSong!), domain.ListenEvent.fullListen); }
     if (!state.isRepeat && !_audioPlayer.hasNext) {
-
       if (state.isEndlessRadio && state.currentSong != null) {
-        _fetchMoreRadioTracks().then((_) {
-          if (!isClosed && _audioPlayer.hasNext && !state.isPlaying) {
-            _audioPlayer.seekToNext();
-            _audioPlayer.play();
-          }
-        });
-      } else {
-        _mediaSession.setStopped();
-        emit(state.copyWith(isPlaying: false));
-      }
+        _fetchMoreRadioTracks().then((_) { if (!isClosed && _audioPlayer.hasNext && !state.isPlaying) { _audioPlayer.seekToNext(); _audioPlayer.play(); } });
+      } else { _mediaSession.setStopped(); emit(state.copyWith(isPlaying: false)); }
     }
   }
-
-  void _onPaletteUpdated(
-    _PaletteUpdatedEvent event,
-    Emitter<PlayerState> emit,
-  ) {
-    emit(
-      state.copyWith(
-        customPrimary: event.primary,
-        customSecondary: event.secondary,
-      ),
-    );
-  }
-
+  void _onPaletteUpdated(_PaletteUpdatedEvent event, Emitter<PlayerState> emit) { emit(state.copyWith(customPrimary: event.primary, customSecondary: event.secondary)); }
   Future<void> _extractPalette(Song song) async {
     String? thumbUrl = song.thumbnailUrl;
     final metadata = _storage.getDownloadMetadata(song.id);
-    if (metadata != null && metadata['thumbnailUrl'] != null) {
-      thumbUrl = metadata['thumbnailUrl'] as String;
-    }
-
+    if (metadata != null && metadata['thumbnailUrl'] != null) thumbUrl = metadata['thumbnailUrl'] as String;
     if (thumbUrl == null || thumbUrl.isEmpty) return;
-
     try {
-      final ImageProvider provider = thumbUrl.startsWith('http')
-          ? NetworkImage(thumbUrl)
-          : FileImage(File(thumbUrl));
-
-      final palette = await PaletteGenerator.fromImageProvider(
-        provider,
-        maximumColorCount: 20,
-      );
-      final primary =
-          palette.vibrantColor?.color ??
-          palette.dominantColor?.color ??
-          song.colorPrimary;
-      final secondary =
-          palette.mutedColor?.color ??
-          palette.lightVibrantColor?.color ??
-          song.colorSecondary;
+      final ImageProvider provider = thumbUrl.startsWith('http') ? NetworkImage(thumbUrl) : FileImage(File(thumbUrl));
+      final palette = await PaletteGenerator.fromImageProvider(provider, maximumColorCount: 20);
+      final primary = palette.vibrantColor?.color ?? palette.dominantColor?.color ?? song.colorPrimary;
+      final secondary = palette.mutedColor?.color ?? palette.lightVibrantColor?.color ?? song.colorSecondary;
       if (!isClosed) add(_PaletteUpdatedEvent(primary, secondary));
-    } catch (e) {
-      AppLogger.w(_tag, 'Palette extraction failed: $e');
-    }
+    } catch (e) { AppLogger.w(_tag, 'Palette extraction failed: $e'); }
   }
-
-  Future<void> _onFilterByMood(
-    FilterByMoodEvent event,
-    Emitter<PlayerState> emit,
-  ) async {
+  Future<void> _onFilterByMood(FilterByMoodEvent event, Emitter<PlayerState> emit) async {
     if (state.queue.isEmpty) return;
-
-    final mood = Mood.values.firstWhere(
-      (m) => m.name.toLowerCase() == event.mood.toLowerCase(),
-      orElse: () => Mood.chill,
-    );
-
-    final currentSong = state.currentSong;
-    final engine = MoodEngine();
-
-    // Convert current queue to Track entities for the engine
+    final mood = Mood.values.firstWhere((m) => m.name.toLowerCase() == event.mood.toLowerCase(), orElse: () => Mood.chill);
+    final currentSong = state.currentSong; final engine = MoodEngine();
     final tracks = state.queue.map((s) => domain.Track.fromSong(s)).toList();
-
     final filteredTracks = engine.filterByMood(tracks, mood);
-
     if (filteredTracks.isNotEmpty) {
-      // Find the filtered songs in the original queue to preserve instances/metadata
-      final filteredSongs =
-          filteredTracks
-              .map((t) => state.queue.firstWhere((s) => s.id == t.id))
-              .toList();
-
-      // If current song is not in filtered list, add it at the start or keep it
-      if (currentSong != null &&
-          !filteredSongs.any((s) => s.id == currentSong.id)) {
-        filteredSongs.insert(0, currentSong);
-      }
-
+      final filteredSongs = filteredTracks.map((t) => state.queue.firstWhere((s) => s.id == t.id)).toList();
+      if (currentSong != null && !filteredSongs.any((s) => s.id == currentSong.id)) filteredSongs.insert(0, currentSong);
       add(PlayQueueEvent(songs: filteredSongs, startIndex: 0));
     }
   }
-
   @override
-
   Future<void> close() async {
-    await _positionSub?.cancel();
-    await _durationSub?.cancel();
-    await _bufferedSub?.cancel();
-    await _playerStateSub?.cancel();
-    await _currentIndexSub?.cancel();
-    await _downloadSub?.cancel();
-    await _audioPlayer.dispose();
-    await _mediaSession.dispose();
-    return super.close();
+    await _positionSub?.cancel(); await _durationSub?.cancel(); await _bufferedSub?.cancel(); await _playerStateSub?.cancel(); await _currentIndexSub?.cancel(); await _downloadSub?.cancel();
+    await _audioPlayer.dispose(); await _mediaSession.dispose(); return super.close();
   }
 }

@@ -5,7 +5,8 @@ import '../../data/sources/local_database.dart' as db;
 import '../../domain/repositories/music_repository.dart';
 import '../logger/app_logger.dart';
 import 'package:drift/drift.dart';
-
+import '../../domain/entities/graph_delta.dart';
+import '../../domain/engines/sync_engine.dart';
 
 class AppIntelligence {
   AppIntelligence._();
@@ -13,8 +14,11 @@ class AppIntelligence {
 
   final db.LocalDatabase _database = db.LocalDatabase();
   final domain.ScoringGraph _graph = domain.ScoringGraph();
+  late final SyncEngine _syncEngine;
 
   Future<void> init() async {
+    _syncEngine = SyncEngine(graph: _graph);
+    
     // Load graph from DB
     final nodes = await _database.select(_database.graphNodes).get();
     for (final n in nodes) {
@@ -73,7 +77,6 @@ class AppIntelligence {
     );
   }
 
-
   Future<void> _persistGraph() async {
     await _database.batch((batch) {
       // Upsert nodes
@@ -108,6 +111,19 @@ class AppIntelligence {
   }
 
   domain.ScoringGraph get graph => _graph;
+
+  // ── Sync Methods ──────────────────────────────────────────────────────────
+
+  Future<GraphDelta> getDeltaForPeer(String peerId) async {
+    // TODO: Get last sync time from DB
+    final lastSync = DateTime.now().subtract(const Duration(days: 1));
+    return _syncEngine.buildDelta('local-device-id', lastSync);
+  }
+
+  Future<void> applyDelta(GraphDelta delta) async {
+    _syncEngine.applyDelta(delta);
+    await _persistGraph();
+  }
 
   // ── Stats Methods ──────────────────────────────────────────────────────────
 
@@ -211,6 +227,3 @@ class AppIntelligence {
     }
   }
 }
-
-
-

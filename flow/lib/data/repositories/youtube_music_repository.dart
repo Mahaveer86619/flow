@@ -1,4 +1,7 @@
+import '../../core/intelligence/app_intelligence.dart';
+import '../../domain/entities/scoring_graph.dart' as domain;
 import '../../core/error/app_exception.dart';
+
 import '../../core/logger/app_logger.dart';
 import '../../core/network/download_service.dart';
 import '../../core/storage/local_storage.dart';
@@ -481,7 +484,49 @@ class YoutubeMusicRepository implements MusicRepository {
     return cats;
   }
 
+  @override
+  Future<List<Song>> getRecommendations({int limit = 20}) async {
+    try {
+      final intel = AppIntelligence.instance;
+      
+      // 1. Get top nodes from the graph
+      final topArtists = await intel.getTopArtists(limit: 3);
+      final topGenres = await intel.getTopGenres(limit: 2);
+      
+      final Set<String> recommendedIds = {};
+      final List<Song> results = [];
+
+      // 2. Fetch tracks for top artists
+      for (final artist in topArtists) {
+        try {
+          final songs = await searchSongs(artist['id'], limit: 5);
+          for (final s in songs) {
+            if (recommendedIds.add(s.id)) results.add(s);
+          }
+        } catch (_) {}
+      }
+
+      // 3. Fetch tracks for top genres (via search)
+      for (final genre in topGenres) {
+        try {
+          final songs = await searchSongs(genre['id'], limit: 5);
+          for (final s in songs) {
+            if (recommendedIds.add(s.id)) results.add(s);
+          }
+        } catch (_) {}
+      }
+
+      // 4. Random shuffle and limit
+      results.shuffle();
+      return results.take(limit).toList();
+    } catch (e, st) {
+      AppLogger.e(_tag, 'getRecommendations failed', e, st);
+      return [];
+    }
+  }
+
   // ── Flow Playlist CRUD ────────────────────────────────────────────────────────
+
 
   @override
   Future<Playlist> createFlowPlaylist({

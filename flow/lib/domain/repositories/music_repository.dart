@@ -69,7 +69,11 @@ abstract class MusicRepository {
   /// Static browse categories — synchronous, never needs the network.
   List<Map<String, dynamic>> getCategories();
 
+  /// Get personalized recommendations based on user taste profile.
+  Future<List<Song>> getRecommendations({int limit = 20});
+
   // ── Flow Playlist CRUD ────────────────────────────────────────────────────────
+
 
   /// Create a new Flow playlist owned by the current user.
   Future<Playlist> createFlowPlaylist({

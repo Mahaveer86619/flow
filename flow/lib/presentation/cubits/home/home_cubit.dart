@@ -189,7 +189,24 @@ class HomeCubit extends Cubit<HomeState> {
 
       List<HomeShelf> finalShelves = List.from(data.shelves);
 
-      // 1. Backfill Daily Rotation (Pure Music - SQUARE)
+      // 1. Flow Intelligence Shelf (Personalized Recommendations)
+      try {
+        final recommendations = await _musicRepository.getRecommendations(limit: 15);
+        if (recommendations.isNotEmpty) {
+          finalShelves.insert(0, HomeShelf(
+            title: 'Flow Intelligence',
+            section: 'intelligence',
+            items: recommendations
+                .map((s) => HomeItem(type: HomeItemType.song, data: s))
+                .toList(),
+          ));
+        }
+      } catch (e) {
+        AppLogger.w(_tag, 'Failed to fetch Flow Intelligence shelf: $e');
+      }
+
+      // 2. Backfill Daily Rotation (Pure Music - SQUARE)
+
       final listenAgainIdx = finalShelves.indexWhere(
         (s) => s.section == 'listeningAgain',
       );

@@ -98,9 +98,30 @@ void main() async {
   );
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
+import 'data/repositories/composite_music_repository.dart';
+import 'data/sources/local_files_adapter.dart';
+import 'data/sources/youtube_music_adapter.dart';
+import 'domain/repositories/music_source_adapter.dart';
+
+void main() async {
+...
   final useMock = dotenv.env['USE_MOCK'] == 'true';
-  final dataSource = useMock ? MockSongDataSource() : YoutubeMusicDataSource();
-  final repository = YoutubeMusicRepository(dataSource);
+  final rawDataSource = useMock ? MockSongDataSource() : YoutubeMusicDataSource();
+  final ytRemoteRepo = YoutubeMusicRepository(rawDataSource);
+  
+  final List<MusicSourceAdapter> adapters = [
+    YoutubeMusicAdapter(dataSource: rawDataSource, resolver: StreamResolver.instance),
+    LocalFilesAdapter(libraryPaths: [
+      if (LocalStorage.instance.downloadPath != null) LocalStorage.instance.downloadPath!,
+    ]),
+  ];
+
+  final repository = CompositeMusicRepository(
+    adapters: adapters,
+    primaryRemote: ytRemoteRepo,
+  );
+...
+
 
   final getHomeData = GetHomeDataUseCase(repository);
   final getPlaylists = GetPlaylistsUseCase(repository);
