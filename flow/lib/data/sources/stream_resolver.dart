@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import '../../core/storage/local_storage.dart';
@@ -14,6 +17,7 @@ class StreamResolver {
     BaseOptions(
       connectTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 10),
+      validateStatus: (status) => true,
     ),
   );
 
@@ -28,142 +32,233 @@ class StreamResolver {
       final visitorData =
           LocalStorage.instance.getCachedMetadata('yt_visitor_data') as String?;
       final cookies = await SecureStorageService.instance.getYoutubeCookies();
+      if (cookies != null) {
+        AppLogger.d(_tag, 'Current Cookies: $cookies');
+      }
 
-      // Modernized client list
-      final clients = [
+
+      // Highly optimized InnerTube probes
+      // Ordered by resilience/reliability
+      final probes = [
         {
-          "clientName": "ANDROID_TESTSUITE",
-          "clientVersion": "1.9.1",
-          "osName": "Android",
-          "osVersion": "14",
-          "platform": "MOBILE",
+          "name": "ANDROID_VR",
+          "client": {
+            "clientName": "ANDROID_VR",
+            "clientVersion": "1.50.41",
+            "osName": "Android",
+            "osVersion": "12",
+            "platform": "MOBILE",
+          },
+          "userAgent":
+              "com.google.android.apps.videoplayer/1.50.41 (Linux; U; Android 12; en_US) gzip",
+          "base": "https://www.youtube.com/youtubei/v1/player",
+          "useCookies": false, // VR usually works better without cookies
+          "clientName": "28",
+          "clientVersion": "1.50.41",
         },
         {
-          "clientName": "ANDROID",
-          "clientVersion": "19.30.36",
-          "osName": "Android",
-          "osVersion": "14",
-          "platform": "MOBILE",
-        },
-        {
-          "clientName": "ANDROID_MUSIC",
-          "clientVersion": "7.03.52",
-          "osName": "Android",
-          "osVersion": "14",
-          "platform": "MOBILE",
-        },
-        {
-          "clientName": "IOS",
+          "name": "IOS",
+          "client": {
+            "clientName": "IOS",
+            "clientVersion": "19.29.1",
+            "osName": "iOS",
+            "osVersion": "17.5.1",
+            "platform": "MOBILE",
+          },
+          "userAgent":
+              "com.google.ios.youtube/19.29.1 (iPhone16,2; U; CPU iOS 17_5_1 like Mac OS X; en_US)",
+          "base": "https://www.youtube.com/youtubei/v1/player",
+          "useCookies": true,
+          "clientName": "5",
           "clientVersion": "19.29.1",
-          "osName": "iOS",
-          "osVersion": "17.5.1",
-          "platform": "MOBILE",
+        },
+        {
+          "name": "ANDROID_MUSIC",
+          "client": {
+            "clientName": "ANDROID_MUSIC",
+            "clientVersion": "7.03.52",
+            "androidSdkVersion": 34,
+            "osName": "Android",
+            "osVersion": "14",
+            "platform": "MOBILE",
+          },
+          "userAgent":
+              "com.google.android.apps.youtube.music/7.03.52 (Linux; U; Android 14; en_US) gzip",
+          "base": "https://music.youtube.com/youtubei/v1/player",
+          "useCookies": true,
+          "clientName": "67",
+          "clientVersion": "7.03.52",
+        },
+        {
+          "name": "ANDROID_TESTSUITE",
+          "client": {
+            "clientName": "ANDROID_TESTSUITE",
+            "clientVersion": "1.9.3.1",
+          },
+          "userAgent":
+              "com.google.android.youtube/1.9.3.1 (Linux; U; Android 9; en_US) gzip",
+          "base": "https://www.youtube.com/youtubei/v1/player",
+          "useCookies": true,
+          "clientName": "30",
+          "clientVersion": "1.9.3.1",
+        },
+        {
+          "name": "WEB_REMIX",
+          "client": {
+            "clientName": "WEB_REMIX",
+            "clientVersion": "1.20240409.01.01",
+          },
+          "userAgent":
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+          "base": "https://music.youtube.com/youtubei/v1/player",
+          "useCookies": true,
+          "clientName": "1",
+          "clientVersion": "1.20240409.01.01",
         },
       ];
 
-      final endpoints = [
-        'https://music.youtube.com/youtubei/v1/player',
-        'https://www.youtube.com/youtubei/v1/player',
-      ];
+      for (var probe in probes) {
+        final probeName = probe['name'] as String;
+        final clientParams = probe['client'] as Map<String, dynamic>;
+        final userAgent = probe['userAgent'] as String;
+        final base = probe['base'] as String;
+        final useCookies = probe['useCookies'] as bool;
 
-      for (var client in clients) {
-        for (var endpoint in endpoints) {
-          try {
-            final response = await _playerDio.post(
-              '$endpoint?prettyPrint=false',
-              options: Options(
-                headers: {
-                  'User-Agent':
-                      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-                  if (cookies != null) 'Cookie': cookies,
-                  'Origin': 'https://music.youtube.com',
-                  'Referer': 'https://music.youtube.com/',
-                },
-              ),
-              data: {
-                "videoId": videoId,
-                "context": {
-                  "client": {
-                    ...client,
-                    "hl": "en",
-                    "gl": "US",
+        try {
+          final Map<String, String> headers = {
+            'User-Agent': userAgent,
+            if (useCookies && cookies != null) 'Cookie': cookies,
+            'Origin': 'https://music.youtube.com',
+            'Referer': 'https://music.youtube.com/',
+            'X-Goog-AuthUser': '0',
+            'X-YouTube-Client-Name': probe['clientName'] as String,
+            'X-YouTube-Client-Version': probe['clientVersion'] as String,
+          };
+
+          if (useCookies && cookies != null) {
+            final sapisid = _extractCookie(cookies, 'SAPISID');
+            if (sapisid != null) {
+              final auth = _generateSapisidHash(
+                sapisid,
+                'https://music.youtube.com',
+              );
+              headers['Authorization'] = 'SAPISIDHASH $auth';
+            }
+          }
+
+          final response = await _playerDio.post(
+            '$base?prettyPrint=false',
+            options: Options(headers: headers),
+            data: {
+              "videoId": videoId,
+              "context": {
+                "client": {
+                  ...clientParams,
+                  "hl": "en",
+                  "gl": "US",
+                  // Only use visitorData if NOT using cookies to avoid context mismatch
+                  if (!useCookies && visitorData != null)
                     "visitorData": visitorData,
+                },
+                "playbackContext": {
+                  "contentPlaybackContext": {
+                    "signatureTimestamp": 19800, // Fallback timestamp
                   },
                 },
               },
-            );
+            },
+          );
 
-            if (response.statusCode == 200) {
-              final data = response.data as Map<String, dynamic>;
+          if (response.statusCode == 200) {
+            final data = response.data as Map<String, dynamic>;
+            final playability = data['playabilityStatus'];
+            final status = playability?['status'] as String?;
 
-              final playability = data['playabilityStatus'];
-              final status = playability?['status'] as String?;
+            if (status == 'OK' && data['streamingData'] != null) {
+              final List<dynamic> formats =
+                  (data['streamingData']['adaptiveFormats'] as List? ?? []) +
+                  (data['streamingData']['formats'] as List? ?? []);
 
-              if (status != 'OK') {
-                AppLogger.w(
+              // Filter for audio formats with URLs
+              final audioFormats = formats.where(
+                (f) =>
+                    (f['mimeType'] as String).contains('audio/') &&
+                    f['url'] != null,
+              ).toList();
+
+              if (audioFormats.isNotEmpty) {
+                // Sort by bitrate to get best quality
+                audioFormats.sort((a, b) {
+                  final b1 = a['bitrate'] as int? ?? 0;
+                  final b2 = b['bitrate'] as int? ?? 0;
+                  return b2.compareTo(b1);
+                });
+
+                final bestStream = audioFormats.first;
+                AppLogger.i(
                   _tag,
-                  'Playability status [${client['clientName']}]: $status | Reason: ${playability?['reason']}',
+                  'Resolved via InnerTube ($probeName): ${bestStream['url'].toString().substring(0, 50)}...',
                 );
-                continue;
+                return bestStream['url'] as String;
+              } else {
+                AppLogger.d(
+                  _tag,
+                  'Probe $probeName: OK but no direct URL (likely ciphered)',
+                );
               }
-
-              final streamingData = data['streamingData'];
-              if (streamingData != null) {
-                final List<dynamic> formats =
-                    (streamingData['adaptiveFormats'] as List<dynamic>? ?? []) +
-                    (streamingData['formats'] as List<dynamic>? ?? []);
-
-                final audioStreams = formats.where((f) {
-                  final mimeType = f['mimeType'] as String?;
-                  return mimeType != null && mimeType.contains('audio/');
-                }).toList();
-
-                if (audioStreams.isNotEmpty) {
-                  // Prioritize direct URL formats
-                  audioStreams.sort((a, b) {
-                    final hasUrlA = a['url'] != null ? 1 : 0;
-                    final hasUrlB = b['url'] != null ? 1 : 0;
-                    if (hasUrlA != hasUrlB) return hasUrlB.compareTo(hasUrlA);
-
-                    final bitrateA = a['averageBitrate'] ?? a['bitrate'] ?? 0;
-                    final bitrateB = b['averageBitrate'] ?? b['bitrate'] ?? 0;
-                    return (bitrateB as int).compareTo(bitrateA as int);
-                  });
-
-                  final bestStream = audioStreams.firstWhere(
-                    (f) => f['url'] != null,
-                    orElse: () => null,
-                  );
-
-                  if (bestStream != null) {
-                    final url = bestStream['url'] as String;
-                    AppLogger.i(
-                      _tag,
-                      'Resolved via InnerTube: ${client['clientName']}',
-                    );
-                    return url;
-                  }
-                }
-              }
+            } else {
+              AppLogger.d(
+                _tag,
+                'Probe $probeName playability: $status. Reason: ${playability?['reason']}',
+              );
             }
-          } catch (e) {
-            AppLogger.w(
+          } else {
+            AppLogger.d(
               _tag,
-              'InnerTube attempt failed [${client['clientName']}]: $e',
+              'Probe $probeName failed with status: ${response.statusCode}',
             );
           }
+        } catch (e) {
+          AppLogger.d(_tag, 'Probe $probeName error: $e');
         }
+      }
+
+      // Try yt-dlp on desktop as a high-fidelity fallback
+      if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+        AppLogger.i(_tag, 'InnerTube failed, trying yt-dlp fallback');
+        final ytdlpUrl = await _resolveWithYtDlp(videoId);
+        if (ytdlpUrl != null) return ytdlpUrl;
       }
 
       AppLogger.w(
         _tag,
-        'All InnerTube clients failed, falling back to YoutubeExplode',
+        'InnerTube resolution failed, using YoutubeExplode fallback',
       );
       return _resolveFallback(videoId);
     } catch (e, st) {
       AppLogger.e(_tag, 'Stream resolution critical failure', e, st);
-      return _resolveFallback(videoId);
+      return null;
     }
+  }
+
+  Future<String?> _resolveWithYtDlp(String videoId) async {
+    try {
+      final result = await Process.run('yt-dlp', [
+        '-g',
+        '-f', 'ba',
+        'https://www.youtube.com/watch?v=$videoId'
+      ]);
+      if (result.exitCode == 0) {
+        final url = result.stdout.toString().trim();
+        if (url.isNotEmpty && url.startsWith('http')) {
+          AppLogger.i(_tag, 'Resolved via yt-dlp');
+          return url;
+        }
+      }
+    } catch (e) {
+      AppLogger.d(_tag, 'yt-dlp not available or failed: $e');
+    }
+    return null;
   }
 
   Future<String?> _resolveFallback(String videoId) async {
@@ -177,7 +272,28 @@ class StreamResolver {
     }
   }
 
+  String? _extractCookie(String cookies, String name) {
+    try {
+      final cookieList = cookies.split(';');
+      for (final cookie in cookieList) {
+        final parts = cookie.trim().split('=');
+        if (parts.length >= 2 && parts[0] == name) {
+          return parts.sublist(1).join('=');
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  String _generateSapisidHash(String sapisid, String origin) {
+    final timestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final payload = '$timestamp $sapisid $origin';
+    final hash = sha1.convert(utf8.encode(payload)).toString();
+    return '${timestamp}_$hash';
+  }
+
   void dispose() {
     _yt.close();
   }
 }
+

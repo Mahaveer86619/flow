@@ -36,7 +36,7 @@ class _SearchScreenState extends State<SearchScreen> {
     final isSmall = Breakpoints.isMobile(MediaQuery.sizeOf(context).width);
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: colorScheme.surface,
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(
           parent: AlwaysScrollableScrollPhysics(),
@@ -46,11 +46,14 @@ class _SearchScreenState extends State<SearchScreen> {
             expandedHeight: 140,
             floating: false,
             pinned: true,
-            backgroundColor: Colors.black.withAlpha(200),
+            backgroundColor: Colors.transparent,
             surfaceTintColor: Colors.transparent,
             elevation: 0,
             leading: IconButton(
-              icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+              icon: Icon(
+                Icons.arrow_back_rounded,
+                color: colorScheme.onSurface,
+              ),
               onPressed: () => Navigator.maybePop(context),
             ),
             centerTitle: false,
@@ -60,7 +63,7 @@ class _SearchScreenState extends State<SearchScreen> {
                 fontSize: 22,
                 fontWeight: FontWeight.w800,
                 letterSpacing: -0.5,
-                color: Colors.white,
+                color: colorScheme.onSurface,
               ),
             ),
             flexibleSpace: FlexibleSpaceBar(
@@ -76,23 +79,23 @@ class _SearchScreenState extends State<SearchScreen> {
                         hintText: 'Songs, artists, albums...',
                         hintStyle: WidgetStatePropertyAll(
                           TextStyle(
-                            color: Colors.white.withAlpha(80),
+                            color: colorScheme.onSurface.withAlpha(80),
                             fontSize: 15,
                           ),
                         ),
-                        leading: const Padding(
-                          padding: EdgeInsets.only(left: 8.0),
+                        leading: Padding(
+                          padding: const EdgeInsets.only(left: 8.0),
                           child: Icon(
                             Icons.search_rounded,
-                            color: Colors.white,
+                            color: colorScheme.onSurface,
                           ),
                         ),
                         trailing: [
                           if (state.hasQuery)
                             IconButton(
-                              icon: const Icon(
+                              icon: Icon(
                                 Icons.close_rounded,
-                                color: Colors.white,
+                                color: colorScheme.onSurface,
                               ),
                               onPressed: () {
                                 _textController.clear();
@@ -109,7 +112,7 @@ class _SearchScreenState extends State<SearchScreen> {
                         },
                         elevation: const WidgetStatePropertyAll(0),
                         backgroundColor: WidgetStatePropertyAll(
-                          Colors.white.withAlpha(20),
+                          colorScheme.onSurface.withAlpha(20),
                         ),
                         shape: WidgetStatePropertyAll(
                           RoundedRectangleBorder(
@@ -183,6 +186,7 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Widget _buildHistoryHeader(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return SliverToBoxAdapter(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
@@ -194,15 +198,18 @@ class _SearchScreenState extends State<SearchScreen> {
               style: GoogleFonts.spaceGrotesk(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
-                color: Colors.white,
+                color: colorScheme.onSurface,
               ),
             ),
             TextButton(
               onPressed: () =>
                   context.read<SearchCubit>().clearRecentSearches(),
-              child: const Text(
+              child: Text(
                 'Clear',
-                style: TextStyle(color: Colors.white70, fontSize: 13),
+                style: TextStyle(
+                  color: colorScheme.onSurface.withAlpha(150),
+                  fontSize: 13,
+                ),
               ),
             ),
           ],
@@ -212,6 +219,7 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Widget _buildHistoryList(SearchState state) {
+    final colorScheme = Theme.of(context).colorScheme;
     final history = state.recentSearches;
     final displayCount = _showAllHistory
         ? history.length
@@ -231,16 +239,16 @@ class _SearchScreenState extends State<SearchScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.expand_more_rounded,
                         size: 20,
-                        color: Colors.white60,
+                        color: colorScheme.onSurface.withAlpha(150),
                       ),
                       const SizedBox(width: 8),
                       Text(
                         'Load more',
                         style: GoogleFonts.outfit(
-                          color: Colors.white60,
+                          color: colorScheme.onSurface.withAlpha(150),
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -253,9 +261,9 @@ class _SearchScreenState extends State<SearchScreen> {
           final query = history[i];
           return ListTile(
             contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-            leading: const Icon(
+            leading: Icon(
               Icons.history_rounded,
-              color: Colors.white30,
+              color: colorScheme.onSurface.withAlpha(80),
               size: 22,
             ),
             title: Text(
@@ -263,14 +271,14 @@ class _SearchScreenState extends State<SearchScreen> {
               style: GoogleFonts.outfit(
                 fontSize: 15,
                 fontWeight: FontWeight.w500,
-                color: Colors.white70,
+                color: colorScheme.onSurface.withAlpha(180),
               ),
             ),
             trailing: IconButton(
-              icon: const Icon(
+              icon: Icon(
                 Icons.close_rounded,
                 size: 18,
-                color: Colors.white24,
+                color: colorScheme.onSurface.withAlpha(60),
               ),
               onPressed: () =>
                   context.read<SearchCubit>().removeRecentSearch(query),
@@ -288,6 +296,7 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Widget _buildCategoryHeader() {
+    final colorScheme = Theme.of(context).colorScheme;
     return SliverToBoxAdapter(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
@@ -296,7 +305,7 @@ class _SearchScreenState extends State<SearchScreen> {
           style: GoogleFonts.spaceGrotesk(
             fontSize: 18,
             fontWeight: FontWeight.w700,
-            color: Colors.white,
+            color: colorScheme.onSurface,
           ),
         ),
       ),
@@ -332,20 +341,24 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Widget _buildNoResults(String query) {
+    final colorScheme = Theme.of(context).colorScheme;
     return SliverToBoxAdapter(
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 80),
         child: Column(
           children: [
-            const Icon(
+            Icon(
               Icons.search_off_rounded,
               size: 64,
-              color: Colors.white10,
+              color: colorScheme.onSurface.withAlpha(20),
             ),
             const SizedBox(height: 16),
             Text(
               'No results for "$query"',
-              style: GoogleFonts.outfit(color: Colors.white38, fontSize: 16),
+              style: GoogleFonts.outfit(
+                color: colorScheme.onSurface.withAlpha(100),
+                fontSize: 16,
+              ),
             ),
           ],
         ),
@@ -380,7 +393,7 @@ class _CategoryTile extends StatelessWidget {
             style: GoogleFonts.spaceGrotesk(
               fontSize: 15,
               fontWeight: FontWeight.w700,
-              color: color.withAlpha(200),
+              color: Theme.of(context).colorScheme.onSurface.withAlpha(200),
             ),
           ),
         ),

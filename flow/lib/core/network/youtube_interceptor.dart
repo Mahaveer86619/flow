@@ -54,8 +54,9 @@ class YoutubeInterceptor extends Interceptor {
       options.headers['Origin'] = 'https://music.youtube.com';
       options.headers['Referer'] = 'https://music.youtube.com/';
       options.headers['X-Goog-AuthUser'] = '0';
-      options.headers['X-YouTube-Client-Name'] = '1';
-      options.headers['X-YouTube-Client-Version'] = '19.30.36';
+      options.headers['X-YouTube-Client-Name'] = '67'; // ANDROID_MUSIC
+      options.headers['X-YouTube-Client-Version'] = '7.03.52';
+
     }
 
     return handler.next(options);

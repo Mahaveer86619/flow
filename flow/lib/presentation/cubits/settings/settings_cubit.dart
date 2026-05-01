@@ -32,6 +32,10 @@ class SettingsCubit extends Cubit<SettingsState> {
       eqPreset: s.eqPreset,
       downloadQuality: s.downloadQuality,
       downloadPath: s.downloadPath,
+      cacheBudgetMB: s.cacheBudgetMB,
+      downloadFormat: s.downloadFormat,
+      downloadBitrate: s.downloadBitrate,
+      streamingMode: _parseStreamingMode(s.streamingMode),
     );
   }
 
@@ -39,6 +43,12 @@ class SettingsCubit extends Cubit<SettingsState> {
     'light' => ThemeMode.light,
     'system' => ThemeMode.system,
     _ => ThemeMode.dark,
+  };
+
+  static StreamingMode _parseStreamingMode(String v) => switch (v) {
+    'relayFromPeer' => StreamingMode.relayFromPeer,
+    'hybridPreferLocal' => StreamingMode.hybridPreferLocal,
+    _ => StreamingMode.standalone,
   };
 
   void loadSettings(Map<String, dynamic>? settings) {
@@ -58,6 +68,18 @@ class SettingsCubit extends Cubit<SettingsState> {
     final preset = settings['eq_preset'] as String?;
     if (preset != null) LocalStorage.instance.saveEqPreset(preset);
 
+    final budget = settings['cache_budget_mb'] as int?;
+    if (budget != null) LocalStorage.instance.saveCacheBudgetMB(budget);
+
+    final format = settings['download_format'] as String?;
+    if (format != null) LocalStorage.instance.saveDownloadFormat(format);
+
+    final bitrate = settings['download_bitrate'] as int?;
+    if (bitrate != null) LocalStorage.instance.saveDownloadBitrate(bitrate);
+
+    final sMode = settings['streaming_mode'] as String?;
+    if (sMode != null) LocalStorage.instance.saveStreamingMode(sMode);
+
     // Refresh state from updated LocalStorage
     final s = LocalStorage.instance;
     emit(
@@ -66,9 +88,35 @@ class SettingsCubit extends Cubit<SettingsState> {
         eqPreset: s.eqPreset,
         downloadQuality: s.downloadQuality,
         downloadPath: () => s.downloadPath,
+        cacheBudgetMB: () => s.cacheBudgetMB,
+        downloadFormat: s.downloadFormat,
+        downloadBitrate: s.downloadBitrate,
+        streamingMode: _parseStreamingMode(s.streamingMode),
       ),
     );
   }
+
+  void setStreamingMode(StreamingMode mode) {
+    LocalStorage.instance.saveStreamingMode(mode.name);
+    emit(state.copyWith(streamingMode: mode));
+  }
+
+
+  void setCacheBudgetMB(int? mb) {
+    LocalStorage.instance.saveCacheBudgetMB(mb);
+    emit(state.copyWith(cacheBudgetMB: () => mb));
+  }
+
+  void setDownloadFormat(String format) {
+    LocalStorage.instance.saveDownloadFormat(format);
+    emit(state.copyWith(downloadFormat: format));
+  }
+
+  void setDownloadBitrate(int bitrate) {
+    LocalStorage.instance.saveDownloadBitrate(bitrate);
+    emit(state.copyWith(downloadBitrate: bitrate));
+  }
+
 
   void setThemeMode(ThemeMode mode) {
     final str = switch (mode) {

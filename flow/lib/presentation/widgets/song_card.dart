@@ -117,34 +117,68 @@ class _SongCardState extends State<SongCard> {
                       color: colorScheme.onSurface.withAlpha(100),
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 2),
-              Row(
-                children: [
-                  if (isLiked)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 6),
-                      child: Icon(
-                        Icons.favorite_rounded,
-                        size: 12,
-                        color: const Color(0xFFEC4899),
+                import '../../core/intelligence/app_intelligence.dart';
+
+                class SongCard extends StatefulWidget {
+                ...
+                              const SizedBox(height: 2),
+                              Row(
+                                children: [
+                                  if (isLiked)
+                                    Padding(
+                                      padding: const EdgeInsets.only(right: 6),
+                                      child: Icon(
+                                        Icons.favorite_rounded,
+                                        size: 12,
+                                        color: const Color(0xFFEC4899),
+                                      ),
+                                    ),
+                                  Expanded(
+                                    child: Text(
+                                      widget.song.artist,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: colorScheme.onSurface.withAlpha(140),
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  _TasteMatchIndicator(songId: widget.song.id),
+                                ],
+                              ),
+                ...
+                class _TasteMatchIndicator extends StatelessWidget {
+                  final String songId;
+                  const _TasteMatchIndicator({required this.songId});
+
+                  @override
+                  Widget build(BuildContext context) {
+                    final score = AppIntelligence.instance.graph.nodes[songId]?.score ?? 0.0;
+                    if (score <= 0) return const SizedBox.shrink();
+
+                    // Simple normalization: 1.0 score = 50%, 5.0+ = 99%
+                    final matchPercent = (50 + (score * 10)).clamp(50, 99).toInt();
+
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primary.withAlpha(40),
+                        borderRadius: BorderRadius.circular(4),
                       ),
-                    ),
-                  Expanded(
-                    child: Text(
-                      widget.song.artist,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: colorScheme.onSurface.withAlpha(140),
+                      child: Text(
+                        '$matchPercent%',
+                        style: GoogleFonts.outfit(
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
                       ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                    ),
-                  ),
-                ],
-              ),
-            ],
+                    );
+                  }
+                }
+
           ),
         ),
       ),

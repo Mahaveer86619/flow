@@ -124,7 +124,22 @@ class LocalStorage {
   void saveDownloadQuality(String q) =>
       _settings.put(HiveKeys.downloadQuality, q);
 
+  int? get cacheBudgetMB => _settings.get(HiveKeys.cacheBudgetMB) as int?;
+  void saveCacheBudgetMB(int? mb) => _settings.put(HiveKeys.cacheBudgetMB, mb);
+
+  String get downloadFormat => _settings.get(HiveKeys.downloadFormat) as String? ?? 'mp3';
+  void saveDownloadFormat(String format) => _settings.put(HiveKeys.downloadFormat, format);
+
+  int get downloadBitrate => _settings.get(HiveKeys.downloadBitrate) as int? ?? 192;
+  void saveDownloadBitrate(int bitrate) => _settings.put(HiveKeys.downloadBitrate, bitrate);
+
+  String get streamingMode => _settings.get(HiveKeys.streamingMode) as String? ?? 'standalone';
+  void saveStreamingMode(String mode) => _settings.put(HiveKeys.streamingMode, mode);
+
   String get _platformDownloadPathKey {
+
+
+
     if (Platform.isWindows) return '${HiveKeys.downloadPath}_windows';
     if (Platform.isAndroid) return '${HiveKeys.downloadPath}_android';
     if (Platform.isIOS) return '${HiveKeys.downloadPath}_ios';

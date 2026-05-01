@@ -309,6 +309,8 @@ class YoutubeMusicDataSource implements MusicDataSource {
     final thumbNode =
         renderer['thumbnailRenderer']?['musicThumbnailRenderer']?['thumbnail']?['thumbnails']
             ?.last ??
+        renderer['thumbnail']?['musicThumbnailRenderer']?['thumbnail']?['thumbnails']
+            ?.last ??
         renderer['thumbnail']?['thumbnails']?.last;
 
     final thumb = thumbNode?['url'] as String?;
@@ -517,15 +519,14 @@ class YoutubeMusicDataSource implements MusicDataSource {
         }
       }
 
-      // Sort by view count descending
+      // Removed re-ordering to keep "Best Match" first as per user request
+      /*
       tracks.sort((a, b) {
         final vA = a.extras?['views'] as int? ?? 0;
         final vB = b.extras?['views'] as int? ?? 0;
         return vB.compareTo(vA);
       });
-
-      // If we still have very few results, maybe try a search without params?
-      // (Skipping for now to avoid extra latency unless requested)
+      */
 
       return tracks.take(limit).toList();
     } catch (e) {

@@ -7,9 +7,11 @@ import '../../cubits/home/home_cubit.dart';
 import '../../cubits/settings/settings_cubit.dart';
 import 'sub_screens/about_screen.dart';
 import 'sub_screens/appearance_screen.dart';
-import 'sub_screens/downloads_screen.dart';
+import 'sub_screens/storage_screen.dart';
 import 'sub_screens/equalizer_screen.dart';
 import 'sub_screens/yt_connect_screen.dart';
+import 'sub_screens/connections_screen.dart';
+import '../stats/stats_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -73,16 +75,41 @@ class SettingsScreen extends StatelessWidget {
             ],
           ),
           _Section(
-            title: 'Storage',
+            title: 'Insights',
             children: [
               _Tile(
-                icon: Icons.download_outlined,
-                title: 'Downloads',
-                subtitle: '${settings.downloadQuality} quality',
-                onTap: () => _push(context, const DownloadsScreen()),
+                icon: Icons.bar_chart_rounded,
+                title: 'Listening Insights',
+                subtitle: 'Top artists, genres & activity',
+                onTap: () => _push(context, const StatsScreen()),
               ),
             ],
           ),
+          _Section(
+            title: 'Networking & Social',
+            children: [
+              _Tile(
+                icon: Icons.hub_outlined,
+                title: 'Connections',
+                subtitle: 'Link devices & friends',
+                onTap: () => _push(context, const ConnectionsScreen()),
+              ),
+            ],
+          ),
+          _Section(
+            title: 'Storage',
+            children: [
+              _Tile(
+                icon: Icons.storage_rounded,
+                title: 'Storage & Downloads',
+                subtitle: '${settings.cacheBudgetMB ?? "Unlimited"} MB Cache · ${settings.downloadFormat.toUpperCase()}',
+                onTap: () => _push(context, const StorageScreen()),
+              ),
+            ],
+          ),
+
+
+
           _Section(
             title: 'Display',
             children: [

@@ -57,14 +57,14 @@ class SongTile extends StatelessWidget {
               PlayerScreen.show(context);
             }
           },
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
       leading: Hero(
         tag: heroTag ?? 'tile_art_${song.id}_${song.hashCode}_$index',
         child: Container(
           width: 48,
           height: 48,
           decoration: BoxDecoration(
-            borderRadius: AppRadius.mediumBorderRadius,
+            borderRadius: BorderRadius.circular(4),
             gradient: LinearGradient(
               colors: [song.colorPrimary, song.colorSecondary],
               begin: Alignment.topLeft,
@@ -154,7 +154,7 @@ class SongTile extends StatelessWidget {
         style: GoogleFonts.spaceGrotesk(
           fontSize: 24,
           fontWeight: FontWeight.w800,
-          color: Colors.white,
+          color: Colors.white.withAlpha(100),
           height: 1.0,
         ),
       ),
@@ -289,7 +289,7 @@ class _SongOptionsButton extends StatelessWidget {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.white24,
+                  color: Theme.of(context).colorScheme.onSurface.withAlpha(40),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),

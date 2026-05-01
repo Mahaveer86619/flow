@@ -32,8 +32,22 @@ import 'presentation/screens/auth/login_screen.dart';
 import 'presentation/screens/splash/splash_screen.dart';
 import 'presentation/widgets/main_shell.dart';
 
+import 'core/intelligence/app_intelligence.dart';
+import 'core/network/pre_cache_worker.dart';
+
+import 'core/platform/desktop_controller.dart';
+
+import 'core/network/lan_stream_bridge.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await DesktopController.instance.init();
+
+  if (defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS) {
+    LanStreamBridge.instance.startServer();
+  }
+
 
   if (defaultTargetPlatform == TargetPlatform.android ||
       defaultTargetPlatform == TargetPlatform.iOS ||
@@ -51,10 +65,15 @@ void main() async {
   }
 
   await dotenv.load(fileName: '.env');
+
   AppLogger.init();
   await LocalStorage.instance.init();
+  await AppIntelligence.instance.init();
   await DownloadService.instance.init();
   await CacheService.instance.init();
+  await PreCacheWorker.init();
+  await PreCacheWorker.schedule();
+
 
   final currentVersion = dotenv.env['APP_VERSION'] ?? '1.0.0';
   final storedVersion = LocalStorage.instance.appVersion;
@@ -99,11 +118,17 @@ void main() async {
           BlocProvider(
             create: (_) => NetworkCubit(ConnectivityService.instance),
           ),
-          BlocProvider(create: (_) => PlayerBloc(musicRepository: repository)),
           BlocProvider(
             create: (context) =>
                 SettingsCubit(authCubit: context.read<AuthCubit>()),
           ),
+          BlocProvider(
+            create: (context) => PlayerBloc(
+              musicRepository: repository,
+              settingsCubit: context.read<SettingsCubit>(),
+            ),
+          ),
+
           BlocProvider(
             create: (_) => HomeCubit(
               getHomeData: getHomeData,

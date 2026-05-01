@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/config/app_constants.dart';
@@ -9,6 +11,8 @@ import '../blocs/player/player_bloc.dart';
 import '../screens/player/player_screen.dart';
 import '../../domain/entities/song.dart';
 import 'text_carousel.dart';
+import '../../core/platform/desktop_controller.dart';
+
 
 class MiniPlayer extends StatelessWidget {
   const MiniPlayer({super.key});
@@ -178,6 +182,12 @@ class MiniPlayer extends StatelessWidget {
                                   Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
+                                      if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS))
+                                        _ControlButton(
+                                          icon: Icons.open_in_new_rounded,
+                                          size: 24,
+                                          onTap: () => DesktopController.instance.toggleMiniPlayer(),
+                                        ),
                                       _ControlButton(
                                         icon: Icons.skip_previous_rounded,
                                         size: 32,
@@ -185,6 +195,7 @@ class MiniPlayer extends StatelessWidget {
                                             .read<PlayerBloc>()
                                             .add(const SkipPreviousEvent()),
                                       ),
+
                                       const SizedBox(width: 4),
                                       BlocBuilder<PlayerBloc, PlayerState>(
                                         buildWhen: (prev, curr) =>

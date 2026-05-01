@@ -18,6 +18,14 @@ import '../../../core/logger/app_logger.dart';
 import '../../../core/platform/windows_media_session.dart';
 import '../../../core/storage/local_storage.dart';
 import '../../../domain/entities/song.dart';
+import '../../../domain/entities/track.dart' as domain;
+import '../../../core/intelligence/app_intelligence.dart';
+import '../../../domain/entities/scoring_graph.dart' as domain;
+import '../../../domain/engines/mood_engine.dart';
+
+
+
+
 
 import '../../../core/network/download_service.dart';
 import '../../../core/network/cache_service.dart';
@@ -92,6 +100,8 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     on<ToggleDownloadEvent>(_onToggleDownload);
     on<SetVolumeEvent>(_onSetVolume);
     on<ResetPlayerEvent>(_onResetPlayer);
+    on<FilterByMoodEvent>(_onFilterByMood);
+
     on<_PositionUpdateEvent>(_onPositionUpdate);
     on<_BufferedPositionChangedEvent>(_onBufferedPositionChanged);
     on<_BufferingChangedEvent>(_onBufferingChanged);
@@ -777,6 +787,15 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
   }
 
   void _onSkipNext(SkipNextEvent event, Emitter<PlayerState> emit) {
+    if (state.currentSong != null) {
+      final isEarly = state.position.inSeconds < 30;
+      AppIntelligence.instance.recordEvent(
+        domain.Track.fromSong(state.currentSong!),
+        isEarly ? domain.ListenEvent.skippedEarly : domain.ListenEvent.skippedMid,
+      );
+
+    }
+
     _retryCount = 0;
     if (_audioPlayer.hasNext) {
       _audioPlayer.seekToNext();
@@ -786,6 +805,10 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
   }
 
   void _onSkipPrevious(SkipPreviousEvent event, Emitter<PlayerState> emit) {
+    if (state.currentSong != null && state.position.inSeconds > 2) {
+      // If user restarts the song after 2 seconds, it might be a "replay" intent
+      // but for now we'll just treat it as a mid-skip if they skip away immediately after
+    }
     _retryCount = 0;
     if (state.progress > 0.05 || !_audioPlayer.hasPrevious) {
       _audioPlayer.seek(Duration.zero);
@@ -793,6 +816,7 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
       _audioPlayer.seekToPrevious();
     }
   }
+
 
   void _onRewind(RewindEvent event, Emitter<PlayerState> emit) {
     final target = _audioPlayer.position - const Duration(seconds: 10);
@@ -1103,7 +1127,15 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     _TrackCompletedEvent event,
     Emitter<PlayerState> emit,
   ) {
+    if (state.currentSong != null) {
+      AppIntelligence.instance.recordEvent(
+        domain.Track.fromSong(state.currentSong!),
+        domain.ListenEvent.fullListen,
+      );
+
+    }
     if (!state.isRepeat && !_audioPlayer.hasNext) {
+
       if (state.isEndlessRadio && state.currentSong != null) {
         _fetchMoreRadioTracks().then((_) {
           if (!isClosed && _audioPlayer.hasNext && !state.isPlaying) {
@@ -1162,7 +1194,44 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     }
   }
 
+  Future<void> _onFilterByMood(
+    FilterByMoodEvent event,
+    Emitter<PlayerState> emit,
+  ) async {
+    if (state.queue.isEmpty) return;
+
+    final mood = Mood.values.firstWhere(
+      (m) => m.name.toLowerCase() == event.mood.toLowerCase(),
+      orElse: () => Mood.chill,
+    );
+
+    final currentSong = state.currentSong;
+    final engine = MoodEngine();
+
+    // Convert current queue to Track entities for the engine
+    final tracks = state.queue.map((s) => domain.Track.fromSong(s)).toList();
+
+    final filteredTracks = engine.filterByMood(tracks, mood);
+
+    if (filteredTracks.isNotEmpty) {
+      // Find the filtered songs in the original queue to preserve instances/metadata
+      final filteredSongs =
+          filteredTracks
+              .map((t) => state.queue.firstWhere((s) => s.id == t.id))
+              .toList();
+
+      // If current song is not in filtered list, add it at the start or keep it
+      if (currentSong != null &&
+          !filteredSongs.any((s) => s.id == currentSong.id)) {
+        filteredSongs.insert(0, currentSong);
+      }
+
+      add(PlayQueueEvent(songs: filteredSongs, startIndex: 0));
+    }
+  }
+
   @override
+
   Future<void> close() async {
     await _positionSub?.cancel();
     await _durationSub?.cancel();

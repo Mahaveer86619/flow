@@ -149,9 +149,39 @@ class _HomeScreenContent extends StatelessWidget {
                                   style: GoogleFonts.outfit(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w500,
-                                    color: Colors.white.withAlpha(150),
+                                    color: Colors.white70,
                                   ),
                                 ),
+                                const SizedBox(height: 12),
+                                SizedBox(
+                                  height: 38,
+                                  child: ListView(
+                                    scrollDirection: Axis.horizontal,
+                                    children: [
+                                      _MoodChip(
+                                        label: 'Chill',
+                                        icon: Icons.nightlight_round,
+                                        color: Colors.blueAccent,
+                                      ),
+                                      _MoodChip(
+                                        label: 'Energetic',
+                                        icon: Icons.bolt_rounded,
+                                        color: Colors.orangeAccent,
+                                      ),
+                                      _MoodChip(
+                                        label: 'Focus',
+                                        icon: Icons.center_focus_strong_rounded,
+                                        color: Colors.greenAccent,
+                                      ),
+                                      _MoodChip(
+                                        label: 'Workout',
+                                        icon: Icons.fitness_center_rounded,
+                                        color: Colors.redAccent,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+
                               ],
                             ),
                           ),
@@ -673,3 +703,59 @@ class _HomePlaylistCardState extends State<_HomePlaylistCard> {
     );
   }
 }
+
+class _MoodChip extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color color;
+
+  const _MoodChip({
+    required this.label,
+    required this.icon,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            context.read<PlayerBloc>().add(FilterByMoodEvent(label));
+          },
+
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: color.withAlpha(30),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: color.withAlpha(80), width: 1.5),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 16, color: color),
+                const SizedBox(width: 8),
+                Text(
+                  label,
+                  style: GoogleFonts.outfit(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white.withAlpha(220),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+

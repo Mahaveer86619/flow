@@ -26,9 +26,14 @@ class YtmMapper {
     return PlaylistModel(
       id: item.id,
       name: item.title,
-      owner: item.artist ?? item.subtitle ?? 'YouTube Music',
+      description: item.artist ?? item.subtitle ?? 'YouTube Music',
       thumbnailUrl: item.thumbnailUrl,
-      songCount: 0, // Not always available in list view
+      trackCount: 0, // Not always available in list view
+      color: const Color(0xFF7C3AED),
+      isAlbum: item.type == YtmItemType.album,
+      artistName: item.type == YtmItemType.album
+          ? (item.artist ?? item.subtitle)
+          : null,
     );
   }
 

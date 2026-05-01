@@ -135,7 +135,14 @@ class SetVolumeEvent extends PlayerEvent {
   const SetVolumeEvent(this.volume);
 }
 
+/// Filter the current queue based on a mood target.
+class FilterByMoodEvent extends PlayerEvent {
+  final String mood;
+  const FilterByMoodEvent(this.mood);
+}
+
 /// Reset the player state, stop playback, and clear queue.
+
 /// Useful when the player gets stuck or for a "state clean" functionality.
 class ResetPlayerEvent extends PlayerEvent {
   const ResetPlayerEvent();
