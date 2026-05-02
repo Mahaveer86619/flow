@@ -39,9 +39,12 @@ class PermissionService {
   /// MANAGE_EXTERNAL_STORAGE or SAF (handled by file_picker).
   Future<bool> requestStoragePermission() async {
     if (Platform.isAndroid) {
-      // In some cases Permission.storage always returns denied on Android 13+
-      // but file_picker works fine. We'll try to request but return true
-      // anyway to let the picker attempt to open.
+      // For Android 11+ (API 30+), users may need MANAGE_EXTERNAL_STORAGE
+      if (await Permission.manageExternalStorage.isDenied) {
+        AppLogger.i(_tag, 'Requesting Manage External Storage (Android 11+)');
+        await Permission.manageExternalStorage.request();
+      }
+      
       try {
         await Permission.storage.request();
       } catch (e) {

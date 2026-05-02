@@ -299,9 +299,22 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     _retryCount = 0;
     _musicRepository.recordPlay(event.song);
     await _audioPlayer.stop();
-    emit(state.copyWith(queue: [event.song], queueIndex: 0, currentSong: event.song, isPlaying: false, isInitialLoading: true, position: Duration.zero, bufferedPosition: Duration.zero, clearActualDuration: true, clearCustomColors: true));
+    // Default to endless radio for single song plays from search/etc
+    emit(state.copyWith(
+      queue: [event.song], 
+      queueIndex: 0, 
+      currentSong: event.song, 
+      isPlaying: false, 
+      isInitialLoading: true, 
+      isEndlessRadio: true,
+      position: Duration.zero, 
+      bufferedPosition: Duration.zero, 
+      clearActualDuration: true, 
+      clearCustomColors: true,
+    ));
     _extractPalette(event.song);
     await _updatePlaylist([event.song]);
+    _fetchMoreRadioTracks();
   }
 
   Future<void> _onPlayRadio(PlayRadioEvent event, Emitter<PlayerState> emit) async {
