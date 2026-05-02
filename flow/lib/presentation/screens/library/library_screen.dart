@@ -12,6 +12,7 @@ import '../list/list_screen.dart';
 import '../../widgets/skeleton.dart';
 import '../../../core/logger/app_logger.dart';
 import '../../../core/ui/app_snack_bar.dart';
+import '../../widgets/flow_app_bar.dart';
 
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
@@ -37,116 +38,60 @@ class _LibraryScreenState extends State<LibraryScreen> {
           parent: AlwaysScrollableScrollPhysics(),
         ),
         slivers: [
-          SliverAppBar(
-            expandedHeight: 100,
-            floating: false,
-            pinned: true,
-            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-            surfaceTintColor: Colors.transparent,
-            elevation: 0,
-            centerTitle: false,
-            title: LayoutBuilder(
-              builder: (context, constraints) {
-                final top = constraints.biggest.height;
-                final isCollapsed = top < 90;
-                return AnimatedOpacity(
-                  duration: const Duration(milliseconds: 200),
-                  opacity: isCollapsed ? 1.0 : 0.0,
-                  child: Text(
-                    'Library',
-                    style: GoogleFonts.spaceGrotesk(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                );
-              },
-            ),
-            flexibleSpace: FlexibleSpaceBar(
-              background: Padding(
-                padding: EdgeInsets.fromLTRB(
-                  16,
-                  MediaQuery.paddingOf(context).top + 12,
-                  16,
-                  0,
-                ),
-                child: Row(
-                  children: [
-                    Text(
-                      'Library',
-                      style: GoogleFonts.spaceGrotesk(
-                        fontSize: 32,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -1.2,
+          FlowAppBar(
+            title: 'Library',
+            additionalActions: [
+              IconButton(
+                icon: const Icon(Icons.add_rounded),
+                onPressed: () async {
+                  final controller = TextEditingController();
+                  final name = await showDialog<String>(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      title: const Text('Create Playlist'),
+                      content: TextField(
+                        controller: controller,
+                        decoration: const InputDecoration(
+                          labelText: 'Playlist Name',
+                          border: OutlineInputBorder(),
+                        ),
+                        autofocus: true,
+                        onSubmitted: (value) => Navigator.pop(ctx, value),
                       ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          child: const Text('Cancel'),
+                        ),
+                        FilledButton(
+                          onPressed: () => Navigator.pop(ctx, controller.text),
+                          child: const Text('Create'),
+                        ),
+                      ],
                     ),
-                    const Spacer(),
-                    IconButton(
-                      icon: const Icon(Icons.add_rounded),
-                      onPressed: () async {
-                        final controller = TextEditingController();
-                        final name = await showDialog<String>(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            title: const Text('Create Playlist'),
-                            content: TextField(
-                              controller: controller,
-                              decoration: const InputDecoration(
-                                labelText: 'Playlist Name',
-                                border: OutlineInputBorder(),
-                              ),
-                              autofocus: true,
-                              onSubmitted: (value) => Navigator.pop(ctx, value),
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx),
-                                child: const Text('Cancel'),
-                              ),
-                              FilledButton(
-                                onPressed: () =>
-                                    Navigator.pop(ctx, controller.text),
-                                child: const Text('Create'),
-                              ),
-                            ],
-                          ),
+                  );
+                  if (name?.trim().isNotEmpty ?? false) {
+                    try {
+                      final repo = context.read<MusicRepository>();
+                      await repo.createFlowPlaylist(title: name!.trim());
+                      if (context.mounted) {
+                        context.read<LibraryCubit>().refresh();
+                      }
+                    } catch (e, st) {
+                      if (context.mounted) {
+                        AppSnackBar.showError(
+                          context,
+                          e,
+                          stackTrace: st,
+                          logTag: 'LibraryScreen',
                         );
-                        if (name?.trim().isNotEmpty ?? false) {
-                          try {
-                            final repo = context.read<MusicRepository>();
-                            await repo.createFlowPlaylist(title: name!.trim());
-                            if (context.mounted) {
-                              context.read<LibraryCubit>().refresh();
-                            }
-                          } catch (e, st) {
-                            if (context.mounted) {
-                              AppSnackBar.showError(
-                                context,
-                                e,
-                                stackTrace: st,
-                                logTag: 'LibraryScreen',
-                              );
-                            }
-                          }
-                        }
-                      },
-                      tooltip: 'Create Playlist',
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.settings_outlined),
-                      onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const SettingsScreen(),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
+                      }
+                    }
+                  }
+                },
+                tooltip: 'Create Playlist',
               ),
-            ),
+            ],
           ),
 
           BlocBuilder<LibraryCubit, LibraryState>(

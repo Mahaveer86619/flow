@@ -42,87 +42,61 @@ class _SearchScreenState extends State<SearchScreen> {
           parent: AlwaysScrollableScrollPhysics(),
         ),
         slivers: [
-          SliverAppBar(
-            expandedHeight: 140,
-            floating: false,
-            pinned: true,
-            backgroundColor: Colors.transparent,
-            surfaceTintColor: Colors.transparent,
-            elevation: 0,
-            leading: IconButton(
-              icon: Icon(
-                Icons.arrow_back_rounded,
-                color: colorScheme.onSurface,
-              ),
-              onPressed: () => Navigator.maybePop(context),
-            ),
-            centerTitle: false,
-            title: Text(
-              'Search',
-              style: GoogleFonts.spaceGrotesk(
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.5,
-                color: colorScheme.onSurface,
-              ),
-            ),
-            flexibleSpace: FlexibleSpaceBar(
-              background: Column(
-                children: [
-                  const SizedBox(height: 80),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: BlocBuilder<SearchCubit, SearchState>(
-                      builder: (context, state) => SearchBar(
-                        controller: _textController,
-                        focusNode: _focusNode,
-                        hintText: 'Songs, artists, albums...',
-                        hintStyle: WidgetStatePropertyAll(
-                          TextStyle(
-                            color: colorScheme.onSurface.withAlpha(80),
-                            fontSize: 15,
-                          ),
-                        ),
-                        leading: Padding(
-                          padding: const EdgeInsets.only(left: 8.0),
-                          child: Icon(
-                            Icons.search_rounded,
-                            color: colorScheme.onSurface,
-                          ),
-                        ),
-                        trailing: [
-                          if (state.hasQuery)
-                            IconButton(
-                              icon: Icon(
-                                Icons.close_rounded,
-                                color: colorScheme.onSurface,
-                              ),
-                              onPressed: () {
-                                _textController.clear();
-                                context.read<SearchCubit>().clearQuery();
-                              },
-                            ),
-                        ],
-                        onChanged: (v) =>
-                            context.read<SearchCubit>().updateQuery(v),
-                        onSubmitted: (v) {
-                          if (v.isNotEmpty) {
-                            context.read<SearchCubit>().addRecentSearch(v);
-                          }
-                        },
-                        elevation: const WidgetStatePropertyAll(0),
-                        backgroundColor: WidgetStatePropertyAll(
-                          colorScheme.onSurface.withAlpha(20),
-                        ),
-                        shape: WidgetStatePropertyAll(
-                          RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
+          const FlowAppBar(
+            title: 'Search',
+            expandedHeight: 80,
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+              child: BlocBuilder<SearchCubit, SearchState>(
+                builder: (context, state) => SearchBar(
+                  controller: _textController,
+                  focusNode: _focusNode,
+                  hintText: 'Songs, artists, albums...',
+                  hintStyle: WidgetStatePropertyAll(
+                    TextStyle(
+                      color: colorScheme.onSurface.withAlpha(80),
+                      fontSize: 15,
                     ),
                   ),
-                ],
+                  leading: Padding(
+                    padding: const EdgeInsets.only(left: 8.0),
+                    child: Icon(
+                      Icons.search_rounded,
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                  trailing: [
+                    if (state.hasQuery)
+                      IconButton(
+                        icon: Icon(
+                          Icons.close_rounded,
+                          color: colorScheme.onSurface,
+                        ),
+                        onPressed: () {
+                          _textController.clear();
+                          context.read<SearchCubit>().clearQuery();
+                        },
+                      ),
+                  ],
+                  onChanged: (v) =>
+                      context.read<SearchCubit>().updateQuery(v),
+                  onSubmitted: (v) {
+                    if (v.isNotEmpty) {
+                      context.read<SearchCubit>().addRecentSearch(v);
+                    }
+                  },
+                  elevation: const WidgetStatePropertyAll(0),
+                  backgroundColor: WidgetStatePropertyAll(
+                    colorScheme.onSurface.withAlpha(20),
+                  ),
+                  shape: WidgetStatePropertyAll(
+                    RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
               ),
             ),
           ),

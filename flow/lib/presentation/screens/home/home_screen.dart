@@ -17,6 +17,8 @@ import '../playlist/playlist_screen.dart';
 import '../../../domain/entities/song.dart';
 import '../../../domain/entities/home_data.dart';
 import '../../blocs/player/player_bloc.dart';
+import '../../widgets/flow_app_bar.dart';
+import '../../widgets/shimmer_shelf.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -26,30 +28,10 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final ScrollController _scrollController = ScrollController();
-  double _appBarOpacity = 0.0;
-
   @override
   void initState() {
     super.initState();
-    _scrollController.addListener(_onScroll);
     context.read<HomeCubit>().init();
-  }
-
-  @override
-  void dispose() {
-    _scrollController.removeListener(_onScroll);
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  void _onScroll() {
-    if (!mounted) return;
-    final offset = _scrollController.offset;
-    final opacity = (offset / 100).clamp(0.0, 1.0);
-    if (opacity != _appBarOpacity) {
-      setState(() => _appBarOpacity = opacity);
-    }
   }
 
   @override
@@ -59,148 +41,144 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       backgroundColor: Colors.black,
-      body: Stack(
-        children: [
-          // ── Scrollable Content ───────────────────────────────────────────
-          RefreshIndicator(
-            onRefresh: () => context.read<HomeCubit>().refresh(),
-            displacement: 100 + padding.top,
-            color: cs.primary,
-            backgroundColor: cs.surfaceContainerHigh,
-            child: BlocBuilder<HomeCubit, HomeState>(
+      body: RefreshIndicator(
+        onRefresh: () => context.read<HomeCubit>().refresh(),
+        displacement: 100 + padding.top,
+        color: cs.primary,
+        backgroundColor: cs.surfaceContainerHigh,
+        child: CustomScrollView(
+          physics: const BouncingScrollPhysics(
+            parent: AlwaysScrollableScrollPhysics(),
+          ),
+          slivers: [
+            const FlowAppBar(title: 'flow'),
+            
+            // ── Greeting & Mood Chips (Fixed Section) ──────────────────
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                child: _buildFixedHeader(),
+              ),
+            ),
+
+            // ── Feed Content ───────────────────────────────────────────
+            BlocBuilder<HomeCubit, HomeState>(
               builder: (context, state) {
                 if (state.status == HomeStatus.loading && state.shelves.isEmpty) {
-                  return _buildLoadingState(padding);
+                  return _buildShimmerLoading();
                 }
 
                 if (state.status == HomeStatus.failure && state.shelves.isEmpty) {
-                  return _buildErrorState(state.error ?? 'Failed to load feed', padding);
+                  return SliverFillRemaining(
+                    child: _buildErrorState(state.error ?? 'Failed to load feed', padding),
+                  );
                 }
 
-                return ListView.builder(
-                  controller: _scrollController,
-                  padding: EdgeInsets.fromLTRB(16, padding.top + 20, 16, 150),
-                  itemCount: state.shelves.length + 1,
-                  itemBuilder: (context, index) {
-                    if (index == 0) return _buildHeader();
-                    final shelf = state.shelves[index - 1];
-                    return _buildShelf(shelf);
-                  },
+                // Sort shelves to prioritize quick_picks if present
+                final sortedShelves = List<HomeShelf>.from(state.shelves);
+                final qpIndex = sortedShelves.indexWhere((s) => s.section == 'quick_picks');
+                if (qpIndex > 0) {
+                  final qp = sortedShelves.removeAt(qpIndex);
+                  sortedShelves.insert(0, qp);
+                }
+
+                return SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final shelf = sortedShelves[index];
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: _buildShelf(shelf),
+                      );
+                    },
+                    childCount: sortedShelves.length,
+                  ),
                 );
               },
             ),
-          ),
 
-          // ── Floating App Bar ────────────────────────────────────────────
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: ClipRect(
-              child: BackdropFilter(
-                filter: ImageFilter.blur(
-                  sigmaX: 15 * _appBarOpacity,
-                  sigmaY: 15 * _appBarOpacity,
-                ),
-                child: Container(
-                  height: 60 + padding.top,
-                  padding: EdgeInsets.only(top: padding.top, left: 16, right: 16),
-                  color: Colors.black.withValues(alpha: 0.7 * _appBarOpacity),
-                  child: Row(
-                    children: [
-                      Text(
-                        'flow',
-                        style: GoogleFonts.spaceGrotesk(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                          letterSpacing: -1,
-                        ),
-                      ),
-                      const Spacer(),
-                      IconButton(
-                        icon: const Icon(Icons.search_rounded, color: Colors.white),
-                        onPressed: () {
-                          AppEventBus.instance.fire(const SwitchTabEvent(1));
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
+            const SliverToBoxAdapter(child: SizedBox(height: 150)),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildFixedHeader() {
     final hour = DateTime.now().hour;
     String greeting = 'Good Morning';
     if (hour >= 12 && hour < 17) greeting = 'Good Afternoon';
     if (hour >= 17 || hour < 5) greeting = 'Good Evening';
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SizedBox(height: 60),
-          Row(
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      greeting,
-                      style: GoogleFonts.outfit(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.white70,
-                      ),
+              Text(
+                greeting,
+                style: GoogleFonts.outfit(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.white70,
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                height: 38,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: const [
+                    _MoodChip(
+                      label: 'Chill',
+                      icon: Icons.nightlight_round,
+                      color: Colors.blueAccent,
                     ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      height: 38,
-                      child: ListView(
-                        scrollDirection: Axis.horizontal,
-                        children: const [
-                          _MoodChip(
-                            label: 'Chill',
-                            icon: Icons.nightlight_round,
-                            color: Colors.blueAccent,
-                          ),
-                          _MoodChip(
-                            label: 'Energetic',
-                            icon: Icons.bolt_rounded,
-                            color: Colors.orangeAccent,
-                          ),
-                          _MoodChip(
-                            label: 'Focus',
-                            icon: Icons.center_focus_strong_rounded,
-                            color: Colors.greenAccent,
-                          ),
-                          _MoodChip(
-                            label: 'Workout',
-                            icon: Icons.fitness_center_rounded,
-                            color: Colors.redAccent,
-                          ),
-                        ],
-                      ),
+                    _MoodChip(
+                      label: 'Energetic',
+                      icon: Icons.bolt_rounded,
+                      color: Colors.orangeAccent,
+                    ),
+                    _MoodChip(
+                      label: 'Focus',
+                      icon: Icons.center_focus_strong_rounded,
+                      color: Colors.greenAccent,
+                    ),
+                    _MoodChip(
+                      label: 'Workout',
+                      icon: Icons.fitness_center_rounded,
+                      color: Colors.redAccent,
                     ),
                   ],
                 ),
               ),
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: Colors.white.withAlpha(20),
-                child: const Icon(Icons.person_outline_rounded, color: Colors.white, size: 20),
-              ),
             ],
           ),
-        ],
+        ),
+        CircleAvatar(
+          radius: 20,
+          backgroundColor: Colors.white.withAlpha(20),
+          child: const Icon(Icons.person_outline_rounded, color: Colors.white, size: 20),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildShimmerLoading() {
+    return SliverPadding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      sliver: SliverList(
+        delegate: SliverChildListDelegate([
+          const SectionHeader(title: 'Quick Picks'),
+          const ShimmerShelf(isGrid: true),
+          const SizedBox(height: 24),
+          const SectionHeader(title: 'Recommended'),
+          const ShimmerShelf(),
+          const SizedBox(height: 24),
+          const SectionHeader(title: 'Listen Again'),
+          const ShimmerShelf(),
+        ]),
       ),
     );
   }
@@ -254,28 +232,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildLoadingState(EdgeInsets padding) {
-    return ListView(
-      padding: EdgeInsets.fromLTRB(16, padding.top + 20, 16, 100),
-      children: [
-        const SizedBox(height: 60),
-        const Skeleton(height: 30, width: 200),
-        const SizedBox(height: 40),
-        const Skeleton(height: 24, width: 150),
-        const SizedBox(height: 16),
-        SizedBox(
-          height: 200,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: 5,
-            separatorBuilder: (_, __) => const SizedBox(width: 16),
-            itemBuilder: (_, __) => const Skeleton(height: 200, width: 150),
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildErrorState(String message, EdgeInsets padding) {
     return Center(
       child: Padding(
@@ -300,7 +256,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-}
+}}
 
 class _QuickPicksGrid extends StatelessWidget {
   final List<HomeItem> items;
