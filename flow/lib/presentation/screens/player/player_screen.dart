@@ -123,31 +123,20 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     ),
                     slivers: [
                       SliverToBoxAdapter(
-                        child: SizedBox(
-                          height: MediaQuery.paddingOf(context).top + 32,
-                        ),
-                      ),
-                      SliverToBoxAdapter(
-                        child: SizedBox(
-                          height:
-                              MediaQuery.sizeOf(context).height -
-                              MediaQuery.paddingOf(context).top -
-                              40,
-                          child: _MainPlayerSection(
-                            song: song,
-                            onScrollRequest: () {
-                              scrollController.animateTo(
-                                MediaQuery.sizeOf(context).height,
-                                duration: const Duration(milliseconds: 600),
-                                curve: Curves.easeOutCubic,
-                              );
-                            },
-                          ),
+                        child: _MainPlayerSection(
+                          song: song,
+                          onScrollRequest: () {
+                            scrollController.animateTo(
+                              MediaQuery.sizeOf(context).height,
+                              duration: const Duration(milliseconds: 600),
+                              curve: Curves.easeOutCubic,
+                            );
+                          },
                         ),
                       ),
                       SliverToBoxAdapter(
                         child: Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
                           child: _ArtistCard(song: song),
                         ),
                       ),

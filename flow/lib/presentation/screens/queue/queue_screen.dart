@@ -127,9 +127,17 @@ class _QueueScreenState extends State<QueueScreen> {
 
                     // Now Playing Header
                     SliverToBoxAdapter(
-                      child: _SectionHeader(
-                        title: 'Now Playing',
-                        color: colorScheme.primary,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 12, 16, 12),
+                        child: Text(
+                          'Now Playing',
+                          style: GoogleFonts.outfit(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: colorScheme.primary.withAlpha(200),
+                            letterSpacing: 0.5,
+                          ),
+                        ),
                       ),
                     ),
 
@@ -151,31 +159,37 @@ class _QueueScreenState extends State<QueueScreen> {
                     if (nextSongs.isNotEmpty) ...[
                       // Next Up Header
                       SliverToBoxAdapter(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            _SectionHeader(
-                              title: 'Next In Queue',
-                              color: colorScheme.onSurface,
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.only(right: 16, top: 12),
-                              child: TextButton(
-                                onPressed: () {
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 24, 16, 12),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Up Next',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white.withAlpha(160),
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              GestureDetector(
+                                onTap: () {
                                   context.read<PlayerBloc>().add(const ResetPlayerEvent());
                                   Navigator.pop(context);
                                 },
                                 child: Text(
-                                  'Clear Queue',
-                                  style: GoogleFonts.outfit(
+                                  'CLEAR',
+                                  style: GoogleFonts.spaceGrotesk(
                                     color: Colors.redAccent.withAlpha(200),
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 1.0,
                                   ),
                                 ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
 
@@ -190,7 +204,7 @@ class _QueueScreenState extends State<QueueScreen> {
                             child: Padding(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 16,
-                                vertical: 2,
+                                vertical: 6, // More breathing room
                               ),
                               child: _QueueSongTile(
                                 song: song,
@@ -275,47 +289,50 @@ class _QueueSongTile extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(12),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
         decoration: BoxDecoration(
           color: isNowPlaying
-              ? colorScheme.primaryContainer.withAlpha(40)
-              : Colors.white.withAlpha(5),
-          borderRadius: BorderRadius.circular(10),
+              ? colorScheme.primaryContainer.withAlpha(25)
+              : Colors.white.withAlpha(8),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isNowPlaying
-                ? colorScheme.primary.withAlpha(40)
-                : Colors.white.withAlpha(8),
+                ? colorScheme.primary.withAlpha(60)
+                : Colors.white.withAlpha(5),
+            width: isNowPlaying ? 1.5 : 1,
           ),
         ),
         child: Row(
           children: [
             // Artwork
             _Artwork(song: song, isPlaying: isPlaying),
-            const SizedBox(width: 16),
+            const SizedBox(width: 14),
 
             // Title & Artist
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  TextCarousel(
-                    text: song.title,
+                  Text(
+                    song.title,
                     style: GoogleFonts.outfit(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 16,
+                      fontWeight: isNowPlaying ? FontWeight.w700 : FontWeight.w600,
+                      fontSize: 15,
                       color: isNowPlaying
                           ? colorScheme.primary
-                          : colorScheme.onSurface,
+                          : colorScheme.onSurface.withAlpha(220),
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
                   Text(
                     song.artist,
                     style: GoogleFonts.outfit(
                       fontSize: 13,
-                      color: colorScheme.onSurface.withAlpha(140),
+                      color: colorScheme.onSurface.withAlpha(120),
                       fontWeight: FontWeight.w500,
                     ),
                     maxLines: 1,
@@ -325,20 +342,19 @@ class _QueueSongTile extends StatelessWidget {
               ),
             ),
 
-            // Status Icon / Drag Handle
             if (isNowPlaying)
-              const Padding(
-                padding: EdgeInsets.only(right: 8),
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
                 child: Icon(
                   Icons.graphic_eq_rounded,
-                  color: Colors.white70,
+                  color: colorScheme.primary.withAlpha(180),
                   size: 20,
                 ),
               )
             else
               Icon(
                 Icons.drag_handle_rounded,
-                color: colorScheme.onSurface.withAlpha(80),
+                color: colorScheme.onSurface.withAlpha(60),
                 size: 20,
               ),
 
@@ -349,6 +365,7 @@ class _QueueSongTile extends StatelessWidget {
               },
               iconSize: 20,
               visualDensity: VisualDensity.compact,
+              color: colorScheme.onSurface.withAlpha(120),
             ),
           ],
         ),
