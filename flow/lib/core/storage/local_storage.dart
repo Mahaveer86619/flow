@@ -136,7 +136,25 @@ class LocalStorage {
   String get streamingMode => _settings.get(HiveKeys.streamingMode) as String? ?? 'standalone';
   void saveStreamingMode(String mode) => _settings.put(HiveKeys.streamingMode, mode);
 
+  int get lastSyncTime => _settings.get(HiveKeys.lastSyncTime) as int? ?? 0;
+  void saveLastSyncTime(int time) => _settings.put(HiveKeys.lastSyncTime, time);
+
+  int getPeerLastSync(String peerId) => _settings.get('sync_$peerId') as int? ?? 0;
+  void setPeerLastSync(String peerId, int time) => _settings.put('sync_$peerId', time);
+
+  String? get lastDigestGeneration => _settings.get(HiveKeys.lastDigestGeneration) as String?;
+  void saveLastDigestGeneration(String date) => _settings.put(HiveKeys.lastDigestGeneration, date);
+
+  double get playbackSpeed => _settings.get(HiveKeys.playbackSpeed) as double? ?? 1.0;
+  void savePlaybackSpeed(double speed) => _settings.put(HiveKeys.playbackSpeed, speed);
+
+  int get crossfadeDuration => _settings.get(HiveKeys.crossfadeDuration) as int? ?? 0;
+  void saveCrossfadeDuration(int seconds) => _settings.put(HiveKeys.crossfadeDuration, seconds);
+
   String get _platformDownloadPathKey {
+
+
+
 
 
 

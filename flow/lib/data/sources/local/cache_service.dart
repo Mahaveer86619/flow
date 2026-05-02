@@ -3,10 +3,10 @@ import 'dart:io';
 import 'dart:math';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
-import '../logger/app_logger.dart';
-import '../storage/local_storage.dart';
-import '../../domain/entities/song.dart';
-import '../../data/sources/stream_resolver.dart';
+import '../../../core/logger/app_logger.dart';
+import '../../../core/storage/local_storage.dart';
+import '../../../domain/entities/song.dart';
+import '../remote/stream_resolver.dart';
 
 class CacheService {
   CacheService._();

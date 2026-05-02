@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
 import '../storage/secure_storage_service.dart';
 import '../logger/app_logger.dart';
 
@@ -47,7 +46,7 @@ class YoutubeInterceptor extends Interceptor {
       } else {
         // Default modern user agent if not set
         options.headers['User-Agent'] =
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
+            'com.google.android.apps.youtube.music/7.05.52 (Linux; U; Android 14; en_US) gzip';
       }
 
       // Mandatory headers for YouTube Music API
@@ -55,7 +54,7 @@ class YoutubeInterceptor extends Interceptor {
       options.headers['Referer'] = 'https://music.youtube.com/';
       options.headers['X-Goog-AuthUser'] = '0';
       options.headers['X-YouTube-Client-Name'] = '67'; // ANDROID_MUSIC
-      options.headers['X-YouTube-Client-Version'] = '7.03.52';
+      options.headers['X-YouTube-Client-Version'] = '7.05.52';
 
     }
 

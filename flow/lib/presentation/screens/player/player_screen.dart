@@ -9,7 +9,7 @@ import '../../widgets/like_button.dart';
 import '../../widgets/squiggly_progress_bar.dart';
 import '../queue/queue_screen.dart';
 import '../../cubits/song_details/song_details_cubit.dart';
-import 'package:flow/core/network/download_service.dart';
+import 'package:flow/data/sources/local/download_service.dart';
 import 'package:flow/core/config/app_constants.dart';
 
 import 'package:flow/core/storage/local_storage.dart';

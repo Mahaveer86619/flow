@@ -139,10 +139,10 @@ class _TextCarouselState extends State<TextCarousel> {
               begin: Alignment.centerLeft,
               end: Alignment.centerRight,
               colors: [
-                Colors.black.withOpacity(0),
+                Colors.black.withValues(alpha: 0),
                 Colors.black,
                 Colors.black,
-                Colors.black.withOpacity(0),
+                Colors.black.withValues(alpha: 0),
               ],
               stops: const [0.0, 0.05, 0.95, 1.0],
             ).createShader(bounds);

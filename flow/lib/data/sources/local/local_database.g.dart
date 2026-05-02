@@ -3392,6 +3392,1171 @@ class PlaylistTracksCompanion extends UpdateCompanion<PlaylistTrackEntity> {
   }
 }
 
+class $PeersTable extends Peers with TableInfo<$PeersTable, PeerEntity> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PeersTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _peerIdMeta = const VerificationMeta('peerId');
+  @override
+  late final GeneratedColumn<String> peerId = GeneratedColumn<String>(
+    'peer_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _displayNameMeta = const VerificationMeta(
+    'displayName',
+  );
+  @override
+  late final GeneratedColumn<String> displayName = GeneratedColumn<String>(
+    'display_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _relationMeta = const VerificationMeta(
+    'relation',
+  );
+  @override
+  late final GeneratedColumn<String> relation = GeneratedColumn<String>(
+    'relation',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _publicKeyMeta = const VerificationMeta(
+    'publicKey',
+  );
+  @override
+  late final GeneratedColumn<String> publicKey = GeneratedColumn<String>(
+    'public_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _shareLevelMeta = const VerificationMeta(
+    'shareLevel',
+  );
+  @override
+  late final GeneratedColumn<String> shareLevel = GeneratedColumn<String>(
+    'share_level',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastSeenMeta = const VerificationMeta(
+    'lastSeen',
+  );
+  @override
+  late final GeneratedColumn<int> lastSeen = GeneratedColumn<int>(
+    'last_seen',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastKnownIpMeta = const VerificationMeta(
+    'lastKnownIp',
+  );
+  @override
+  late final GeneratedColumn<String> lastKnownIp = GeneratedColumn<String>(
+    'last_known_ip',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _bleAddressMeta = const VerificationMeta(
+    'bleAddress',
+  );
+  @override
+  late final GeneratedColumn<String> bleAddress = GeneratedColumn<String>(
+    'ble_address',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _permissionsMeta = const VerificationMeta(
+    'permissions',
+  );
+  @override
+  late final GeneratedColumn<String> permissions = GeneratedColumn<String>(
+    'permissions',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _graphDataBlobMeta = const VerificationMeta(
+    'graphDataBlob',
+  );
+  @override
+  late final GeneratedColumn<String> graphDataBlob = GeneratedColumn<String>(
+    'graph_data_blob',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastSyncTimeMeta = const VerificationMeta(
+    'lastSyncTime',
+  );
+  @override
+  late final GeneratedColumn<int> lastSyncTime = GeneratedColumn<int>(
+    'last_sync_time',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    peerId,
+    displayName,
+    relation,
+    publicKey,
+    shareLevel,
+    lastSeen,
+    lastKnownIp,
+    bleAddress,
+    permissions,
+    graphDataBlob,
+    lastSyncTime,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'peers';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<PeerEntity> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('peer_id')) {
+      context.handle(
+        _peerIdMeta,
+        peerId.isAcceptableOrUnknown(data['peer_id']!, _peerIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_peerIdMeta);
+    }
+    if (data.containsKey('display_name')) {
+      context.handle(
+        _displayNameMeta,
+        displayName.isAcceptableOrUnknown(
+          data['display_name']!,
+          _displayNameMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_displayNameMeta);
+    }
+    if (data.containsKey('relation')) {
+      context.handle(
+        _relationMeta,
+        relation.isAcceptableOrUnknown(data['relation']!, _relationMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_relationMeta);
+    }
+    if (data.containsKey('public_key')) {
+      context.handle(
+        _publicKeyMeta,
+        publicKey.isAcceptableOrUnknown(data['public_key']!, _publicKeyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_publicKeyMeta);
+    }
+    if (data.containsKey('share_level')) {
+      context.handle(
+        _shareLevelMeta,
+        shareLevel.isAcceptableOrUnknown(data['share_level']!, _shareLevelMeta),
+      );
+    }
+    if (data.containsKey('last_seen')) {
+      context.handle(
+        _lastSeenMeta,
+        lastSeen.isAcceptableOrUnknown(data['last_seen']!, _lastSeenMeta),
+      );
+    }
+    if (data.containsKey('last_known_ip')) {
+      context.handle(
+        _lastKnownIpMeta,
+        lastKnownIp.isAcceptableOrUnknown(
+          data['last_known_ip']!,
+          _lastKnownIpMeta,
+        ),
+      );
+    }
+    if (data.containsKey('ble_address')) {
+      context.handle(
+        _bleAddressMeta,
+        bleAddress.isAcceptableOrUnknown(data['ble_address']!, _bleAddressMeta),
+      );
+    }
+    if (data.containsKey('permissions')) {
+      context.handle(
+        _permissionsMeta,
+        permissions.isAcceptableOrUnknown(
+          data['permissions']!,
+          _permissionsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('graph_data_blob')) {
+      context.handle(
+        _graphDataBlobMeta,
+        graphDataBlob.isAcceptableOrUnknown(
+          data['graph_data_blob']!,
+          _graphDataBlobMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_sync_time')) {
+      context.handle(
+        _lastSyncTimeMeta,
+        lastSyncTime.isAcceptableOrUnknown(
+          data['last_sync_time']!,
+          _lastSyncTimeMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {peerId};
+  @override
+  PeerEntity map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PeerEntity(
+      peerId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}peer_id'],
+      )!,
+      displayName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}display_name'],
+      )!,
+      relation: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}relation'],
+      )!,
+      publicKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}public_key'],
+      )!,
+      shareLevel: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}share_level'],
+      ),
+      lastSeen: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_seen'],
+      ),
+      lastKnownIp: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_known_ip'],
+      ),
+      bleAddress: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ble_address'],
+      ),
+      permissions: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}permissions'],
+      ),
+      graphDataBlob: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}graph_data_blob'],
+      ),
+      lastSyncTime: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_sync_time'],
+      ),
+    );
+  }
+
+  @override
+  $PeersTable createAlias(String alias) {
+    return $PeersTable(attachedDatabase, alias);
+  }
+}
+
+class PeerEntity extends DataClass implements Insertable<PeerEntity> {
+  final String peerId;
+  final String displayName;
+  final String relation;
+  final String publicKey;
+  final String? shareLevel;
+  final int? lastSeen;
+  final String? lastKnownIp;
+  final String? bleAddress;
+  final String? permissions;
+  final String? graphDataBlob;
+  final int? lastSyncTime;
+  const PeerEntity({
+    required this.peerId,
+    required this.displayName,
+    required this.relation,
+    required this.publicKey,
+    this.shareLevel,
+    this.lastSeen,
+    this.lastKnownIp,
+    this.bleAddress,
+    this.permissions,
+    this.graphDataBlob,
+    this.lastSyncTime,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['peer_id'] = Variable<String>(peerId);
+    map['display_name'] = Variable<String>(displayName);
+    map['relation'] = Variable<String>(relation);
+    map['public_key'] = Variable<String>(publicKey);
+    if (!nullToAbsent || shareLevel != null) {
+      map['share_level'] = Variable<String>(shareLevel);
+    }
+    if (!nullToAbsent || lastSeen != null) {
+      map['last_seen'] = Variable<int>(lastSeen);
+    }
+    if (!nullToAbsent || lastKnownIp != null) {
+      map['last_known_ip'] = Variable<String>(lastKnownIp);
+    }
+    if (!nullToAbsent || bleAddress != null) {
+      map['ble_address'] = Variable<String>(bleAddress);
+    }
+    if (!nullToAbsent || permissions != null) {
+      map['permissions'] = Variable<String>(permissions);
+    }
+    if (!nullToAbsent || graphDataBlob != null) {
+      map['graph_data_blob'] = Variable<String>(graphDataBlob);
+    }
+    if (!nullToAbsent || lastSyncTime != null) {
+      map['last_sync_time'] = Variable<int>(lastSyncTime);
+    }
+    return map;
+  }
+
+  PeersCompanion toCompanion(bool nullToAbsent) {
+    return PeersCompanion(
+      peerId: Value(peerId),
+      displayName: Value(displayName),
+      relation: Value(relation),
+      publicKey: Value(publicKey),
+      shareLevel: shareLevel == null && nullToAbsent
+          ? const Value.absent()
+          : Value(shareLevel),
+      lastSeen: lastSeen == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastSeen),
+      lastKnownIp: lastKnownIp == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastKnownIp),
+      bleAddress: bleAddress == null && nullToAbsent
+          ? const Value.absent()
+          : Value(bleAddress),
+      permissions: permissions == null && nullToAbsent
+          ? const Value.absent()
+          : Value(permissions),
+      graphDataBlob: graphDataBlob == null && nullToAbsent
+          ? const Value.absent()
+          : Value(graphDataBlob),
+      lastSyncTime: lastSyncTime == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastSyncTime),
+    );
+  }
+
+  factory PeerEntity.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PeerEntity(
+      peerId: serializer.fromJson<String>(json['peerId']),
+      displayName: serializer.fromJson<String>(json['displayName']),
+      relation: serializer.fromJson<String>(json['relation']),
+      publicKey: serializer.fromJson<String>(json['publicKey']),
+      shareLevel: serializer.fromJson<String?>(json['shareLevel']),
+      lastSeen: serializer.fromJson<int?>(json['lastSeen']),
+      lastKnownIp: serializer.fromJson<String?>(json['lastKnownIp']),
+      bleAddress: serializer.fromJson<String?>(json['bleAddress']),
+      permissions: serializer.fromJson<String?>(json['permissions']),
+      graphDataBlob: serializer.fromJson<String?>(json['graphDataBlob']),
+      lastSyncTime: serializer.fromJson<int?>(json['lastSyncTime']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'peerId': serializer.toJson<String>(peerId),
+      'displayName': serializer.toJson<String>(displayName),
+      'relation': serializer.toJson<String>(relation),
+      'publicKey': serializer.toJson<String>(publicKey),
+      'shareLevel': serializer.toJson<String?>(shareLevel),
+      'lastSeen': serializer.toJson<int?>(lastSeen),
+      'lastKnownIp': serializer.toJson<String?>(lastKnownIp),
+      'bleAddress': serializer.toJson<String?>(bleAddress),
+      'permissions': serializer.toJson<String?>(permissions),
+      'graphDataBlob': serializer.toJson<String?>(graphDataBlob),
+      'lastSyncTime': serializer.toJson<int?>(lastSyncTime),
+    };
+  }
+
+  PeerEntity copyWith({
+    String? peerId,
+    String? displayName,
+    String? relation,
+    String? publicKey,
+    Value<String?> shareLevel = const Value.absent(),
+    Value<int?> lastSeen = const Value.absent(),
+    Value<String?> lastKnownIp = const Value.absent(),
+    Value<String?> bleAddress = const Value.absent(),
+    Value<String?> permissions = const Value.absent(),
+    Value<String?> graphDataBlob = const Value.absent(),
+    Value<int?> lastSyncTime = const Value.absent(),
+  }) => PeerEntity(
+    peerId: peerId ?? this.peerId,
+    displayName: displayName ?? this.displayName,
+    relation: relation ?? this.relation,
+    publicKey: publicKey ?? this.publicKey,
+    shareLevel: shareLevel.present ? shareLevel.value : this.shareLevel,
+    lastSeen: lastSeen.present ? lastSeen.value : this.lastSeen,
+    lastKnownIp: lastKnownIp.present ? lastKnownIp.value : this.lastKnownIp,
+    bleAddress: bleAddress.present ? bleAddress.value : this.bleAddress,
+    permissions: permissions.present ? permissions.value : this.permissions,
+    graphDataBlob: graphDataBlob.present
+        ? graphDataBlob.value
+        : this.graphDataBlob,
+    lastSyncTime: lastSyncTime.present ? lastSyncTime.value : this.lastSyncTime,
+  );
+  PeerEntity copyWithCompanion(PeersCompanion data) {
+    return PeerEntity(
+      peerId: data.peerId.present ? data.peerId.value : this.peerId,
+      displayName: data.displayName.present
+          ? data.displayName.value
+          : this.displayName,
+      relation: data.relation.present ? data.relation.value : this.relation,
+      publicKey: data.publicKey.present ? data.publicKey.value : this.publicKey,
+      shareLevel: data.shareLevel.present
+          ? data.shareLevel.value
+          : this.shareLevel,
+      lastSeen: data.lastSeen.present ? data.lastSeen.value : this.lastSeen,
+      lastKnownIp: data.lastKnownIp.present
+          ? data.lastKnownIp.value
+          : this.lastKnownIp,
+      bleAddress: data.bleAddress.present
+          ? data.bleAddress.value
+          : this.bleAddress,
+      permissions: data.permissions.present
+          ? data.permissions.value
+          : this.permissions,
+      graphDataBlob: data.graphDataBlob.present
+          ? data.graphDataBlob.value
+          : this.graphDataBlob,
+      lastSyncTime: data.lastSyncTime.present
+          ? data.lastSyncTime.value
+          : this.lastSyncTime,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PeerEntity(')
+          ..write('peerId: $peerId, ')
+          ..write('displayName: $displayName, ')
+          ..write('relation: $relation, ')
+          ..write('publicKey: $publicKey, ')
+          ..write('shareLevel: $shareLevel, ')
+          ..write('lastSeen: $lastSeen, ')
+          ..write('lastKnownIp: $lastKnownIp, ')
+          ..write('bleAddress: $bleAddress, ')
+          ..write('permissions: $permissions, ')
+          ..write('graphDataBlob: $graphDataBlob, ')
+          ..write('lastSyncTime: $lastSyncTime')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    peerId,
+    displayName,
+    relation,
+    publicKey,
+    shareLevel,
+    lastSeen,
+    lastKnownIp,
+    bleAddress,
+    permissions,
+    graphDataBlob,
+    lastSyncTime,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PeerEntity &&
+          other.peerId == this.peerId &&
+          other.displayName == this.displayName &&
+          other.relation == this.relation &&
+          other.publicKey == this.publicKey &&
+          other.shareLevel == this.shareLevel &&
+          other.lastSeen == this.lastSeen &&
+          other.lastKnownIp == this.lastKnownIp &&
+          other.bleAddress == this.bleAddress &&
+          other.permissions == this.permissions &&
+          other.graphDataBlob == this.graphDataBlob &&
+          other.lastSyncTime == this.lastSyncTime);
+}
+
+class PeersCompanion extends UpdateCompanion<PeerEntity> {
+  final Value<String> peerId;
+  final Value<String> displayName;
+  final Value<String> relation;
+  final Value<String> publicKey;
+  final Value<String?> shareLevel;
+  final Value<int?> lastSeen;
+  final Value<String?> lastKnownIp;
+  final Value<String?> bleAddress;
+  final Value<String?> permissions;
+  final Value<String?> graphDataBlob;
+  final Value<int?> lastSyncTime;
+  final Value<int> rowid;
+  const PeersCompanion({
+    this.peerId = const Value.absent(),
+    this.displayName = const Value.absent(),
+    this.relation = const Value.absent(),
+    this.publicKey = const Value.absent(),
+    this.shareLevel = const Value.absent(),
+    this.lastSeen = const Value.absent(),
+    this.lastKnownIp = const Value.absent(),
+    this.bleAddress = const Value.absent(),
+    this.permissions = const Value.absent(),
+    this.graphDataBlob = const Value.absent(),
+    this.lastSyncTime = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  PeersCompanion.insert({
+    required String peerId,
+    required String displayName,
+    required String relation,
+    required String publicKey,
+    this.shareLevel = const Value.absent(),
+    this.lastSeen = const Value.absent(),
+    this.lastKnownIp = const Value.absent(),
+    this.bleAddress = const Value.absent(),
+    this.permissions = const Value.absent(),
+    this.graphDataBlob = const Value.absent(),
+    this.lastSyncTime = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : peerId = Value(peerId),
+       displayName = Value(displayName),
+       relation = Value(relation),
+       publicKey = Value(publicKey);
+  static Insertable<PeerEntity> custom({
+    Expression<String>? peerId,
+    Expression<String>? displayName,
+    Expression<String>? relation,
+    Expression<String>? publicKey,
+    Expression<String>? shareLevel,
+    Expression<int>? lastSeen,
+    Expression<String>? lastKnownIp,
+    Expression<String>? bleAddress,
+    Expression<String>? permissions,
+    Expression<String>? graphDataBlob,
+    Expression<int>? lastSyncTime,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (peerId != null) 'peer_id': peerId,
+      if (displayName != null) 'display_name': displayName,
+      if (relation != null) 'relation': relation,
+      if (publicKey != null) 'public_key': publicKey,
+      if (shareLevel != null) 'share_level': shareLevel,
+      if (lastSeen != null) 'last_seen': lastSeen,
+      if (lastKnownIp != null) 'last_known_ip': lastKnownIp,
+      if (bleAddress != null) 'ble_address': bleAddress,
+      if (permissions != null) 'permissions': permissions,
+      if (graphDataBlob != null) 'graph_data_blob': graphDataBlob,
+      if (lastSyncTime != null) 'last_sync_time': lastSyncTime,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  PeersCompanion copyWith({
+    Value<String>? peerId,
+    Value<String>? displayName,
+    Value<String>? relation,
+    Value<String>? publicKey,
+    Value<String?>? shareLevel,
+    Value<int?>? lastSeen,
+    Value<String?>? lastKnownIp,
+    Value<String?>? bleAddress,
+    Value<String?>? permissions,
+    Value<String?>? graphDataBlob,
+    Value<int?>? lastSyncTime,
+    Value<int>? rowid,
+  }) {
+    return PeersCompanion(
+      peerId: peerId ?? this.peerId,
+      displayName: displayName ?? this.displayName,
+      relation: relation ?? this.relation,
+      publicKey: publicKey ?? this.publicKey,
+      shareLevel: shareLevel ?? this.shareLevel,
+      lastSeen: lastSeen ?? this.lastSeen,
+      lastKnownIp: lastKnownIp ?? this.lastKnownIp,
+      bleAddress: bleAddress ?? this.bleAddress,
+      permissions: permissions ?? this.permissions,
+      graphDataBlob: graphDataBlob ?? this.graphDataBlob,
+      lastSyncTime: lastSyncTime ?? this.lastSyncTime,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (peerId.present) {
+      map['peer_id'] = Variable<String>(peerId.value);
+    }
+    if (displayName.present) {
+      map['display_name'] = Variable<String>(displayName.value);
+    }
+    if (relation.present) {
+      map['relation'] = Variable<String>(relation.value);
+    }
+    if (publicKey.present) {
+      map['public_key'] = Variable<String>(publicKey.value);
+    }
+    if (shareLevel.present) {
+      map['share_level'] = Variable<String>(shareLevel.value);
+    }
+    if (lastSeen.present) {
+      map['last_seen'] = Variable<int>(lastSeen.value);
+    }
+    if (lastKnownIp.present) {
+      map['last_known_ip'] = Variable<String>(lastKnownIp.value);
+    }
+    if (bleAddress.present) {
+      map['ble_address'] = Variable<String>(bleAddress.value);
+    }
+    if (permissions.present) {
+      map['permissions'] = Variable<String>(permissions.value);
+    }
+    if (graphDataBlob.present) {
+      map['graph_data_blob'] = Variable<String>(graphDataBlob.value);
+    }
+    if (lastSyncTime.present) {
+      map['last_sync_time'] = Variable<int>(lastSyncTime.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PeersCompanion(')
+          ..write('peerId: $peerId, ')
+          ..write('displayName: $displayName, ')
+          ..write('relation: $relation, ')
+          ..write('publicKey: $publicKey, ')
+          ..write('shareLevel: $shareLevel, ')
+          ..write('lastSeen: $lastSeen, ')
+          ..write('lastKnownIp: $lastKnownIp, ')
+          ..write('bleAddress: $bleAddress, ')
+          ..write('permissions: $permissions, ')
+          ..write('graphDataBlob: $graphDataBlob, ')
+          ..write('lastSyncTime: $lastSyncTime, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $CollabEditsTable extends CollabEdits
+    with TableInfo<$CollabEditsTable, CollabEditEntity> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CollabEditsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _editIdMeta = const VerificationMeta('editId');
+  @override
+  late final GeneratedColumn<String> editId = GeneratedColumn<String>(
+    'edit_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _playlistIdMeta = const VerificationMeta(
+    'playlistId',
+  );
+  @override
+  late final GeneratedColumn<String> playlistId = GeneratedColumn<String>(
+    'playlist_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _userIdMeta = const VerificationMeta('userId');
+  @override
+  late final GeneratedColumn<String> userId = GeneratedColumn<String>(
+    'user_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _editTypeMeta = const VerificationMeta(
+    'editType',
+  );
+  @override
+  late final GeneratedColumn<String> editType = GeneratedColumn<String>(
+    'edit_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _payloadMeta = const VerificationMeta(
+    'payload',
+  );
+  @override
+  late final GeneratedColumn<String> payload = GeneratedColumn<String>(
+    'payload',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _timestampMeta = const VerificationMeta(
+    'timestamp',
+  );
+  @override
+  late final GeneratedColumn<int> timestamp = GeneratedColumn<int>(
+    'timestamp',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _appliedMeta = const VerificationMeta(
+    'applied',
+  );
+  @override
+  late final GeneratedColumn<bool> applied = GeneratedColumn<bool>(
+    'applied',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("applied" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    editId,
+    playlistId,
+    userId,
+    editType,
+    payload,
+    timestamp,
+    applied,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'collab_edits';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<CollabEditEntity> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('edit_id')) {
+      context.handle(
+        _editIdMeta,
+        editId.isAcceptableOrUnknown(data['edit_id']!, _editIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_editIdMeta);
+    }
+    if (data.containsKey('playlist_id')) {
+      context.handle(
+        _playlistIdMeta,
+        playlistId.isAcceptableOrUnknown(data['playlist_id']!, _playlistIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_playlistIdMeta);
+    }
+    if (data.containsKey('user_id')) {
+      context.handle(
+        _userIdMeta,
+        userId.isAcceptableOrUnknown(data['user_id']!, _userIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_userIdMeta);
+    }
+    if (data.containsKey('edit_type')) {
+      context.handle(
+        _editTypeMeta,
+        editType.isAcceptableOrUnknown(data['edit_type']!, _editTypeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_editTypeMeta);
+    }
+    if (data.containsKey('payload')) {
+      context.handle(
+        _payloadMeta,
+        payload.isAcceptableOrUnknown(data['payload']!, _payloadMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_payloadMeta);
+    }
+    if (data.containsKey('timestamp')) {
+      context.handle(
+        _timestampMeta,
+        timestamp.isAcceptableOrUnknown(data['timestamp']!, _timestampMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_timestampMeta);
+    }
+    if (data.containsKey('applied')) {
+      context.handle(
+        _appliedMeta,
+        applied.isAcceptableOrUnknown(data['applied']!, _appliedMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {editId};
+  @override
+  CollabEditEntity map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CollabEditEntity(
+      editId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}edit_id'],
+      )!,
+      playlistId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}playlist_id'],
+      )!,
+      userId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}user_id'],
+      )!,
+      editType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}edit_type'],
+      )!,
+      payload: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}payload'],
+      )!,
+      timestamp: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}timestamp'],
+      )!,
+      applied: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}applied'],
+      )!,
+    );
+  }
+
+  @override
+  $CollabEditsTable createAlias(String alias) {
+    return $CollabEditsTable(attachedDatabase, alias);
+  }
+}
+
+class CollabEditEntity extends DataClass
+    implements Insertable<CollabEditEntity> {
+  final String editId;
+  final String playlistId;
+  final String userId;
+  final String editType;
+  final String payload;
+  final int timestamp;
+  final bool applied;
+  const CollabEditEntity({
+    required this.editId,
+    required this.playlistId,
+    required this.userId,
+    required this.editType,
+    required this.payload,
+    required this.timestamp,
+    required this.applied,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['edit_id'] = Variable<String>(editId);
+    map['playlist_id'] = Variable<String>(playlistId);
+    map['user_id'] = Variable<String>(userId);
+    map['edit_type'] = Variable<String>(editType);
+    map['payload'] = Variable<String>(payload);
+    map['timestamp'] = Variable<int>(timestamp);
+    map['applied'] = Variable<bool>(applied);
+    return map;
+  }
+
+  CollabEditsCompanion toCompanion(bool nullToAbsent) {
+    return CollabEditsCompanion(
+      editId: Value(editId),
+      playlistId: Value(playlistId),
+      userId: Value(userId),
+      editType: Value(editType),
+      payload: Value(payload),
+      timestamp: Value(timestamp),
+      applied: Value(applied),
+    );
+  }
+
+  factory CollabEditEntity.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CollabEditEntity(
+      editId: serializer.fromJson<String>(json['editId']),
+      playlistId: serializer.fromJson<String>(json['playlistId']),
+      userId: serializer.fromJson<String>(json['userId']),
+      editType: serializer.fromJson<String>(json['editType']),
+      payload: serializer.fromJson<String>(json['payload']),
+      timestamp: serializer.fromJson<int>(json['timestamp']),
+      applied: serializer.fromJson<bool>(json['applied']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'editId': serializer.toJson<String>(editId),
+      'playlistId': serializer.toJson<String>(playlistId),
+      'userId': serializer.toJson<String>(userId),
+      'editType': serializer.toJson<String>(editType),
+      'payload': serializer.toJson<String>(payload),
+      'timestamp': serializer.toJson<int>(timestamp),
+      'applied': serializer.toJson<bool>(applied),
+    };
+  }
+
+  CollabEditEntity copyWith({
+    String? editId,
+    String? playlistId,
+    String? userId,
+    String? editType,
+    String? payload,
+    int? timestamp,
+    bool? applied,
+  }) => CollabEditEntity(
+    editId: editId ?? this.editId,
+    playlistId: playlistId ?? this.playlistId,
+    userId: userId ?? this.userId,
+    editType: editType ?? this.editType,
+    payload: payload ?? this.payload,
+    timestamp: timestamp ?? this.timestamp,
+    applied: applied ?? this.applied,
+  );
+  CollabEditEntity copyWithCompanion(CollabEditsCompanion data) {
+    return CollabEditEntity(
+      editId: data.editId.present ? data.editId.value : this.editId,
+      playlistId: data.playlistId.present
+          ? data.playlistId.value
+          : this.playlistId,
+      userId: data.userId.present ? data.userId.value : this.userId,
+      editType: data.editType.present ? data.editType.value : this.editType,
+      payload: data.payload.present ? data.payload.value : this.payload,
+      timestamp: data.timestamp.present ? data.timestamp.value : this.timestamp,
+      applied: data.applied.present ? data.applied.value : this.applied,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CollabEditEntity(')
+          ..write('editId: $editId, ')
+          ..write('playlistId: $playlistId, ')
+          ..write('userId: $userId, ')
+          ..write('editType: $editType, ')
+          ..write('payload: $payload, ')
+          ..write('timestamp: $timestamp, ')
+          ..write('applied: $applied')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    editId,
+    playlistId,
+    userId,
+    editType,
+    payload,
+    timestamp,
+    applied,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CollabEditEntity &&
+          other.editId == this.editId &&
+          other.playlistId == this.playlistId &&
+          other.userId == this.userId &&
+          other.editType == this.editType &&
+          other.payload == this.payload &&
+          other.timestamp == this.timestamp &&
+          other.applied == this.applied);
+}
+
+class CollabEditsCompanion extends UpdateCompanion<CollabEditEntity> {
+  final Value<String> editId;
+  final Value<String> playlistId;
+  final Value<String> userId;
+  final Value<String> editType;
+  final Value<String> payload;
+  final Value<int> timestamp;
+  final Value<bool> applied;
+  final Value<int> rowid;
+  const CollabEditsCompanion({
+    this.editId = const Value.absent(),
+    this.playlistId = const Value.absent(),
+    this.userId = const Value.absent(),
+    this.editType = const Value.absent(),
+    this.payload = const Value.absent(),
+    this.timestamp = const Value.absent(),
+    this.applied = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  CollabEditsCompanion.insert({
+    required String editId,
+    required String playlistId,
+    required String userId,
+    required String editType,
+    required String payload,
+    required int timestamp,
+    this.applied = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : editId = Value(editId),
+       playlistId = Value(playlistId),
+       userId = Value(userId),
+       editType = Value(editType),
+       payload = Value(payload),
+       timestamp = Value(timestamp);
+  static Insertable<CollabEditEntity> custom({
+    Expression<String>? editId,
+    Expression<String>? playlistId,
+    Expression<String>? userId,
+    Expression<String>? editType,
+    Expression<String>? payload,
+    Expression<int>? timestamp,
+    Expression<bool>? applied,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (editId != null) 'edit_id': editId,
+      if (playlistId != null) 'playlist_id': playlistId,
+      if (userId != null) 'user_id': userId,
+      if (editType != null) 'edit_type': editType,
+      if (payload != null) 'payload': payload,
+      if (timestamp != null) 'timestamp': timestamp,
+      if (applied != null) 'applied': applied,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  CollabEditsCompanion copyWith({
+    Value<String>? editId,
+    Value<String>? playlistId,
+    Value<String>? userId,
+    Value<String>? editType,
+    Value<String>? payload,
+    Value<int>? timestamp,
+    Value<bool>? applied,
+    Value<int>? rowid,
+  }) {
+    return CollabEditsCompanion(
+      editId: editId ?? this.editId,
+      playlistId: playlistId ?? this.playlistId,
+      userId: userId ?? this.userId,
+      editType: editType ?? this.editType,
+      payload: payload ?? this.payload,
+      timestamp: timestamp ?? this.timestamp,
+      applied: applied ?? this.applied,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (editId.present) {
+      map['edit_id'] = Variable<String>(editId.value);
+    }
+    if (playlistId.present) {
+      map['playlist_id'] = Variable<String>(playlistId.value);
+    }
+    if (userId.present) {
+      map['user_id'] = Variable<String>(userId.value);
+    }
+    if (editType.present) {
+      map['edit_type'] = Variable<String>(editType.value);
+    }
+    if (payload.present) {
+      map['payload'] = Variable<String>(payload.value);
+    }
+    if (timestamp.present) {
+      map['timestamp'] = Variable<int>(timestamp.value);
+    }
+    if (applied.present) {
+      map['applied'] = Variable<bool>(applied.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CollabEditsCompanion(')
+          ..write('editId: $editId, ')
+          ..write('playlistId: $playlistId, ')
+          ..write('userId: $userId, ')
+          ..write('editType: $editType, ')
+          ..write('payload: $payload, ')
+          ..write('timestamp: $timestamp, ')
+          ..write('applied: $applied, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$LocalDatabase extends GeneratedDatabase {
   _$LocalDatabase(QueryExecutor e) : super(e);
   $LocalDatabaseManager get managers => $LocalDatabaseManager(this);
@@ -3401,6 +4566,8 @@ abstract class _$LocalDatabase extends GeneratedDatabase {
   late final $GraphEdgesTable graphEdges = $GraphEdgesTable(this);
   late final $PlaylistsTable playlists = $PlaylistsTable(this);
   late final $PlaylistTracksTable playlistTracks = $PlaylistTracksTable(this);
+  late final $PeersTable peers = $PeersTable(this);
+  late final $CollabEditsTable collabEdits = $CollabEditsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -3412,6 +4579,8 @@ abstract class _$LocalDatabase extends GeneratedDatabase {
     graphEdges,
     playlists,
     playlistTracks,
+    peers,
+    collabEdits,
   ];
 }
 
@@ -5114,6 +6283,575 @@ typedef $$PlaylistTracksTableProcessedTableManager =
       PlaylistTrackEntity,
       PrefetchHooks Function()
     >;
+typedef $$PeersTableCreateCompanionBuilder =
+    PeersCompanion Function({
+      required String peerId,
+      required String displayName,
+      required String relation,
+      required String publicKey,
+      Value<String?> shareLevel,
+      Value<int?> lastSeen,
+      Value<String?> lastKnownIp,
+      Value<String?> bleAddress,
+      Value<String?> permissions,
+      Value<String?> graphDataBlob,
+      Value<int?> lastSyncTime,
+      Value<int> rowid,
+    });
+typedef $$PeersTableUpdateCompanionBuilder =
+    PeersCompanion Function({
+      Value<String> peerId,
+      Value<String> displayName,
+      Value<String> relation,
+      Value<String> publicKey,
+      Value<String?> shareLevel,
+      Value<int?> lastSeen,
+      Value<String?> lastKnownIp,
+      Value<String?> bleAddress,
+      Value<String?> permissions,
+      Value<String?> graphDataBlob,
+      Value<int?> lastSyncTime,
+      Value<int> rowid,
+    });
+
+class $$PeersTableFilterComposer
+    extends Composer<_$LocalDatabase, $PeersTable> {
+  $$PeersTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get peerId => $composableBuilder(
+    column: $table.peerId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get displayName => $composableBuilder(
+    column: $table.displayName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get relation => $composableBuilder(
+    column: $table.relation,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get publicKey => $composableBuilder(
+    column: $table.publicKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get shareLevel => $composableBuilder(
+    column: $table.shareLevel,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastSeen => $composableBuilder(
+    column: $table.lastSeen,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastKnownIp => $composableBuilder(
+    column: $table.lastKnownIp,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get bleAddress => $composableBuilder(
+    column: $table.bleAddress,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get permissions => $composableBuilder(
+    column: $table.permissions,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get graphDataBlob => $composableBuilder(
+    column: $table.graphDataBlob,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastSyncTime => $composableBuilder(
+    column: $table.lastSyncTime,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$PeersTableOrderingComposer
+    extends Composer<_$LocalDatabase, $PeersTable> {
+  $$PeersTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get peerId => $composableBuilder(
+    column: $table.peerId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get displayName => $composableBuilder(
+    column: $table.displayName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get relation => $composableBuilder(
+    column: $table.relation,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get publicKey => $composableBuilder(
+    column: $table.publicKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get shareLevel => $composableBuilder(
+    column: $table.shareLevel,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lastSeen => $composableBuilder(
+    column: $table.lastSeen,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastKnownIp => $composableBuilder(
+    column: $table.lastKnownIp,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get bleAddress => $composableBuilder(
+    column: $table.bleAddress,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get permissions => $composableBuilder(
+    column: $table.permissions,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get graphDataBlob => $composableBuilder(
+    column: $table.graphDataBlob,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lastSyncTime => $composableBuilder(
+    column: $table.lastSyncTime,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$PeersTableAnnotationComposer
+    extends Composer<_$LocalDatabase, $PeersTable> {
+  $$PeersTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get peerId =>
+      $composableBuilder(column: $table.peerId, builder: (column) => column);
+
+  GeneratedColumn<String> get displayName => $composableBuilder(
+    column: $table.displayName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get relation =>
+      $composableBuilder(column: $table.relation, builder: (column) => column);
+
+  GeneratedColumn<String> get publicKey =>
+      $composableBuilder(column: $table.publicKey, builder: (column) => column);
+
+  GeneratedColumn<String> get shareLevel => $composableBuilder(
+    column: $table.shareLevel,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get lastSeen =>
+      $composableBuilder(column: $table.lastSeen, builder: (column) => column);
+
+  GeneratedColumn<String> get lastKnownIp => $composableBuilder(
+    column: $table.lastKnownIp,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get bleAddress => $composableBuilder(
+    column: $table.bleAddress,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get permissions => $composableBuilder(
+    column: $table.permissions,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get graphDataBlob => $composableBuilder(
+    column: $table.graphDataBlob,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get lastSyncTime => $composableBuilder(
+    column: $table.lastSyncTime,
+    builder: (column) => column,
+  );
+}
+
+class $$PeersTableTableManager
+    extends
+        RootTableManager<
+          _$LocalDatabase,
+          $PeersTable,
+          PeerEntity,
+          $$PeersTableFilterComposer,
+          $$PeersTableOrderingComposer,
+          $$PeersTableAnnotationComposer,
+          $$PeersTableCreateCompanionBuilder,
+          $$PeersTableUpdateCompanionBuilder,
+          (
+            PeerEntity,
+            BaseReferences<_$LocalDatabase, $PeersTable, PeerEntity>,
+          ),
+          PeerEntity,
+          PrefetchHooks Function()
+        > {
+  $$PeersTableTableManager(_$LocalDatabase db, $PeersTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PeersTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PeersTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PeersTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> peerId = const Value.absent(),
+                Value<String> displayName = const Value.absent(),
+                Value<String> relation = const Value.absent(),
+                Value<String> publicKey = const Value.absent(),
+                Value<String?> shareLevel = const Value.absent(),
+                Value<int?> lastSeen = const Value.absent(),
+                Value<String?> lastKnownIp = const Value.absent(),
+                Value<String?> bleAddress = const Value.absent(),
+                Value<String?> permissions = const Value.absent(),
+                Value<String?> graphDataBlob = const Value.absent(),
+                Value<int?> lastSyncTime = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PeersCompanion(
+                peerId: peerId,
+                displayName: displayName,
+                relation: relation,
+                publicKey: publicKey,
+                shareLevel: shareLevel,
+                lastSeen: lastSeen,
+                lastKnownIp: lastKnownIp,
+                bleAddress: bleAddress,
+                permissions: permissions,
+                graphDataBlob: graphDataBlob,
+                lastSyncTime: lastSyncTime,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String peerId,
+                required String displayName,
+                required String relation,
+                required String publicKey,
+                Value<String?> shareLevel = const Value.absent(),
+                Value<int?> lastSeen = const Value.absent(),
+                Value<String?> lastKnownIp = const Value.absent(),
+                Value<String?> bleAddress = const Value.absent(),
+                Value<String?> permissions = const Value.absent(),
+                Value<String?> graphDataBlob = const Value.absent(),
+                Value<int?> lastSyncTime = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PeersCompanion.insert(
+                peerId: peerId,
+                displayName: displayName,
+                relation: relation,
+                publicKey: publicKey,
+                shareLevel: shareLevel,
+                lastSeen: lastSeen,
+                lastKnownIp: lastKnownIp,
+                bleAddress: bleAddress,
+                permissions: permissions,
+                graphDataBlob: graphDataBlob,
+                lastSyncTime: lastSyncTime,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$PeersTableProcessedTableManager =
+    ProcessedTableManager<
+      _$LocalDatabase,
+      $PeersTable,
+      PeerEntity,
+      $$PeersTableFilterComposer,
+      $$PeersTableOrderingComposer,
+      $$PeersTableAnnotationComposer,
+      $$PeersTableCreateCompanionBuilder,
+      $$PeersTableUpdateCompanionBuilder,
+      (PeerEntity, BaseReferences<_$LocalDatabase, $PeersTable, PeerEntity>),
+      PeerEntity,
+      PrefetchHooks Function()
+    >;
+typedef $$CollabEditsTableCreateCompanionBuilder =
+    CollabEditsCompanion Function({
+      required String editId,
+      required String playlistId,
+      required String userId,
+      required String editType,
+      required String payload,
+      required int timestamp,
+      Value<bool> applied,
+      Value<int> rowid,
+    });
+typedef $$CollabEditsTableUpdateCompanionBuilder =
+    CollabEditsCompanion Function({
+      Value<String> editId,
+      Value<String> playlistId,
+      Value<String> userId,
+      Value<String> editType,
+      Value<String> payload,
+      Value<int> timestamp,
+      Value<bool> applied,
+      Value<int> rowid,
+    });
+
+class $$CollabEditsTableFilterComposer
+    extends Composer<_$LocalDatabase, $CollabEditsTable> {
+  $$CollabEditsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get editId => $composableBuilder(
+    column: $table.editId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get playlistId => $composableBuilder(
+    column: $table.playlistId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get editType => $composableBuilder(
+    column: $table.editType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get payload => $composableBuilder(
+    column: $table.payload,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get timestamp => $composableBuilder(
+    column: $table.timestamp,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get applied => $composableBuilder(
+    column: $table.applied,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$CollabEditsTableOrderingComposer
+    extends Composer<_$LocalDatabase, $CollabEditsTable> {
+  $$CollabEditsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get editId => $composableBuilder(
+    column: $table.editId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get playlistId => $composableBuilder(
+    column: $table.playlistId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get editType => $composableBuilder(
+    column: $table.editType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get payload => $composableBuilder(
+    column: $table.payload,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get timestamp => $composableBuilder(
+    column: $table.timestamp,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get applied => $composableBuilder(
+    column: $table.applied,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$CollabEditsTableAnnotationComposer
+    extends Composer<_$LocalDatabase, $CollabEditsTable> {
+  $$CollabEditsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get editId =>
+      $composableBuilder(column: $table.editId, builder: (column) => column);
+
+  GeneratedColumn<String> get playlistId => $composableBuilder(
+    column: $table.playlistId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get userId =>
+      $composableBuilder(column: $table.userId, builder: (column) => column);
+
+  GeneratedColumn<String> get editType =>
+      $composableBuilder(column: $table.editType, builder: (column) => column);
+
+  GeneratedColumn<String> get payload =>
+      $composableBuilder(column: $table.payload, builder: (column) => column);
+
+  GeneratedColumn<int> get timestamp =>
+      $composableBuilder(column: $table.timestamp, builder: (column) => column);
+
+  GeneratedColumn<bool> get applied =>
+      $composableBuilder(column: $table.applied, builder: (column) => column);
+}
+
+class $$CollabEditsTableTableManager
+    extends
+        RootTableManager<
+          _$LocalDatabase,
+          $CollabEditsTable,
+          CollabEditEntity,
+          $$CollabEditsTableFilterComposer,
+          $$CollabEditsTableOrderingComposer,
+          $$CollabEditsTableAnnotationComposer,
+          $$CollabEditsTableCreateCompanionBuilder,
+          $$CollabEditsTableUpdateCompanionBuilder,
+          (
+            CollabEditEntity,
+            BaseReferences<
+              _$LocalDatabase,
+              $CollabEditsTable,
+              CollabEditEntity
+            >,
+          ),
+          CollabEditEntity,
+          PrefetchHooks Function()
+        > {
+  $$CollabEditsTableTableManager(_$LocalDatabase db, $CollabEditsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CollabEditsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CollabEditsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$CollabEditsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> editId = const Value.absent(),
+                Value<String> playlistId = const Value.absent(),
+                Value<String> userId = const Value.absent(),
+                Value<String> editType = const Value.absent(),
+                Value<String> payload = const Value.absent(),
+                Value<int> timestamp = const Value.absent(),
+                Value<bool> applied = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CollabEditsCompanion(
+                editId: editId,
+                playlistId: playlistId,
+                userId: userId,
+                editType: editType,
+                payload: payload,
+                timestamp: timestamp,
+                applied: applied,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String editId,
+                required String playlistId,
+                required String userId,
+                required String editType,
+                required String payload,
+                required int timestamp,
+                Value<bool> applied = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CollabEditsCompanion.insert(
+                editId: editId,
+                playlistId: playlistId,
+                userId: userId,
+                editType: editType,
+                payload: payload,
+                timestamp: timestamp,
+                applied: applied,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$CollabEditsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$LocalDatabase,
+      $CollabEditsTable,
+      CollabEditEntity,
+      $$CollabEditsTableFilterComposer,
+      $$CollabEditsTableOrderingComposer,
+      $$CollabEditsTableAnnotationComposer,
+      $$CollabEditsTableCreateCompanionBuilder,
+      $$CollabEditsTableUpdateCompanionBuilder,
+      (
+        CollabEditEntity,
+        BaseReferences<_$LocalDatabase, $CollabEditsTable, CollabEditEntity>,
+      ),
+      CollabEditEntity,
+      PrefetchHooks Function()
+    >;
 
 class $LocalDatabaseManager {
   final _$LocalDatabase _db;
@@ -5130,4 +6868,8 @@ class $LocalDatabaseManager {
       $$PlaylistsTableTableManager(_db, _db.playlists);
   $$PlaylistTracksTableTableManager get playlistTracks =>
       $$PlaylistTracksTableTableManager(_db, _db.playlistTracks);
+  $$PeersTableTableManager get peers =>
+      $$PeersTableTableManager(_db, _db.peers);
+  $$CollabEditsTableTableManager get collabEdits =>
+      $$CollabEditsTableTableManager(_db, _db.collabEdits);
 }

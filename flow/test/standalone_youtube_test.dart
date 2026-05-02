@@ -1,8 +1,8 @@
 import 'package:flow/core/storage/local_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:flow/data/sources/youtube_music_data_source.dart';
-import 'package:flow/data/sources/stream_resolver.dart';
+import 'package:flow/data/sources/remote/youtube_music_data_source.dart';
+import 'package:flow/data/sources/remote/stream_resolver.dart';
 import 'package:flow/core/logger/app_logger.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';

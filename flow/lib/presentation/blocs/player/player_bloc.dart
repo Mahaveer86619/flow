@@ -22,11 +22,12 @@ import '../../../domain/entities/track.dart' as domain;
 import '../../../core/intelligence/app_intelligence.dart';
 import '../../../domain/entities/scoring_graph.dart' as domain;
 import '../../../domain/engines/mood_engine.dart';
-import '../../../core/network/download_service.dart';
-import '../../../core/network/cache_service.dart';
+import '../../../data/sources/local/download_service.dart';
+import '../../../data/sources/local/cache_service.dart';
 import '../../../domain/repositories/music_repository.dart';
-import '../../../data/sources/stream_resolver.dart';
+import '../../../data/sources/remote/stream_resolver.dart';
 import '../../../core/network/lan_stream_bridge.dart';
+import '../../../core/network/peer_manager.dart';
 import '../../cubits/settings/settings_cubit.dart';
 import '../../cubits/settings/settings_state.dart';
 
@@ -93,6 +94,8 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     on<ToggleLikeEvent>(_onToggleLike);
     on<ToggleDownloadEvent>(_onToggleDownload);
     on<SetVolumeEvent>(_onSetVolume);
+    on<SetPlaybackSpeedEvent>(_onSetPlaybackSpeed);
+    on<SetCrossfadeDurationEvent>(_onSetCrossfadeDuration);
     on<ResetPlayerEvent>(_onResetPlayer);
     on<FilterByMoodEvent>(_onFilterByMood);
 
@@ -172,7 +175,7 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
         final source = _playlist.children[currentIndex];
         if (source is ja.UriAudioSource) failedHost = source.uri.host;
       }
-      if (failedHost == 'flow-jit') return;
+      if (failedHost == '127.0.0.1' || failedHost == 'flow-jit') return;
       AppLogger.e(_tag, 'Playback error (retry=$_retryCount) host=$failedHost', e, st);
       if (_retryCount < 3) {
         _retryCount++;
@@ -250,10 +253,21 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     final likedIds = _storage.likedSongIds;
     final recentIds = _storage.recentlyPlayedIds;
     final volume = _storage.volume;
+    final speed = _storage.playbackSpeed;
+    final crossfadeSeconds = _storage.crossfadeDuration;
     final shuffle = _storage.isShuffle;
     final repeat = _storage.isRepeat;
     _audioPlayer.setVolume(volume);
-    emit(state.copyWith(likedSongIds: likedIds, recentlyPlayedIds: recentIds, volume: volume, isShuffle: shuffle, isRepeat: repeat));
+    _audioPlayer.setSpeed(speed);
+    emit(state.copyWith(
+      likedSongIds: likedIds, 
+      recentlyPlayedIds: recentIds, 
+      volume: volume, 
+      playbackSpeed: speed,
+      crossfadeDuration: Duration(seconds: crossfadeSeconds),
+      isShuffle: shuffle, 
+      isRepeat: repeat,
+    ));
     if (recentIds.isNotEmpty) _hydrateRecentlyPlayed(recentIds);
   }
 
@@ -381,22 +395,34 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
 
     if (useLocal && localFile != null) { return AudioSource.uri(Uri.file(localFile.path), tag: mediaItem); } else {
       String? streamUrl;
-      if (isPlaceholder) { streamUrl = 'https://flow-jit/${song.id}'; } else {
+      if (isPlaceholder) { streamUrl = 'https://127.0.0.1/flow-jit/${song.id}'; } else {
         final mode = _settingsCubit.state.streamingMode;
         try {
           if (mode == StreamingMode.relayFromPeer) {
-            // streamUrl = LanStreamBridge.instance.getProxyUrl(song.id, activePeer);
-            streamUrl ??= await StreamResolver.instance.resolveYoutubeStream(song.id);
+            final activePeer = PeerManager.instance.getActivePeer();
+            if (activePeer != null) {
+              streamUrl = LanStreamBridge.instance.getProxyUrl(song.id, activePeer);
+            }
+            streamUrl ??= await StreamResolver.instance.resolveYoutubeStream(song.id, title: song.title, artist: song.artist, forceStandardYouTube: song.source == 'ytm');
           } else if (mode == StreamingMode.hybridPreferLocal) {
-            streamUrl = await StreamResolver.instance.resolveYoutubeStream(song.id);
-            // if (streamUrl == null) streamUrl = LanStreamBridge.instance.getProxyUrl(song.id, activePeer);
-          } else { streamUrl = await StreamResolver.instance.resolveYoutubeStream(song.id); }
+            streamUrl = await StreamResolver.instance.resolveYoutubeStream(song.id, title: song.title, artist: song.artist, forceStandardYouTube: song.source == 'ytm');
+            if (streamUrl == null) {
+              final activePeer = PeerManager.instance.getActivePeer();
+              if (activePeer != null) {
+                streamUrl = LanStreamBridge.instance.getProxyUrl(song.id, activePeer);
+              }
+            }
+          } else { streamUrl = await StreamResolver.instance.resolveYoutubeStream(song.id, title: song.title, artist: song.artist, forceStandardYouTube: song.source == 'ytm'); }
           if (streamUrl != null) CacheService.instance.cacheSong(song);
         } catch (e) { AppLogger.e(_tag, 'Failed to resolve stream', e); }
       }
-      if (streamUrl == null || streamUrl.isEmpty) streamUrl = 'https://flow.error/${song.id}';
+      if (streamUrl == null || streamUrl.isEmpty) streamUrl = 'https://127.0.0.1/flow.error/${song.id}';
       final uri = Uri.parse(streamUrl);
-      final headers = {'User-Agent': 'com.google.android.youtube/19.29.37 (Linux; U; Android 13; en_US) gzip', 'Origin': 'https://www.youtube.com', 'Referer': 'https://www.youtube.com/'};
+      final headers = {
+        'User-Agent': 'com.google.android.apps.youtube.music/7.05.52 (Linux; U; Android 14; en_US) gzip',
+        'Origin': 'https://music.youtube.com',
+        'Referer': 'https://music.youtube.com/',
+      };
       if (uri.host.contains('googlevideo.com')) return AudioSource.uri(uri, headers: headers, tag: mediaItem);
       if (Platform.isWindows || isPlaceholder) return AudioSource.uri(uri, headers: headers, tag: mediaItem);
       return LockCachingAudioSource(uri, headers: headers, tag: mediaItem);
@@ -444,11 +470,21 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     try {
       if (isDownloaded) { await DownloadService.instance.deleteDownload(song.id); } else { await DownloadService.instance.downloadSong(song); }
       if (state.currentSong?.id == song.id) { emit(state.copyWith(currentSong: state.currentSong!.copyWith(isDownloaded: !isDownloaded))); }
-      final newQueue = state.queue.map((s) => s.id == song.id ? s.copyWith(isDownloaded: !isDownloaded) : s).toList();
+      final List<Song> newQueue = state.queue.map((s) => s.id == song.id ? s.copyWith(isDownloaded: !isDownloaded) : s).toList();
       emit(state.copyWith(queue: newQueue));
     } catch (e) { AppLogger.e(_tag, 'Toggle download failed', e); }
   }
   void _onSetVolume(SetVolumeEvent event, Emitter<PlayerState> emit) { final vol = event.volume.clamp(0.0, 1.0); _audioPlayer.setVolume(vol); _storage.saveVolume(vol); emit(state.copyWith(volume: vol)); }
+  void _onSetPlaybackSpeed(SetPlaybackSpeedEvent event, Emitter<PlayerState> emit) { 
+    final speed = event.speed.clamp(0.5, 2.0); 
+    _audioPlayer.setSpeed(speed); 
+    _storage.savePlaybackSpeed(speed); 
+    emit(state.copyWith(playbackSpeed: speed)); 
+  }
+  void _onSetCrossfadeDuration(SetCrossfadeDurationEvent event, Emitter<PlayerState> emit) {
+    _storage.saveCrossfadeDuration(event.duration.inSeconds);
+    emit(state.copyWith(crossfadeDuration: event.duration));
+  }
   void _onPositionUpdate(_PositionUpdateEvent event, Emitter<PlayerState> emit) {
     final isFullyCached = _audioPlayer.bufferedPosition >= (event.duration ?? Duration.zero);
     emit(state.copyWith(position: event.position, actualDuration: event.duration, bufferedPosition: isFullyCached ? event.duration : null));
@@ -463,7 +499,7 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
       final song = state.queue[event.index];
       try {
         final currentSource = _playlist.children[event.index];
-        if (currentSource is ja.UriAudioSource && currentSource.uri.host == 'flow.loading') {
+        if (currentSource is ja.UriAudioSource && (currentSource.uri.host == '127.0.0.1' || currentSource.uri.host == 'flow.loading')) {
           AppLogger.i(_tag, 'JIT Resolve on skip...'); emit(state.copyWith(isBuffering: true));
           final realSource = await _buildAudioSource(song); await _playlist.removeAt(event.index); await _playlist.insert(event.index, realSource);
         }

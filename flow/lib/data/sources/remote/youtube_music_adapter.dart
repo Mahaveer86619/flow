@@ -1,20 +1,21 @@
-import '../../domain/entities/track.dart';
-import '../../domain/repositories/music_source_adapter.dart';
+import '../../../domain/entities/track.dart';
+import '../../../domain/repositories/music_source_adapter.dart';
 import 'youtube_music_data_source.dart';
+import 'music_data_source.dart';
 import 'stream_resolver.dart';
 
 class YoutubeMusicAdapter implements MusicSourceAdapter {
-  final YoutubeMusicDataSource dataSource;
+  final MusicDataSource dataSource;
   final StreamResolver resolver;
 
   YoutubeMusicAdapter({required this.dataSource, required this.resolver});
 
+
   @override
   Future<List<Track>> search(String query) async {
-    final results = await dataSource.search(query);
-    // results is dynamic from InnerTube, need to map to Track
-    // For now using placeholder logic as mapping is complex
-    return []; 
+    final results = await dataSource.searchSongs(query);
+    // results is List<SongModel>, need to map to Track
+    return results.map((m) => Track.fromSong(m.toEntity())).toList();
   }
 
   @override

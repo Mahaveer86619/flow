@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flow/data/sources/youtube_music_data_source.dart';
+import 'package:flow/data/sources/remote/youtube_music_data_source.dart';
 import 'package:flow/core/storage/local_storage.dart';
 import 'package:flow/core/logger/app_logger.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';

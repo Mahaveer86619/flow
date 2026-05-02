@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/app_event_bus.dart';
 import '../../../core/logger/app_logger.dart';
-import '../../../core/network/download_service.dart';
+import '../../../data/sources/local/download_service.dart';
 import '../../../core/storage/local_storage.dart';
 import '../../../domain/entities/song.dart';
 import '../../../domain/repositories/music_repository.dart';

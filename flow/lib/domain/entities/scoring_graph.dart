@@ -91,9 +91,16 @@ class ScoringGraph {
 
     // Update edges (simplified for now: link track to its attributes)
     _addEdge(trackId, 'artist:$artistId', 0.7);
-    if (albumId != null) _addEdge(trackId, 'album:$albumId', 0.5);
-    for (final genre in genres) _addEdge(trackId, 'genre:$genre', 0.4);
-    for (final tag in tags) _addEdge(trackId, 'tag:$tag', 0.3);
+    if (albumId != null) {
+      _addEdge(trackId, 'album:$albumId', 0.5);
+    }
+    for (final genre in genres) {
+      _addEdge(trackId, 'genre:$genre', 0.4);
+    }
+    for (final tag in tags) {
+      _addEdge(trackId, 'tag:$tag', 0.3);
+    }
+
 
   }
 

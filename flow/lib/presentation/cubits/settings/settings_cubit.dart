@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/storage/local_storage.dart';
 import '../../../core/logger/app_logger.dart';
-import '../../../core/network/download_service.dart';
+import '../../../data/sources/local/download_service.dart';
 import '../../../core/auth/auth_cubit.dart';
 import '../../../core/auth/auth_event_bus.dart';
 import 'settings_state.dart';

@@ -102,8 +102,41 @@ class PlaylistTracks extends Table {
   Set<Column> get primaryKey => {playlistId, trackId};
 }
 
-@DriftDatabase(tables: [Tracks, ListenEvents, GraphNodes, GraphEdges, Playlists, PlaylistTracks])
+@DataClassName('PeerEntity')
+class Peers extends Table {
+  TextColumn get peerId => text()();
+  TextColumn get displayName => text()();
+  TextColumn get relation => text()(); // sameUser | otherUser
+  TextColumn get publicKey => text()();
+  TextColumn get shareLevel => text().nullable()();
+  IntColumn get lastSeen => integer().nullable()();
+  TextColumn get lastKnownIp => text().nullable()();
+  TextColumn get bleAddress => text().nullable()();
+  TextColumn get permissions => text().nullable()(); // JSON
+  TextColumn get graphDataBlob => text().nullable()();
+  IntColumn get lastSyncTime => integer().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {peerId};
+}
+
+@DataClassName('CollabEditEntity')
+class CollabEdits extends Table {
+  TextColumn get editId => text()();
+  TextColumn get playlistId => text()();
+  TextColumn get userId => text()();
+  TextColumn get editType => text()();
+  TextColumn get payload => text()(); // JSON
+  IntColumn get timestamp => integer()();
+  BoolColumn get applied => boolean().withDefault(const Constant(false))();
+
+  @override
+  Set<Column> get primaryKey => {editId};
+}
+
+@DriftDatabase(tables: [Tracks, ListenEvents, GraphNodes, GraphEdges, Playlists, PlaylistTracks, Peers, CollabEdits])
 class LocalDatabase extends _$LocalDatabase {
+
 
   LocalDatabase() : super(_openConnection());
 

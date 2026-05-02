@@ -1,13 +1,14 @@
+import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/platform/desktop_controller.dart';
+import '../../core/app_event_bus.dart';
 import '../screens/home/home_screen.dart';
 import '../screens/search/search_screen.dart';
 import '../screens/library/library_screen.dart';
 import 'mini_player.dart';
 import 'desktop_mini_player.dart';
-
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -18,21 +19,27 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
+  StreamSubscription? _eventSub;
 
-  // Keys to maintain state for each tab's navigator
-  final List<GlobalKey<NavigatorState>> _navigatorKeys = [
-    GlobalKey<NavigatorState>(),
-    GlobalKey<NavigatorState>(),
-    GlobalKey<NavigatorState>(),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _eventSub = AppEventBus.instance.events.listen((event) {
+      if (event is SwitchTabEvent) {
+        setState(() => _currentIndex = event.index);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _eventSub?.cancel();
+    super.dispose();
+  }
 
   void _onTabTapped(int index) {
-    if (_currentIndex == index) {
-      // Pop to first route if user taps the active tab
-      _navigatorKeys[index].currentState?.popUntil((route) => route.isFirst);
-    } else {
-      setState(() => _currentIndex = index);
-    }
+    if (_currentIndex == index) return;
+    setState(() => _currentIndex = index);
   }
 
   @override
@@ -121,12 +128,13 @@ class _MainShellState extends State<MainShell> {
     );
   }
 
-
   Widget _buildTabNav(int index, Widget root) {
     return Navigator(
-      key: _navigatorKeys[index],
-      onGenerateRoute: (settings) =>
-          MaterialPageRoute(builder: (_) => root, settings: settings),
+      key: PageStorageKey('tab_$index'),
+      onGenerateRoute: (settings) => MaterialPageRoute(
+        builder: (_) => root,
+        settings: settings,
+      ),
     );
   }
 }
@@ -155,23 +163,15 @@ class _BottomTabItem extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              decoration: BoxDecoration(
-                color: isActive ? cs.primary.withAlpha(40) : Colors.transparent,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Icon(
-                icon,
-                color: isActive ? cs.primary : Colors.white.withAlpha(120),
-                size: 24,
-              ),
+            Icon(
+              icon,
+              color: isActive ? cs.primary : Colors.white.withAlpha(120),
+              size: 24,
             ),
             const SizedBox(height: 4),
             Text(
               label,
-              style: GoogleFonts.outfit(
+              style: TextStyle(
                 fontSize: 10,
                 fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
                 color: isActive ? cs.primary : Colors.white.withAlpha(120),

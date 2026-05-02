@@ -112,7 +112,7 @@ class _HeatmapCard extends StatelessWidget {
                       width: 30,
                       height: 30,
                       decoration: BoxDecoration(
-                        color: cs.primary.withOpacity(opacity),
+                        color: cs.primary.withValues(alpha: opacity),
                         borderRadius: BorderRadius.circular(4),
                       ),
                     ),

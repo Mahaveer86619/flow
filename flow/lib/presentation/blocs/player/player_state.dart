@@ -26,6 +26,8 @@ class PlayerState extends Equatable {
   final bool isRepeat;
   final bool isEndlessRadio;
   final double volume;
+  final double playbackSpeed;
+  final Duration crossfadeDuration;
   final List<String> likedSongIds;
   final List<String> recentlyPlayedIds;
   final List<Song> recentlyPlayed;
@@ -51,6 +53,8 @@ class PlayerState extends Equatable {
     this.isRepeat = false,
     this.isEndlessRadio = true,
     this.volume = 0.7,
+    this.playbackSpeed = 1.0,
+    this.crossfadeDuration = Duration.zero,
     this.likedSongIds = const [],
     this.recentlyPlayedIds = const [],
     this.recentlyPlayed = const [],
@@ -74,6 +78,8 @@ class PlayerState extends Equatable {
     isRepeat,
     isEndlessRadio,
     volume,
+    playbackSpeed,
+    crossfadeDuration,
     likedSongIds,
     recentlyPlayedIds,
     recentlyPlayed,
@@ -132,6 +138,8 @@ class PlayerState extends Equatable {
     bool? isRepeat,
     bool? isEndlessRadio,
     double? volume,
+    double? playbackSpeed,
+    Duration? crossfadeDuration,
     List<String>? likedSongIds,
     List<String>? recentlyPlayedIds,
     List<Song>? recentlyPlayed,
@@ -156,6 +164,8 @@ class PlayerState extends Equatable {
       isRepeat: isRepeat ?? this.isRepeat,
       isEndlessRadio: isEndlessRadio ?? this.isEndlessRadio,
       volume: volume ?? this.volume,
+      playbackSpeed: playbackSpeed ?? this.playbackSpeed,
+      crossfadeDuration: crossfadeDuration ?? this.crossfadeDuration,
       likedSongIds: likedSongIds ?? this.likedSongIds,
       recentlyPlayedIds: recentlyPlayedIds ?? this.recentlyPlayedIds,
       recentlyPlayed: recentlyPlayed ?? this.recentlyPlayed,

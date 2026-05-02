@@ -51,6 +51,22 @@ class NoveltyEngine {
     src.score += delta;
   }
 
-  // Note: fetchNovel and _fetchFromSource will require a MusicSourceAdapter 
-  // which will be implemented in the Data layer later.
+  Future<List<Track>> fetchNovel({
+    required List<RankedSource> sources,
+    required Set<String> exclude,
+    required Future<List<Track>> Function(RankedSource) fetcher,
+    int limit = 30,
+  }) async {
+    final results = <Track>[];
+    for (final src in sources.take(10)) {
+      final candidates = await fetcher(src);
+      results.addAll(candidates.where((t) => !exclude.contains(t.id)));
+      if (results.length >= limit * 2) break;
+    }
+    
+    // Sort by some heuristic or shuffle
+    results.shuffle();
+    return results.take(limit).toList();
+  }
 }
+

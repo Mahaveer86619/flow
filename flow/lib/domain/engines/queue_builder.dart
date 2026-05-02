@@ -15,11 +15,6 @@ class QueueBuilder {
     final result = <Track>[];
     
     final ratio = _getRatio(mode);
-    final familiarCount = (familiarTracks.length * ratio).floor();
-    final novelCount = novelTracks.length; // We take what we have
-    
-    // Interleave novel tracks, not clumped
-    // Example for radio (55/45): [F N F N F N ...]
     
     final fIter = familiarTracks.iterator;
     final nIter = novelTracks.iterator;
@@ -27,19 +22,17 @@ class QueueBuilder {
     int fIndex = 0;
     int nIndex = 0;
     
-    double currentRatio = 0.0;
-    
     while (fIter.moveNext() || nIter.moveNext()) {
       bool shouldTakeNovel = false;
       
-      if (!fIter.moveNext()) {
+      final hasFamiliar = fIndex < familiarTracks.length;
+      final hasNovel = nIndex < novelTracks.length;
+
+      if (!hasFamiliar) {
         shouldTakeNovel = true;
-      } else if (!nIter.moveNext()) {
+      } else if (!hasNovel) {
         shouldTakeNovel = false;
       } else {
-        // Decide based on target ratio
-        // currentRatio = nIndex / (fIndex + nIndex)
-        // If currentRatio < targetNovelRatio, take novel
         final targetNovelRatio = 1.0 - ratio;
         if ((nIndex + fIndex) == 0) {
           shouldTakeNovel = false; // start with familiar
@@ -48,15 +41,14 @@ class QueueBuilder {
         }
       }
       
-      if (shouldTakeNovel && nIter.current != null) {
-        result.add(nIter.current);
+      if (shouldTakeNovel && nIndex < novelTracks.length) {
+        result.add(novelTracks[nIndex]);
         nIndex++;
-      } else if (fIter.current != null) {
-        result.add(fIter.current);
+      } else if (fIndex < familiarTracks.length) {
+        result.add(familiarTracks[fIndex]);
         fIndex++;
       }
       
-      // Safety break
       if (result.length >= familiarTracks.length + novelTracks.length) break;
     }
 

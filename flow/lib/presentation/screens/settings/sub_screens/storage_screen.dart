@@ -1,10 +1,14 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../../../core/platform/permission_service.dart';
 import '../../../../core/ui/app_snack_bar.dart';
 import '../../../../presentation/cubits/settings/settings_cubit.dart';
+import '../../../../core/storage/secure_storage_service.dart';
 
 const List<int?> _kCacheTiers = [0, 250, 500, 1024, 2048, 5120, null];
 const List<String> _kFormats = ['mp3', 'flac', 'opus'];
@@ -34,7 +38,7 @@ class StorageScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _SectionTitle('Cache Management'),
+          const _SectionTitle('Cache Management'),
           const SizedBox(height: 12),
           _CacheBudgetSlider(
             currentBudget: state.cacheBudgetMB,
@@ -46,7 +50,7 @@ class StorageScreen extends StatelessWidget {
             style: GoogleFonts.outfit(fontSize: 12, color: cs.outline),
           ),
           const SizedBox(height: 32),
-          _SectionTitle('Download Settings'),
+          const _SectionTitle('Download Settings'),
           const SizedBox(height: 12),
           _DownloadConfigCard(
             format: state.downloadFormat,
@@ -55,7 +59,7 @@ class StorageScreen extends StatelessWidget {
             onBitrateChanged: (b) => cubit.setDownloadBitrate(b!),
           ),
           const SizedBox(height: 24),
-          _SectionTitle('Download Location'),
+          const _SectionTitle('Download Location'),
           const SizedBox(height: 12),
           Card(
             color: cs.surfaceContainer,
@@ -117,6 +121,20 @@ class StorageScreen extends StatelessWidget {
               ],
             ),
           ),
+          const SizedBox(height: 32),
+          const _SectionTitle('Support & Debug'),
+          const SizedBox(height: 12),
+          ElevatedButton.icon(
+            onPressed: () => _copyDebugInfo(context),
+            icon: const Icon(Icons.bug_report_rounded),
+            label: const Text('Copy Debug Info (Cookie)'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: cs.errorContainer.withAlpha(100),
+              foregroundColor: cs.error,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
         ],
       ),
     );
@@ -140,18 +158,34 @@ class StorageScreen extends StatelessWidget {
     if (!hasPermission) return;
 
     try {
-      // ignore: undefined_getter
       String? selectedDirectory = await FilePicker.platform.getDirectoryPath();
       if (selectedDirectory != null) {
         cubit.setDownloadPath(selectedDirectory);
       }
     } catch (e, st) {
-
-
       if (context.mounted) {
         AppSnackBar.showError(context, e,
             stackTrace: st, logTag: 'StorageScreen');
       }
+    }
+  }
+
+  Future<void> _copyDebugInfo(BuildContext context) async {
+    final cookies = await SecureStorageService.instance.getYoutubeCookies();
+    final info = {
+      'platform': Platform.operatingSystem,
+      'version': '1.0.0',
+      'has_cookies': cookies != null,
+      'cookies': cookies,
+    };
+    
+    final jsonStr = jsonEncode(info);
+    await Clipboard.setData(ClipboardData(text: jsonStr));
+    
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Debug info copied to clipboard')),
+      );
     }
   }
 }

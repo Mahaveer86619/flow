@@ -34,7 +34,7 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
   void initState() {
     super.initState();
     _playlist = widget.playlist;
-    if (_playlist.songs.isEmpty) {
+    if ((_playlist.songs ?? []).isEmpty) {
       _fetchTracks();
     }
   }
@@ -239,9 +239,10 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
                 children: [
                   FilledButton.icon(
                     onPressed: () {
-                      if (_playlist.songs.isNotEmpty) {
+                      final songs = _playlist.songs ?? [];
+                      if (songs.isNotEmpty) {
                         context.read<PlayerBloc>().add(
-                          PlayQueueEvent(songs: _playlist.songs, startIndex: 0),
+                          PlayQueueEvent(songs: songs, startIndex: 0),
                         );
                         if (!isDesktop) {
                           PlayerScreen.show(context);
@@ -266,7 +267,7 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
                   _EndlessRadioToggle(),
                   const Spacer(),
                   Text(
-                    '${_playlist.songs.length} tracks',
+                    '${_playlist.songs?.length ?? _playlist.trackCount ?? 0} tracks',
                     style: GoogleFonts.outfit(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -308,7 +309,7 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
               ),
             )
           else
-            _playlist.songs.isEmpty
+            (_playlist.songs ?? []).isEmpty
                 ? SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.only(top: 60),
@@ -329,13 +330,14 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
                     ),
                     sliver: SliverList(
                       delegate: SliverChildBuilderDelegate((context, i) {
-                        final song = _playlist.songs[i];
+                        final songs = _playlist.songs ?? [];
+                        final song = songs[i];
                         return SongTile(
                           song: song,
-                          queue: _playlist.songs,
+                          queue: songs,
                           index: i,
                         );
-                      }, childCount: _playlist.songs.length),
+                      }, childCount: (_playlist.songs ?? []).length),
                     ),
                   ),
 

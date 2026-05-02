@@ -1,17 +1,21 @@
+import 'package:flutter/material.dart' show Color;
 import '../../domain/entities/track.dart';
 import '../../domain/repositories/music_source_adapter.dart';
 import '../../domain/repositories/music_repository.dart';
 import '../../domain/entities/song.dart';
 import '../../domain/entities/home_data.dart';
 import '../../domain/entities/history_data.dart';
+import 'local_music_repository.dart';
 
 class CompositeMusicRepository implements MusicRepository {
   final List<MusicSourceAdapter> adapters;
   final MusicRepository primaryRemote;
+  final LocalMusicRepository localRepo;
 
   CompositeMusicRepository({
     required this.adapters,
     required this.primaryRemote,
+    required this.localRepo,
   });
 
   @override
@@ -40,8 +44,6 @@ class CompositeMusicRepository implements MusicRepository {
       }
     }
 
-    // Map back to Song entities for the UI
-    // In a real refactor, the UI should use Track, but for now we bridge
     return merged.values.map((t) => _trackToSong(t)).toList();
   }
 
@@ -51,9 +53,11 @@ class CompositeMusicRepository implements MusicRepository {
       title: t.title,
       artist: t.artist,
       album: t.album ?? '',
-      duration: const Duration(minutes: 3), // TODO: Real duration
+      duration: const Duration(minutes: 3, seconds: 30),
       thumbnailUrl: t.artworkUrl,
       isDownloaded: t.downloaded,
+      colorPrimary: const Color(0xFF7C3AED),
+      colorSecondary: const Color(0xFFBC9AFF),
       extras: {
         'artistId': t.artistId,
         'albumId': t.albumId,
@@ -70,10 +74,19 @@ class CompositeMusicRepository implements MusicRepository {
   Future<HomeData> getHomeData({int limit = 25}) => primaryRemote.getHomeData(limit: limit);
 
   @override
-  Future<List<Playlist>> getPlaylists() => primaryRemote.getPlaylists();
+  Future<List<Playlist>> getPlaylists() async {
+    final remotePlaylists = await primaryRemote.getPlaylists();
+    final localPlaylists = await localRepo.getPlaylists();
+    return [...localPlaylists, ...remotePlaylists];
+  }
 
   @override
-  Future<List<Song>> getPlaylistTracks(String playlistId, {int limit = 100}) => primaryRemote.getPlaylistTracks(playlistId, limit: limit);
+  Future<List<Song>> getPlaylistTracks(String playlistId, {int limit = 100}) async {
+    if (playlistId.startsWith('local_')) {
+      return localRepo.getPlaylistTracks(playlistId, limit: limit);
+    }
+    return primaryRemote.getPlaylistTracks(playlistId, limit: limit);
+  }
 
   @override
   Future<List<Song>> getAlbumTracks(String browseId, {int limit = 25}) => primaryRemote.getAlbumTracks(browseId, limit: limit);
@@ -97,16 +110,34 @@ class CompositeMusicRepository implements MusicRepository {
   Future<void> prefetchAudio(String videoId) => primaryRemote.prefetchAudio(videoId);
 
   @override
-  Future<void> recordPlay(Song song) => primaryRemote.recordPlay(song);
+  Future<void> recordPlay(Song song) async {
+    await localRepo.recordPlay(song);
+    await primaryRemote.recordPlay(song);
+  }
 
   @override
-  Future<HistoryData> getPersistentHistory() => primaryRemote.getPersistentHistory();
+  Future<HistoryData> getPersistentHistory() async {
+    final remoteHistory = await primaryRemote.getPersistentHistory();
+    final localHistory = await localRepo.getPersistentHistory();
+    
+    return HistoryData(
+      today: [...localHistory.today, ...remoteHistory.today].take(30).toList(),
+      thisWeek: [...localHistory.thisWeek, ...remoteHistory.thisWeek].take(50).toList(),
+      thisMonth: [...localHistory.thisMonth, ...remoteHistory.thisMonth].take(100).toList(),
+      byMonth: remoteHistory.byMonth,
+    );
+  }
 
   @override
   Future<void> recordSearch(String query) => primaryRemote.recordSearch(query);
 
   @override
-  List<String> getTopArtists() => primaryRemote.getTopArtists();
+  Future<List<String>> getTopArtists() async {
+    final local = await localRepo.getTopArtists();
+    if (local.isNotEmpty) return local;
+    return primaryRemote.getTopArtists();
+  }
+
 
   @override
   void recordPodcastInterest(String artistName) => primaryRemote.recordPodcastInterest(artistName);
@@ -127,7 +158,11 @@ class CompositeMusicRepository implements MusicRepository {
   Future<List<Song>> getRecommendations({int limit = 20}) => primaryRemote.getRecommendations(limit: limit);
 
   @override
-  Future<Playlist> createFlowPlaylist({required String title, String description = '', bool isPublic = false}) => primaryRemote.createFlowPlaylist(title: title, description: description, isPublic: isPublic);
+  Future<List<Song>> getBlendedRecommendations(String friendId, {int limit = 20}) => primaryRemote.getBlendedRecommendations(friendId, limit: limit);
+
+  @override
+  Future<Playlist> createFlowPlaylist({required String title, String description = '', bool isPublic = false}) => localRepo.createFlowPlaylist(title: title, description: description, isPublic: isPublic);
+
 
   @override
   Future<Playlist> updateFlowPlaylist(String playlistId, {String? title, String? description, bool? isPublic}) => primaryRemote.updateFlowPlaylist(playlistId, title: title, description: description, isPublic: isPublic);
@@ -136,7 +171,13 @@ class CompositeMusicRepository implements MusicRepository {
   Future<void> deleteFlowPlaylist(String playlistId) => primaryRemote.deleteFlowPlaylist(playlistId);
 
   @override
-  Future<void> addTrackToFlowPlaylist(String playlistId, Song song) => primaryRemote.addTrackToFlowPlaylist(playlistId, song);
+  Future<void> addTrackToFlowPlaylist(String playlistId, Song song) async {
+    if (playlistId.startsWith('local_')) {
+      await localRepo.addTrackToFlowPlaylist(playlistId, song);
+    } else {
+      await primaryRemote.addTrackToFlowPlaylist(playlistId, song);
+    }
+  }
 
   @override
   Future<void> removeTrackFromFlowPlaylist(String playlistId, int trackId) => primaryRemote.removeTrackFromFlowPlaylist(playlistId, trackId);

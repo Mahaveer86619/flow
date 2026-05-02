@@ -1,12 +1,15 @@
+import 'dart:convert';
+import 'package:drift/drift.dart';
 import '../../domain/entities/scoring_graph.dart' as domain;
 import '../../domain/entities/track.dart' as domain;
-import '../../domain/entities/song.dart' as domain_song;
-import '../../data/sources/local_database.dart' as db;
-import '../../domain/repositories/music_repository.dart';
-import '../logger/app_logger.dart';
-import 'package:drift/drift.dart';
+import '../../domain/entities/collab_playlist.dart' as domain;
 import '../../domain/entities/graph_delta.dart';
 import '../../domain/engines/sync_engine.dart';
+import '../../domain/engines/collab_engine.dart';
+import '../../domain/repositories/music_repository.dart';
+import '../../data/sources/local/local_database.dart' as db;
+import '../logger/app_logger.dart';
+import '../storage/local_storage.dart';
 
 class AppIntelligence {
   AppIntelligence._();
@@ -38,17 +41,28 @@ class AppIntelligence {
       adjacency.add(domain.GraphEdge(fromId: e.fromId, toId: e.toId, weight: e.weight));
     }
 
-    // Check for weekly digest (Simplified: if Sunday and hasn't run today)
+    // Check for weekly digest (Sunday only)
     final now = DateTime.now();
-    if (now.weekday == DateTime.sunday) {
-      // TODO: Add persistence for last digest generation date
-      // generateWeeklyDigest(repository);
+    final todayStr = '${now.year}-${now.month}-${now.day}';
+    final lastGen = LocalStorage.instance.lastDigestGeneration;
+
+    if (now.weekday == DateTime.sunday && lastGen != todayStr) {
+      // Repository injection will happen via a trigger in HomeCubit
+    }
+  }
+
+  Future<void> triggerWeeklyDigest(MusicRepository repository) async {
+    final now = DateTime.now();
+    final todayStr = '${now.year}-${now.month}-${now.day}';
+    final lastGen = LocalStorage.instance.lastDigestGeneration;
+
+    if (now.weekday == DateTime.sunday && lastGen != todayStr) {
+      await generateWeeklyDigest(repository);
+      LocalStorage.instance.saveLastDigestGeneration(todayStr);
     }
   }
 
   Future<void> recordEvent(domain.Track track, domain.ListenEvent event) async {
-    // Use fingerprint as the unique identifier for the track node in the graph
-    // to merge scores between YTM and Local files.
     final trackNodeId = 'track:${track.fingerprint}';
 
     _graph.recordEvent(
@@ -61,10 +75,8 @@ class AppIntelligence {
       tags: track.tags,
     );
 
-    // Persist to DB
     await _persistGraph();
     
-    // Also update track behavioral state in DB (using original ID for track table)
     await (_database.update(_database.tracks)..where((t) => t.id.equals(track.id))).write(
       db.TracksCompanion(
         playCount: Value(event == domain.ListenEvent.fullListen ? (track.playCount + 1) : track.playCount),
@@ -79,7 +91,6 @@ class AppIntelligence {
 
   Future<void> _persistGraph() async {
     await _database.batch((batch) {
-      // Upsert nodes
       for (final node in _graph.nodes.values) {
         batch.insert(
           _database.graphNodes,
@@ -93,7 +104,6 @@ class AppIntelligence {
         );
       }
       
-      // Upsert edges
       for (final edges in _graph.adjacency.values) {
         for (final edge in edges) {
           batch.insert(
@@ -115,14 +125,45 @@ class AppIntelligence {
   // ── Sync Methods ──────────────────────────────────────────────────────────
 
   Future<GraphDelta> getDeltaForPeer(String peerId) async {
-    // TODO: Get last sync time from DB
-    final lastSync = DateTime.now().subtract(const Duration(days: 1));
+    final lastSyncTime = LocalStorage.instance.getPeerLastSync(peerId);
+    final lastSync = DateTime.fromMillisecondsSinceEpoch(lastSyncTime);
     return _syncEngine.buildDelta('local-device-id', lastSync);
   }
 
   Future<void> applyDelta(GraphDelta delta) async {
     _syncEngine.applyDelta(delta);
     await _persistGraph();
+  }
+
+  Future<void> applyDeltaFromJson(Map<String, dynamic> json) async {
+    final delta = GraphDelta.fromJson(json);
+    await applyDelta(delta);
+    LocalStorage.instance.setPeerLastSync(delta.peerId, delta.to.millisecondsSinceEpoch);
+    
+    // Save friend's graph data blob
+    await (_database.update(_database.peers)..where((t) => t.peerId.equals(delta.peerId))).write(
+      db.PeersCompanion(
+        graphDataBlob: Value(jsonEncode(json)),
+      ),
+    );
+    
+    AppLogger.i('AppIntelligence', 'Applied graph delta from peer ${delta.peerId} (up to ${delta.to})');
+  }
+
+  Future<Map<String, double>> getFriendScores(String friendId) async {
+    try {
+      final peer = await (_database.select(_database.peers)..where((t) => t.peerId.equals(friendId))).getSingleOrNull();
+      if (peer?.graphDataBlob != null) {
+        final data = jsonDecode(peer!.graphDataBlob!) as Map<String, dynamic>;
+        final delta = GraphDelta.fromJson(data);
+        final scores = <String, double>{};
+        for (final n in delta.nodeUpdates) {
+          scores[n.id] = n.scoreDelta;
+        }
+        return scores;
+      }
+    } catch (_) {}
+    return {};
   }
 
   // ── Stats Methods ──────────────────────────────────────────────────────────
@@ -172,7 +213,7 @@ class AppIntelligence {
     return heatmap;
   }
 
-  // ── Playlist Methods ───────────────────────────────────────────────────────
+  // ── Playlist & Collaboration Methods ──────────────────────────────────────
 
   Future<void> saveLocalPlaylist(String name, List<String> trackIds) async {
     final id = 'local:${DateTime.now().millisecondsSinceEpoch}';
@@ -194,12 +235,58 @@ class AppIntelligence {
     });
   }
 
+  Future<void> mergeCollabPlaylist(domain.CollabPlaylist remotePlaylist) async {
+    final localEntity = await (_database.select(_database.playlists)..where((t) => t.id.equals(remotePlaylist.id))).getSingleOrNull();
+    
+    if (localEntity == null) {
+      await saveCollabPlaylist(remotePlaylist);
+      return;
+    }
+
+    final localEdits = await (_database.select(_database.collabEdits)..where((t) => t.playlistId.equals(remotePlaylist.id))).get();
+    
+    final engine = CollabEngine();
+    final merged = engine.merge(
+      remotePlaylist,
+      localEdits.map((e) => domain.CollabEdit(
+        editId: e.editId,
+        userId: e.userId,
+        type: domain.CollabEditType.values.firstWhere((v) => v.name == e.editType),
+        payload: jsonDecode(e.payload) as Map<String, dynamic>,
+        timestamp: DateTime.fromMillisecondsSinceEpoch(e.timestamp),
+      )).toList(),
+    );
+
+    await saveCollabPlaylist(merged);
+  }
+
+  Future<void> saveCollabPlaylist(domain.CollabPlaylist playlist) async {
+    await _database.batch((batch) {
+      batch.insert(_database.playlists, db.PlaylistsCompanion.insert(
+        id: playlist.id,
+        name: playlist.name,
+        createdAt: Value(playlist.lastSyncedAt.millisecondsSinceEpoch),
+        type: const Value('collab'),
+        ownerIds: Value(jsonEncode(playlist.ownerIds)),
+      ), mode: InsertMode.insertOrReplace);
+
+      for (final t in playlist.tracks) {
+        batch.insert(_database.playlistTracks, db.PlaylistTracksCompanion.insert(
+          playlistId: playlist.id,
+          trackId: t.trackId,
+          position: t.position,
+          addedBy: Value(t.addedByUserId),
+          addedAt: Value(t.addedAt.millisecondsSinceEpoch),
+        ), mode: InsertMode.insertOrReplace);
+      }
+    });
+  }
+
   // ── Weekly Digest ─────────────────────────────────────────────────────────
 
   Future<void> generateWeeklyDigest(MusicRepository repository) async {
     AppLogger.i('AppIntelligence', 'Generating Weekly Digest...');
     
-    // 1. Get top artists from graph
     final topArtists = await getTopArtists(limit: 5);
     if (topArtists.isEmpty) {
       AppLogger.w('AppIntelligence', 'Not enough data for Weekly Digest');
@@ -208,7 +295,6 @@ class AppIntelligence {
 
     final digestTracks = <String>{};
     
-    // 2. Fetch some tracks for each top artist
     for (final artist in topArtists) {
       try {
         final results = await repository.searchSongs(artist['id'], limit: 10);
@@ -216,7 +302,7 @@ class AppIntelligence {
           digestTracks.add(song.id);
           if (digestTracks.length >= 30) break;
         }
-      } catch (e) {}
+      } catch (_) {}
       if (digestTracks.length >= 30) break;
     }
 

@@ -217,7 +217,7 @@ class _AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
                                 ),
                         ),
                         title: Text(playlist.name),
-                        subtitle: Text('${playlist.songs.length} tracks'),
+                        subtitle: Text('${playlist.songs?.length ?? playlist.trackCount ?? 0} tracks'),
                         trailing: isAdding
                             ? const SizedBox(
                                 width: 20,

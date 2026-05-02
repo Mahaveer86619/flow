@@ -216,7 +216,7 @@ class _SquigglyPainter extends CustomPainter {
     canvas.drawPath(
       path,
       basePaint
-        ..color = unplayedColor.withOpacity(1.0)
+        ..color = unplayedColor.withValues(alpha: 1.0)
         ..strokeWidth = strokeWidth,
     );
 
@@ -226,7 +226,7 @@ class _SquigglyPainter extends CustomPainter {
       final start = (loadingValue * (size.width + segmentWidth)) - segmentWidth;
 
       final paint = Paint()
-        ..color = playedColor.withOpacity(transitionValue)
+        ..color = playedColor.withValues(alpha: transitionValue)
         ..style = PaintingStyle.stroke
         ..strokeWidth = strokeWidth * 1.5
         ..strokeCap = StrokeCap.round;
@@ -265,7 +265,7 @@ class _SquigglyPainter extends CustomPainter {
         canvas.drawPath(
           path,
           basePaint
-            ..color = bufferedColor.withOpacity(normalOpacity)
+            ..color = bufferedColor.withValues(alpha: normalOpacity)
             ..strokeWidth = strokeWidth * 1.2,
         );
         canvas.restore();
@@ -283,7 +283,7 @@ class _SquigglyPainter extends CustomPainter {
         canvas.drawPath(
           path,
           basePaint
-            ..color = playedColor.withOpacity(normalOpacity)
+            ..color = playedColor.withValues(alpha: normalOpacity)
             ..strokeWidth = strokeWidth * 1.8,
         );
         canvas.restore();
@@ -305,7 +305,7 @@ class _SquigglyPainter extends CustomPainter {
         canvas.drawCircle(
           Offset(progressX, dotY),
           size.height * 0.2,
-          Paint()..color = playedColor.withOpacity(normalOpacity),
+          Paint()..color = playedColor.withValues(alpha: normalOpacity),
         );
       }
     }

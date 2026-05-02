@@ -1,622 +1,336 @@
-import 'package:cached_network_image/cached_network_image.dart';
+import 'dart:async';
 import 'dart:ui';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../../core/config/app_constants.dart';
-import '../../../core/responsive/breakpoints.dart';
-import '../../../domain/entities/home_data.dart';
-import '../../../domain/entities/song.dart';
-import '../../blocs/player/player_bloc.dart';
+import '../../../core/storage/local_storage.dart';
+import '../../../core/ui/app_radius.dart';
+import '../../../core/app_event_bus.dart';
 import '../../cubits/home/home_cubit.dart';
-import '../../widgets/artist_card.dart';
-import '../../widgets/error_view.dart';
-import '../../widgets/no_source_view.dart';
-import '../../widgets/personality_bot_view.dart';
+import '../../widgets/mini_player.dart';
 import '../../widgets/section_header.dart';
+import '../../widgets/skeleton.dart';
 import '../../widgets/song_card.dart';
-import '../artist/artist_screen.dart';
-import '../player/player_screen.dart';
+import '../../widgets/song_tile.dart';
 import '../playlist/playlist_screen.dart';
-import '../notifications/notifications_screen.dart';
-import '../settings/settings_screen.dart';
-import '../history/recently_played_screen.dart';
-import '../../widgets/text_carousel.dart';
+import '../../../domain/entities/song.dart';
+import '../../../domain/entities/home_data.dart';
+import '../../blocs/player/player_bloc.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return const _HomeScreenContent();
-  }
+  State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenContent extends StatelessWidget {
-  const _HomeScreenContent();
+class _HomeScreenState extends State<HomeScreen> {
+  final ScrollController _scrollController = ScrollController();
+  double _appBarOpacity = 0.0;
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-
-    return BlocBuilder<HomeCubit, HomeState>(
-      builder: (context, state) {
-        final hour = DateTime.now().hour;
-        final localGreeting = hour < 12
-            ? 'Good morning'
-            : hour < 17
-            ? 'Good afternoon'
-            : 'Good evening';
-        final greeting = state.isLoading ? localGreeting : state.greeting;
-
-        final Map<String, int> songIndexMap = {
-          for (int i = 0; i < state.allSongs.length; i++)
-            state.allSongs[i].id: i,
-        };
-
-        return Scaffold(
-          backgroundColor: Colors.black,
-          body: RefreshIndicator(
-            onRefresh: () => context.read<HomeCubit>().refresh(),
-            backgroundColor: cs.surfaceContainerHigh,
-            color: cs.primary,
-            edgeOffset: 110,
-            displacement: 40,
-            child: CustomScrollView(
-              cacheExtent: 2000,
-              physics: const BouncingScrollPhysics(
-                parent: AlwaysScrollableScrollPhysics(),
-              ),
-              slivers: [
-                SliverAppBar(
-                  expandedHeight: 140,
-                  floating: false,
-                  pinned: true,
-                  backgroundColor: Colors.black.withAlpha(200),
-                  surfaceTintColor: Colors.transparent,
-                  elevation: 0,
-                  centerTitle: false,
-                  title: Text(
-                    'Flow',
-                    style: GoogleFonts.spaceGrotesk(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.5,
-                      color: Colors.white,
-                    ),
-                  ),
-                  actions: [
-                    IconButton(
-                      icon: const Icon(
-                        Icons.notifications_outlined,
-                        color: Colors.white,
-                      ),
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const NotificationsScreen(),
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.history_rounded,
-                        color: Colors.white,
-                      ),
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const RecentlyPlayedScreen(),
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.settings_outlined,
-                        color: Colors.white,
-                      ),
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const SettingsScreen(),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                  ],
-                  flexibleSpace: FlexibleSpaceBar(
-                    background: ClipRect(
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [Colors.black, Colors.black.withAlpha(0)],
-                            ),
-                          ),
-                          child: Padding(
-                            padding: EdgeInsets.fromLTRB(
-                              16,
-                              MediaQuery.paddingOf(context).top + 50,
-                              16,
-                              0,
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  greeting,
-                                  style: GoogleFonts.outfit(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
-                                    color: Colors.white70,
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                SizedBox(
-                                  height: 38,
-                                  child: ListView(
-                                    scrollDirection: Axis.horizontal,
-                                    children: [
-                                      _MoodChip(
-                                        label: 'Chill',
-                                        icon: Icons.nightlight_round,
-                                        color: Colors.blueAccent,
-                                      ),
-                                      _MoodChip(
-                                        label: 'Energetic',
-                                        icon: Icons.bolt_rounded,
-                                        color: Colors.orangeAccent,
-                                      ),
-                                      _MoodChip(
-                                        label: 'Focus',
-                                        icon: Icons.center_focus_strong_rounded,
-                                        color: Colors.greenAccent,
-                                      ),
-                                      _MoodChip(
-                                        label: 'Workout',
-                                        icon: Icons.fitness_center_rounded,
-                                        color: Colors.redAccent,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-
-                if (state.isLoading && state.shelves.isEmpty)
-                  const SliverFillRemaining(
-                    child: PersonalityBotView(isLoading: true),
-                  )
-                else if (state.noSource)
-                  const SliverFillRemaining(child: NoSourceView())
-                else if (state.error && state.shelves.isEmpty)
-                  SliverFillRemaining(
-                    child: ErrorView(
-                      errorType: state.errorType,
-                      onRetry: () => context.read<HomeCubit>().reload(),
-                    ),
-                  )
-                else ...[
-                  ...() {
-                    final List<HomeShelf> displayShelves = List.from(
-                      state.shelves,
-                    );
-                    final requestedSections = [
-                      (
-                        'Daily Rotation',
-                        'listeningAgain',
-                        Icons.replay_rounded,
-                      ),
-                      (
-                        'Listen Again',
-                        'quickPicks',
-                        Icons.grid_view_rounded,
-                      ), // This will be our 4-row grid
-                      (
-                        'Music Videos',
-                        'musicVideos',
-                        Icons.play_circle_filled_rounded,
-                      ),
-                      ('Albums', 'albumsForYou', Icons.album_rounded),
-                      ('Deep Dives', 'longListening', Icons.timer_rounded),
-                      ('Podcasts', 'podcasts', Icons.podcasts_rounded),
-                    ];
-
-                    final List<HomeShelf> orderedShelves = [];
-                    for (final req in requestedSections) {
-                      final shelf = displayShelves.firstWhere(
-                        (s) => s.section == req.$2,
-                        orElse: () => HomeShelf(
-                          title: req.$1,
-                          section: req.$2,
-                          items: const [],
-                        ),
-                      );
-                      orderedShelves.add(shelf);
-                    }
-
-                    return orderedShelves.map((shelf) {
-                      final req = requestedSections.firstWhere(
-                        (r) => r.$2 == shelf.section,
-                      );
-
-                      return SliverPadding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        sliver: _HomeShelfRenderer(
-                          shelf: shelf,
-                          allSongs: state.allSongs,
-                          songIndexMap: songIndexMap,
-                          profileUrl: state.profileUrl,
-                          ytName: state.ytName,
-                          icon: req.$3,
-                        ),
-                      );
-                    });
-                  }(),
-                  const SliverToBoxAdapter(child: SizedBox(height: 140)),
-                ],
-              ],
-            ),
-          ),
-        );
-      },
-    );
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+    context.read<HomeCubit>().init();
   }
-}
-
-class _HomeShelfRenderer extends StatelessWidget {
-  final HomeShelf shelf;
-  final List<Song> allSongs;
-  final Map<String, int> songIndexMap;
-  final String? profileUrl;
-  final String? ytName;
-  final IconData? icon;
-
-  const _HomeShelfRenderer({
-    required this.shelf,
-    required this.allSongs,
-    required this.songIndexMap,
-    this.profileUrl,
-    this.ytName,
-    this.icon,
-  });
 
   @override
-  Widget build(BuildContext context) {
-    final section = shelf.section;
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
 
-    switch (section) {
-      case 'listeningAgain': // Daily Rotation
-        return _buildDailyRotation(context, icon: icon);
-      case 'quickPicks': // Listen Again (4-row grid)
-        return _buildListenAgainGrid(context, icon: icon);
-      case 'musicVideos':
-        return _buildVideoRow(context, icon: icon);
-      case 'albumsForYou':
-        return _buildPlaylistRow(
-          context,
-          'Expand your collection',
-          null,
-          isAlbum: true,
-          icon: icon,
-        );
-      case 'longListening':
-        return _buildPlaylistRow(context, 'Extended tracks', null, icon: icon);
-      case 'podcasts':
-        return _buildPlaylistRow(
-          context,
-          'Stories and conversations',
-          null,
-          icon: icon,
-        );
-      default:
-        return _buildStandardRow(context, null, null, icon: icon);
+  void _onScroll() {
+    if (!mounted) return;
+    final offset = _scrollController.offset;
+    final opacity = (offset / 100).clamp(0.0, 1.0);
+    if (opacity != _appBarOpacity) {
+      setState(() => _appBarOpacity = opacity);
     }
   }
 
-  Widget _buildDailyRotation(BuildContext context, {IconData? icon}) {
-    final songs = shelf.items
-        .where((i) => i.type == HomeItemType.song)
-        .map((i) => i.data as Song)
-        .toList();
-    if (songs.isEmpty)
-      return const SliverToBoxAdapter(child: SizedBox.shrink());
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final padding = MediaQuery.paddingOf(context);
 
-    return SliverMainAxisGroup(
-      slivers: [
-        SliverToBoxAdapter(
-          child: SectionHeader(title: shelf.title, icon: icon),
-        ),
-        SliverToBoxAdapter(
-          child: SizedBox(
-            height: 200,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: songs.length,
-              itemBuilder: (context, i) => Padding(
-                padding: const EdgeInsets.only(right: 14),
-                child: SongCard(
-                  song: songs[i],
-                  queue: allSongs,
-                  index: songIndexMap[songs[i].id] ?? 0,
-                  aspectRatio: 1.0,
-                  heroTag: 'daily_${songs[i].id}_$i',
-                  startRadio: true,
-                  skipPlayerScreen: true,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          // ── Scrollable Content ───────────────────────────────────────────
+          RefreshIndicator(
+            onRefresh: () => context.read<HomeCubit>().refresh(),
+            displacement: 100 + padding.top,
+            color: cs.primary,
+            backgroundColor: cs.surfaceContainerHigh,
+            child: BlocBuilder<HomeCubit, HomeState>(
+              builder: (context, state) {
+                if (state.status == HomeStatus.loading && state.shelves.isEmpty) {
+                  return _buildLoadingState(padding);
+                }
 
-  Widget _buildListenAgainGrid(BuildContext context, {IconData? icon}) {
-    if (shelf.items.isEmpty)
-      return const SliverToBoxAdapter(child: SizedBox.shrink());
+                if (state.status == HomeStatus.failure && state.shelves.isEmpty) {
+                  return _buildErrorState(state.error ?? 'Failed to load feed', padding);
+                }
 
-    return SliverMainAxisGroup(
-      slivers: [
-        SliverToBoxAdapter(
-          child: SectionHeader(title: shelf.title, icon: icon),
-        ),
-        SliverToBoxAdapter(
-          child: SizedBox(
-            height: 260,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: (shelf.items.length / 4).ceil(),
-              itemBuilder: (context, colIndex) {
-                final columnItems = shelf.items
-                    .skip(colIndex * 4)
-                    .take(4)
-                    .toList();
-                return Padding(
-                  padding: const EdgeInsets.only(right: 24),
-                  child: SizedBox(
-                    width: 300,
-                    child: Column(
-                      children: columnItems.map((item) {
-                        if (item.type == HomeItemType.song) {
-                          return _QuickPickListTile(
-                            song: item.data as Song,
-                            allSongs: allSongs,
-                            index: songIndexMap[(item.data as Song).id] ?? 0,
-                            startRadio: true,
-                          );
-                        }
-                        return const SizedBox.shrink();
-                      }).toList(),
-                    ),
-                  ),
+                return ListView.builder(
+                  controller: _scrollController,
+                  padding: EdgeInsets.fromLTRB(16, padding.top + 20, 16, 150),
+                  itemCount: state.shelves.length + 1,
+                  itemBuilder: (context, index) {
+                    if (index == 0) return _buildHeader();
+                    final shelf = state.shelves[index - 1];
+                    return _buildShelf(shelf);
+                  },
                 );
               },
             ),
           ),
-        ),
-      ],
-    );
-  }
 
-  Widget _buildVideoRow(BuildContext context, {IconData? icon}) {
-    final songs = shelf.items
-        .where((i) => i.type == HomeItemType.song)
-        .map((i) => i.data as Song)
-        .toList();
-    if (songs.isEmpty)
-      return const SliverToBoxAdapter(child: SizedBox.shrink());
-    return SliverMainAxisGroup(
-      slivers: [
-        SliverToBoxAdapter(
-          child: SectionHeader(title: shelf.title, icon: icon),
-        ),
-        SliverToBoxAdapter(
-          child: SizedBox(
-            height: 220,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: songs.length,
-              itemBuilder: (context, i) => Padding(
-                padding: const EdgeInsets.only(right: 16),
-                child: SongCard(
-                  song: songs[i],
-                  queue: allSongs,
-                  index: songIndexMap[songs[i].id] ?? 0,
-                  aspectRatio: 16 / 9,
-                  heroTag: 'video_${songs[i].id}_$i',
-                  startRadio: true,
-                  skipPlayerScreen: true,
+          // ── Floating App Bar ────────────────────────────────────────────
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: ClipRect(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(
+                  sigmaX: 15 * _appBarOpacity,
+                  sigmaY: 15 * _appBarOpacity,
                 ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPlaylistRow(
-    BuildContext context,
-    String? subtitle,
-    String? profileUrl, {
-    bool isAlbum = false,
-    IconData? icon,
-  }) {
-    final items = shelf.items;
-    if (items.isEmpty)
-      return const SliverToBoxAdapter(child: SizedBox.shrink());
-    return SliverMainAxisGroup(
-      slivers: [
-        SliverToBoxAdapter(
-          child: SectionHeader(
-            title: shelf.title,
-            subtitle: subtitle,
-            icon: icon,
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: SizedBox(
-            height: 200,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: items.length,
-              itemBuilder: (context, i) {
-                final item = items[i];
-                return Padding(
-                  padding: const EdgeInsets.only(right: 14),
-                  child: item.type == HomeItemType.song
-                      ? SongCard(
-                          song: item.data as Song,
-                          queue: allSongs,
-                          index: songIndexMap[(item.data as Song).id] ?? 0,
-                          startRadio: true,
-                          skipPlayerScreen: true,
-                        )
-                      : _HomePlaylistCard(
-                          playlist: item.data as Playlist,
-                          isAlbum: item.type == HomeItemType.album || isAlbum,
+                child: Container(
+                  height: 60 + padding.top,
+                  padding: EdgeInsets.only(top: padding.top, left: 16, right: 16),
+                  color: Colors.black.withValues(alpha: 0.7 * _appBarOpacity),
+                  child: Row(
+                    children: [
+                      Text(
+                        'flow',
+                        style: GoogleFonts.spaceGrotesk(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          letterSpacing: -1,
                         ),
-                );
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.search_rounded, color: Colors.white),
+                        onPressed: () {
+                          AppEventBus.instance.fire(const SwitchTabEvent(1));
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    final hour = DateTime.now().hour;
+    String greeting = 'Good Morning';
+    if (hour >= 12 && hour < 17) greeting = 'Good Afternoon';
+    if (hour >= 17 || hour < 5) greeting = 'Good Evening';
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 60),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      greeting,
+                      style: GoogleFonts.outfit(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.white70,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      height: 38,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        children: const [
+                          _MoodChip(
+                            label: 'Chill',
+                            icon: Icons.nightlight_round,
+                            color: Colors.blueAccent,
+                          ),
+                          _MoodChip(
+                            label: 'Energetic',
+                            icon: Icons.bolt_rounded,
+                            color: Colors.orangeAccent,
+                          ),
+                          _MoodChip(
+                            label: 'Focus',
+                            icon: Icons.center_focus_strong_rounded,
+                            color: Colors.greenAccent,
+                          ),
+                          _MoodChip(
+                            label: 'Workout',
+                            icon: Icons.fitness_center_rounded,
+                            color: Colors.redAccent,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: Colors.white.withAlpha(20),
+                child: const Icon(Icons.person_outline_rounded, color: Colors.white, size: 20),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildShelf(HomeShelf shelf) {
+    if (shelf.items.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SectionHeader(
+          title: shelf.title,
+        ),
+        const SizedBox(height: 12),
+        if (shelf.section == 'quick_picks')
+          _QuickPicksGrid(items: shelf.items)
+        else
+          SizedBox(
+            height: 210,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              itemCount: shelf.items.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 16),
+              itemBuilder: (context, index) {
+                final item = shelf.items[index];
+                if (item.type == HomeItemType.song) {
+                  return SongCard(
+                    song: item.data as Song,
+                    queue: shelf.items
+                        .where((i) => i.type == HomeItemType.song)
+                        .map((i) => i.data as Song)
+                        .toList(),
+                    index: shelf.items
+                        .where((i) => i.type == HomeItemType.song)
+                        .toList()
+                        .indexOf(item),
+                  );
+                } else if (item.type == HomeItemType.playlist || item.type == HomeItemType.album) {
+                  return _HomePlaylistCard(
+                    playlist: item.data as Playlist,
+                    isAlbum: item.type == HomeItemType.album,
+                  );
+                }
+                return const SizedBox.shrink();
               },
             ),
+          ),
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+
+  Widget _buildLoadingState(EdgeInsets padding) {
+    return ListView(
+      padding: EdgeInsets.fromLTRB(16, padding.top + 20, 16, 100),
+      children: [
+        const SizedBox(height: 60),
+        const Skeleton(height: 30, width: 200),
+        const SizedBox(height: 40),
+        const Skeleton(height: 24, width: 150),
+        const SizedBox(height: 16),
+        SizedBox(
+          height: 200,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: 5,
+            separatorBuilder: (_, __) => const SizedBox(width: 16),
+            itemBuilder: (_, __) => const Skeleton(height: 200, width: 150),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildStandardRow(
-    BuildContext context,
-    String? subtitle,
-    String? profileUrl, {
-    double cardWidth = 140,
-    IconData? icon,
-  }) {
-    final songs = shelf.items
-        .where((i) => i.type == HomeItemType.song)
-        .map((i) => i.data as Song)
-        .toList();
-    if (songs.isEmpty)
-      return const SliverToBoxAdapter(child: SizedBox.shrink());
-    return SliverMainAxisGroup(
-      slivers: [
-        SliverToBoxAdapter(
-          child: SectionHeader(
-            title: shelf.title,
-            subtitle: subtitle,
-            icon: icon,
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: SizedBox(
-            height: cardWidth + 70,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: songs.length,
-              itemBuilder: (context, i) => Padding(
-                padding: const EdgeInsets.only(right: 14),
-                child: SongCard(
-                  song: songs[i],
-                  queue: allSongs,
-                  index: songIndexMap[songs[i].id] ?? 0,
-                  cardWidth: cardWidth,
-                  startRadio: true,
-                  skipPlayerScreen: true,
-                ),
-              ),
+  Widget _buildErrorState(String message, EdgeInsets padding) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 48),
+            const SizedBox(height: 16),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white70),
             ),
-          ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: () => context.read<HomeCubit>().refresh(),
+              child: const Text('Try Again'),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
 
-class _QuickPickListTile extends StatelessWidget {
-  final Song song;
-  final List<Song> allSongs;
-  final int index;
-  final bool startRadio;
-  const _QuickPickListTile({
-    required this.song,
-    required this.allSongs,
-    required this.index,
-    this.startRadio = false,
-  });
+class _QuickPicksGrid extends StatelessWidget {
+  final List<HomeItem> items;
+  const _QuickPicksGrid({required this.items});
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return InkWell(
-      onTap: () {
-        if (startRadio) {
-          context.read<PlayerBloc>().add(PlayRadioEvent(song));
-        } else {
-          context.read<PlayerBloc>().add(
-            PlayQueueEvent(songs: List.from(allSongs), startIndex: index),
-          );
-        }
-      },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: Row(
-          children: [
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                borderRadius: AppRadius.smallBorderRadius,
-                color: theme.colorScheme.surfaceContainerHigh,
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: song.thumbnailUrl != null
-                  ? CachedNetworkImage(
-                      imageUrl: song.thumbnailUrl!,
-                      fit: BoxFit.cover,
-                    )
-                  : Container(color: song.colorPrimary),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    song.title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(
-                    song.artist,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Colors.white.withAlpha(140),
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-          ],
+    final songs = items.where((i) => i.type == HomeItemType.song).map((i) => i.data as Song).toList();
+    return SizedBox(
+      height: 180,
+      child: GridView.builder(
+        scrollDirection: Axis.horizontal,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          mainAxisExtent: 300,
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
         ),
+        itemCount: songs.length,
+        itemBuilder: (context, index) {
+          final song = songs[index];
+          return SongTile(
+            song: song,
+            queue: songs,
+            index: index,
+            onTap: () {
+              context.read<PlayerBloc>().add(PlayQueueEvent(songs: songs, startIndex: index));
+            },
+          );
+        },
       ),
     );
   }
@@ -626,6 +340,7 @@ class _HomePlaylistCard extends StatefulWidget {
   final Playlist playlist;
   final bool isAlbum;
   const _HomePlaylistCard({required this.playlist, this.isAlbum = false});
+
   @override
   State<_HomePlaylistCard> createState() => _HomePlaylistCardState();
 }
@@ -659,7 +374,7 @@ class _HomePlaylistCardState extends State<_HomePlaylistCard> {
                   child: Container(
                     decoration: BoxDecoration(
                       color: widget.playlist.color,
-                      borderRadius: AppRadius.mediumBorderRadius,
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     clipBehavior: Clip.antiAlias,
                     child: widget.playlist.thumbnailUrl != null
@@ -717,9 +432,6 @@ class _MoodChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-
     return Padding(
       padding: const EdgeInsets.only(right: 8),
       child: Material(
@@ -728,7 +440,6 @@ class _MoodChip extends StatelessWidget {
           onTap: () {
             context.read<PlayerBloc>().add(FilterByMoodEvent(label));
           },
-
           borderRadius: BorderRadius.circular(20),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -758,4 +469,3 @@ class _MoodChip extends StatelessWidget {
     );
   }
 }
-

@@ -2,13 +2,13 @@ import 'dart:async';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
-import 'package:ffmpeg_kit_flutter_full/ffmpeg_kit.dart';
-import 'package:ffmpeg_kit_flutter_full/return_code.dart';
-import '../logger/app_logger.dart';
-import '../storage/local_storage.dart';
-import '../../data/models/song_model.dart';
-import '../../data/sources/stream_resolver.dart';
-import '../../domain/entities/song.dart';
+import 'package:ffmpeg_kit_flutter_new_full/ffmpeg_kit.dart';
+import 'package:ffmpeg_kit_flutter_new_full/return_code.dart';
+import '../../../core/logger/app_logger.dart';
+import '../../../core/storage/local_storage.dart';
+import '../../models/song_model.dart';
+import '../remote/stream_resolver.dart';
+import '../../../domain/entities/song.dart';
 
 enum DownloadFormat { mp3, flac, opus }
 
@@ -269,7 +269,9 @@ class DownloadService {
             try {
               await f.copy('$newFlowPath${Platform.pathSeparator}cache${Platform.pathSeparator}$name');
               await f.delete();
-            } catch (e) {}
+            } catch (e) {
+              AppLogger.w(_tag, 'Failed to move cache file: $name', e);
+            }
           }
         }
       }

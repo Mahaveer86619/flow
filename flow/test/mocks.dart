@@ -9,7 +9,9 @@ import 'package:flow/domain/entities/history_data.dart';
 import 'package:flutter/material.dart';
 import 'package:flow/presentation/blocs/player/player_bloc.dart';
 import 'package:flow/presentation/cubits/search/search_cubit.dart';
-import 'package:flow/core/network/download_service.dart';
+import 'package:flow/presentation/cubits/settings/settings_cubit.dart';
+import 'package:flow/presentation/cubits/settings/settings_state.dart';
+import 'package:flow/data/sources/local/download_service.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flow/core/logger/app_logger.dart';
 
@@ -49,6 +51,8 @@ class MockPlayerBloc extends MockBloc<PlayerEvent, PlayerState>
     implements PlayerBloc {}
 
 class MockSearchCubit extends MockCubit<SearchState> implements SearchCubit {}
+
+class MockSettingsCubit extends MockCubit<SettingsState> implements SettingsCubit {}
 
 class FakePlayerState extends Fake implements PlayerState {}
 

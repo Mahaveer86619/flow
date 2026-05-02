@@ -17,6 +17,15 @@ class GraphDelta {
     required this.events,
   });
 
+  factory GraphDelta.fromJson(Map<String, dynamic> json) => GraphDelta(
+    peerId: json['peerId'] as String,
+    from: DateTime.fromMillisecondsSinceEpoch(json['from'] as int),
+    to: DateTime.fromMillisecondsSinceEpoch(json['to'] as int),
+    nodeUpdates: (json['nodeUpdates'] as List).map((e) => NodeDelta.fromJson(e as Map<String, dynamic>)).toList(),
+    edgeUpdates: (json['edgeUpdates'] as List).map((e) => EdgeDelta.fromJson(e as Map<String, dynamic>)).toList(),
+    events: (json['events'] as List).cast<Map<String, dynamic>>(),
+  );
+
   Map<String, dynamic> toJson() => {
     'peerId': peerId,
     'from': from.millisecondsSinceEpoch,
@@ -40,6 +49,13 @@ class NodeDelta {
     required this.lastUpdated,
   });
 
+  factory NodeDelta.fromJson(Map<String, dynamic> json) => NodeDelta(
+    id: json['id'] as String,
+    scoreDelta: (json['scoreDelta'] as num).toDouble(),
+    type: NodeType.values.firstWhere((e) => e.name == json['type']),
+    lastUpdated: DateTime.fromMillisecondsSinceEpoch(json['lastUpdated'] as int),
+  );
+
   Map<String, dynamic> toJson() => {
     'id': id,
     'scoreDelta': scoreDelta,
@@ -58,6 +74,12 @@ class EdgeDelta {
     required this.toId,
     required this.weightDelta,
   });
+
+  factory EdgeDelta.fromJson(Map<String, dynamic> json) => EdgeDelta(
+    fromId: json['fromId'] as String,
+    toId: json['toId'] as String,
+    weightDelta: (json['weightDelta'] as num).toDouble(),
+  );
 
   Map<String, dynamic> toJson() => {
     'fromId': fromId,

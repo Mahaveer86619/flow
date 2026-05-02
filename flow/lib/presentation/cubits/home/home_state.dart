@@ -1,67 +1,28 @@
-import '../../../core/error/app_exception.dart';
 import '../../../domain/entities/home_data.dart';
 import '../../../domain/entities/song.dart';
 
+enum HomeStatus { initial, loading, success, failure }
+
 class HomeState {
-  final bool isLoading;
-  final bool error;
-  final AppErrorType errorType;
-  final bool noSource;
-  final String greeting;
   final List<HomeShelf> shelves;
-  final List<Song> trending;
-  final List<Song> recentlyPlayed;
-  final List<Song> allSongs;
-  final String? profileUrl;
-  final String? ytName;
-  final List<Song> musicVideos;
-  final List<Song> favArtistsSongs;
+  final HomeStatus status;
+  final String? error;
 
   const HomeState({
-    this.isLoading = false,
-    this.error = false,
-    this.errorType = AppErrorType.unknown,
-    this.noSource = false,
-    this.greeting = '',
     this.shelves = const [],
-    this.trending = const [],
-    this.recentlyPlayed = const [],
-    this.allSongs = const [],
-    this.profileUrl,
-    this.ytName,
-    this.musicVideos = const [],
-    this.favArtistsSongs = const [],
+    this.status = HomeStatus.initial,
+    this.error,
   });
 
   HomeState copyWith({
-    bool? isLoading,
-    bool? error,
-    AppErrorType? errorType,
-    bool? noSource,
-    String? greeting,
     List<HomeShelf>? shelves,
-    List<Song>? trending,
-    List<Song>? recentlyPlayed,
-    List<Song>? allSongs,
-    String? profileUrl,
-    String? ytName,
-    List<Song>? musicVideos,
-    List<Song>? favArtistsSongs,
+    HomeStatus? status,
+    String? error,
   }) {
     return HomeState(
-      isLoading: isLoading ?? this.isLoading,
-      error: error ?? this.error,
-      errorType: errorType ?? this.errorType,
-      noSource: noSource ?? this.noSource,
-      greeting: greeting ?? this.greeting,
       shelves: shelves ?? this.shelves,
-      trending: trending ?? this.trending,
-      recentlyPlayed: recentlyPlayed ?? this.recentlyPlayed,
-      allSongs: allSongs ?? this.allSongs,
-      profileUrl: profileUrl ?? this.profileUrl,
-      ytName: ytName ?? this.ytName,
-      musicVideos: musicVideos ?? this.musicVideos,
-      favArtistsSongs: favArtistsSongs ?? this.favArtistsSongs,
+      status: status ?? this.status,
+      error: error ?? this.error,
     );
   }
 }

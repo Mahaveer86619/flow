@@ -28,7 +28,7 @@ class YtmMapper {
       name: item.title,
       description: item.artist ?? item.subtitle ?? 'YouTube Music',
       thumbnailUrl: item.thumbnailUrl,
-      trackCount: 0, // Not always available in list view
+      songs: const [],
       color: const Color(0xFF7C3AED),
       isAlbum: item.type == YtmItemType.album,
       artistName: item.type == YtmItemType.album

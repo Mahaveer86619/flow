@@ -29,7 +29,14 @@ class HiveKeys {
   static const String downloadFormat = 'download_format';
   static const String downloadBitrate = 'download_bitrate';
   static const String streamingMode = 'streaming_mode';
+  static const String lastSyncTime = 'last_sync_time';
+  static const String lastDigestGeneration = 'last_digest_generation';
+  static const String playbackSpeed = 'playback_speed';
+  static const String crossfadeDuration = 'crossfade_duration';
   static const String appVersion = 'app_version';
+
+
+
 
 
 
