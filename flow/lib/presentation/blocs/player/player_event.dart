@@ -161,6 +161,12 @@ class ResetPlayerEvent extends PlayerEvent {
   const ResetPlayerEvent();
 }
 
+/// Set whether the full-screen player is currently visible.
+class SetPlayerVisibilityEvent extends PlayerEvent {
+  final bool visible;
+  const SetPlayerVisibilityEvent(this.visible);
+}
+
 // ── Internal events ─────────────────────────────────────────────────────────────
 
 class _RestoreStateEvent extends PlayerEvent {

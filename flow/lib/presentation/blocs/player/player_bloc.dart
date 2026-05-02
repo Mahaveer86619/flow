@@ -98,6 +98,7 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     on<SetCrossfadeDurationEvent>(_onSetCrossfadeDuration);
     on<ResetPlayerEvent>(_onResetPlayer);
     on<FilterByMoodEvent>(_onFilterByMood);
+    on<SetPlayerVisibilityEvent>(_onSetPlayerVisibility);
 
     on<_PositionUpdateEvent>(_onPositionUpdate);
     on<_BufferedPositionChangedEvent>(_onBufferedPositionChanged);
@@ -586,6 +587,11 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
       add(PlayQueueEvent(songs: filteredSongs, startIndex: 0));
     }
   }
+
+  void _onSetPlayerVisibility(SetPlayerVisibilityEvent event, Emitter<PlayerState> emit) {
+    emit(state.copyWith(isPlayerOpen: event.visible));
+  }
+
   @override
   Future<void> close() async {
     await _positionSub?.cancel(); await _durationSub?.cancel(); await _bufferedSub?.cancel(); await _playerStateSub?.cancel(); await _currentIndexSub?.cancel(); await _downloadSub?.cancel();

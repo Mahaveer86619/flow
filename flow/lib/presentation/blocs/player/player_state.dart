@@ -12,6 +12,7 @@ class PlayerState extends Equatable {
   final bool isPlaying;
   final bool isBuffering;
   final bool isInitialLoading;
+  final bool isPlayerOpen;
 
   /// Actual playback position from AudioPlayer.
   final Duration position;
@@ -46,6 +47,7 @@ class PlayerState extends Equatable {
     this.isPlaying = false,
     this.isBuffering = false,
     this.isInitialLoading = false,
+    this.isPlayerOpen = false,
     this.position = Duration.zero,
     this.bufferedPosition = Duration.zero,
     this.actualDuration,
@@ -71,6 +73,7 @@ class PlayerState extends Equatable {
     isPlaying,
     isBuffering,
     isInitialLoading,
+    isPlayerOpen,
     position,
     bufferedPosition,
     actualDuration,
@@ -130,6 +133,7 @@ class PlayerState extends Equatable {
     bool? isPlaying,
     bool? isBuffering,
     bool? isInitialLoading,
+    bool? isPlayerOpen,
     Duration? position,
     Duration? bufferedPosition,
     Duration? actualDuration,
@@ -155,6 +159,7 @@ class PlayerState extends Equatable {
       isPlaying: isPlaying ?? this.isPlaying,
       isBuffering: isBuffering ?? this.isBuffering,
       isInitialLoading: isInitialLoading ?? this.isInitialLoading,
+      isPlayerOpen: isPlayerOpen ?? this.isPlayerOpen,
       position: position ?? this.position,
       bufferedPosition: bufferedPosition ?? this.bufferedPosition,
       actualDuration: clearActualDuration

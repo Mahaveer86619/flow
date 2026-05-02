@@ -8,7 +8,7 @@ import '../../blocs/player/player_bloc.dart';
 
 import '../../widgets/text_carousel.dart';
 
-class QueueScreen extends StatelessWidget {
+class QueueScreen extends StatefulWidget {
   const QueueScreen({super.key});
 
   /// Opens the [QueueScreen] as a draggable modal bottom sheet.
@@ -21,6 +21,25 @@ class QueueScreen extends StatelessWidget {
       enableDrag: false,
       builder: (context) => const QueueScreen(),
     );
+  }
+
+  @override
+  State<QueueScreen> createState() => _QueueScreenState();
+}
+
+class _QueueScreenState extends State<QueueScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<PlayerBloc>().add(const SetPlayerVisibilityEvent(true));
+    });
+  }
+
+  @override
+  void dispose() {
+    context.read<PlayerBloc>().add(const SetPlayerVisibilityEvent(false));
+    super.dispose();
   }
 
   @override

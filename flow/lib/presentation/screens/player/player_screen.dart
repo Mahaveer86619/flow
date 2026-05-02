@@ -48,6 +48,15 @@ class _PlayerScreenState extends State<PlayerScreen> {
   void initState() {
     super.initState();
     _fetchDetails();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<PlayerBloc>().add(const SetPlayerVisibilityEvent(true));
+    });
+  }
+
+  @override
+  void dispose() {
+    context.read<PlayerBloc>().add(const SetPlayerVisibilityEvent(false));
+    super.dispose();
   }
 
   void _fetchDetails() {
