@@ -4,12 +4,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../core/config/app_constants.dart';
-import '../../core/storage/local_storage.dart';
-import '../blocs/player/player_bloc.dart';
 import '../blocs/player/player_bloc.dart';
 import '../screens/player/player_screen.dart';
 import 'text_carousel.dart';
+import 'album_art_widget.dart';
 import '../../core/platform/desktop_controller.dart';
 
 class MiniPlayer extends StatelessWidget {
@@ -23,21 +21,10 @@ class MiniPlayer extends StatelessWidget {
 
         final colorScheme = Theme.of(context).colorScheme;
         final song = state.currentSong!;
-        final padding = MediaQuery.paddingOf(context);
 
         return GestureDetector(
-          onTap: () {
-            if (state.currentSong != null) {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (context) => const PlayerScreen()),
-              );
-            }
-          },
-          onVerticalDragEnd: (_) {
-            Navigator.of(context).push(
-              MaterialPageRoute(builder: (context) => const PlayerScreen()),
-            );
-          },
+          onTap: () => PlayerScreen.show(context),
+          onVerticalDragEnd: (_) => PlayerScreen.show(context),
           child: Container(
             margin: const EdgeInsets.fromLTRB(8, 0, 8, 8),
             decoration: BoxDecoration(

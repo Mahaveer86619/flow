@@ -41,65 +41,64 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       backgroundColor: Colors.black,
-      body: RefreshIndicator(
-        onRefresh: () => context.read<HomeCubit>().refresh(),
-        displacement: 100 + padding.top,
-        color: cs.primary,
-        backgroundColor: cs.surfaceContainerHigh,
-        child: CustomScrollView(
-          physics: const BouncingScrollPhysics(
-            parent: AlwaysScrollableScrollPhysics(),
-          ),
-          slivers: [
-            const FlowAppBar(title: 'flow'),
-            
-            // ── Greeting & Mood Chips (Fixed Section) ──────────────────
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                child: _buildFixedHeader(),
+      body: BlocBuilder<HomeCubit, HomeState>(
+        builder: (context, state) {
+          return RefreshIndicator(
+            onRefresh: () => context.read<HomeCubit>().refresh(),
+            displacement: 100 + padding.top,
+            color: cs.primary,
+            backgroundColor: cs.surfaceContainerHigh,
+            child: CustomScrollView(
+              physics: const BouncingScrollPhysics(
+                parent: AlwaysScrollableScrollPhysics(),
               ),
-            ),
-
-            // ── Feed Content ───────────────────────────────────────────
-            BlocBuilder<HomeCubit, HomeState>(
-              builder: (context, state) {
-                if (state.status == HomeStatus.loading && state.shelves.isEmpty) {
-                  return _buildShimmerLoading();
-                }
-
-                if (state.status == HomeStatus.failure && state.shelves.isEmpty) {
-                  return SliverFillRemaining(
-                    child: _buildErrorState(state.error ?? 'Failed to load feed', padding),
-                  );
-                }
-
-                // Sort shelves to prioritize quick_picks if present
-                final sortedShelves = List<HomeShelf>.from(state.shelves);
-                final qpIndex = sortedShelves.indexWhere((s) => s.section == 'quick_picks');
-                if (qpIndex > 0) {
-                  final qp = sortedShelves.removeAt(qpIndex);
-                  sortedShelves.insert(0, qp);
-                }
-
-                return SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final shelf = sortedShelves[index];
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: _buildShelf(shelf),
-                      );
-                    },
-                    childCount: sortedShelves.length,
+              slivers: [
+                const FlowAppBar(title: 'flow'),
+                
+                // ── Greeting & Mood Chips (Fixed Section) ──────────────────
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                    child: _buildFixedHeader(),
                   ),
-                );
-              },
-            ),
+                ),
 
-            const SliverToBoxAdapter(child: SizedBox(height: 150)),
-          ],
-        ),
+                // ── Feed Content ───────────────────────────────────────────
+                if (state.status == HomeStatus.loading && state.shelves.isEmpty)
+                  _buildShimmerLoading()
+                else if (state.status == HomeStatus.failure && state.shelves.isEmpty)
+                  SliverFillRemaining(
+                    child: _buildErrorState(state.error ?? 'Failed to load feed', padding),
+                  )
+                else ...[
+                  // Sort shelves to prioritize quickPicks if present
+                  () {
+                    final sortedShelves = List<HomeShelf>.from(state.shelves);
+                    final qpIndex = sortedShelves.indexWhere((s) => s.section == 'quickPicks');
+                    if (qpIndex > 0) {
+                      final qp = sortedShelves.removeAt(qpIndex);
+                      sortedShelves.insert(0, qp);
+                    }
+                    return SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          final shelf = sortedShelves[index];
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: _buildShelf(shelf),
+                          );
+                        },
+                        childCount: sortedShelves.length,
+                      ),
+                    );
+                  }(),
+                ],
+
+                const SliverToBoxAdapter(child: SizedBox(height: 150)),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -193,7 +192,7 @@ class _HomeScreenState extends State<HomeScreen> {
           title: shelf.title,
         ),
         const SizedBox(height: 12),
-        if (shelf.section == 'quick_picks')
+        if (shelf.section == 'quickPicks')
           _QuickPicksGrid(items: shelf.items)
         else
           SizedBox(
@@ -202,7 +201,7 @@ class _HomeScreenState extends State<HomeScreen> {
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 4),
               itemCount: shelf.items.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 16),
+              separatorBuilder: (_, _) => const SizedBox(width: 16),
               itemBuilder: (context, index) {
                 final item = shelf.items[index];
                 if (item.type == HomeItemType.song) {
@@ -256,7 +255,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-}}
+}
 
 class _QuickPicksGrid extends StatelessWidget {
   final List<HomeItem> items;
@@ -264,11 +263,22 @@ class _QuickPicksGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final songs = items.where((i) => i.type == HomeItemType.song).map((i) => i.data as Song).toList();
+    final songs = items
+        .where((i) => i.type == HomeItemType.song)
+        .map((i) => i.data as Song)
+        .toList();
+
+    if (songs.isEmpty) {
+      // If no songs, but maybe playlists? YT Music Quick Picks can be mixed.
+      // For now, let's just show standard cards if filtering results in nothing.
+      return const SizedBox.shrink();
+    }
+
     return SizedBox(
       height: 180,
       child: GridView.builder(
         scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 3,
           mainAxisExtent: 300,
@@ -283,7 +293,9 @@ class _QuickPicksGrid extends StatelessWidget {
             queue: songs,
             index: index,
             onTap: () {
-              context.read<PlayerBloc>().add(PlayQueueEvent(songs: songs, startIndex: index));
+              context
+                  .read<PlayerBloc>()
+                  .add(PlayQueueEvent(songs: songs, startIndex: index));
             },
           );
         },

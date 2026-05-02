@@ -10,6 +10,7 @@ import '../../cubits/search/search_cubit.dart';
 import '../../widgets/error_view.dart';
 import '../../widgets/song_tile.dart';
 import '../../widgets/skeleton.dart';
+import '../../widgets/flow_app_bar.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -33,128 +34,124 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final isSmall = Breakpoints.isMobile(MediaQuery.sizeOf(context).width);
 
     return Scaffold(
       backgroundColor: colorScheme.surface,
-      body: CustomScrollView(
-        physics: const BouncingScrollPhysics(
-          parent: AlwaysScrollableScrollPhysics(),
-        ),
-        slivers: [
-          const FlowAppBar(
-            title: 'Search',
-            expandedHeight: 80,
-          ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-              child: BlocBuilder<SearchCubit, SearchState>(
-                builder: (context, state) => SearchBar(
-                  controller: _textController,
-                  focusNode: _focusNode,
-                  hintText: 'Songs, artists, albums...',
-                  hintStyle: WidgetStatePropertyAll(
-                    TextStyle(
-                      color: colorScheme.onSurface.withAlpha(80),
-                      fontSize: 15,
-                    ),
-                  ),
-                  leading: Padding(
-                    padding: const EdgeInsets.only(left: 8.0),
-                    child: Icon(
-                      Icons.search_rounded,
-                      color: colorScheme.onSurface,
-                    ),
-                  ),
-                  trailing: [
-                    if (state.hasQuery)
-                      IconButton(
-                        icon: Icon(
-                          Icons.close_rounded,
-                          color: colorScheme.onSurface,
-                        ),
-                        onPressed: () {
-                          _textController.clear();
-                          context.read<SearchCubit>().clearQuery();
-                        },
+      body: BlocBuilder<SearchCubit, SearchState>(
+        builder: (context, state) {
+          return CustomScrollView(
+            physics: const BouncingScrollPhysics(
+              parent: AlwaysScrollableScrollPhysics(),
+            ),
+            slivers: [
+              const FlowAppBar(
+                title: 'Search',
+                expandedHeight: 80,
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                  child: SearchBar(
+                    controller: _textController,
+                    focusNode: _focusNode,
+                    hintText: 'Songs, artists, albums...',
+                    hintStyle: WidgetStatePropertyAll(
+                      TextStyle(
+                        color: colorScheme.onSurface.withAlpha(80),
+                        fontSize: 15,
                       ),
-                  ],
-                  onChanged: (v) =>
-                      context.read<SearchCubit>().updateQuery(v),
-                  onSubmitted: (v) {
-                    if (v.isNotEmpty) {
-                      context.read<SearchCubit>().addRecentSearch(v);
-                    }
-                  },
-                  elevation: const WidgetStatePropertyAll(0),
-                  backgroundColor: WidgetStatePropertyAll(
-                    colorScheme.onSurface.withAlpha(20),
-                  ),
-                  shape: WidgetStatePropertyAll(
-                    RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    leading: Padding(
+                      padding: const EdgeInsets.only(left: 8.0),
+                      child: Icon(
+                        Icons.search_rounded,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                    trailing: [
+                      if (state.hasQuery)
+                        IconButton(
+                          icon: Icon(
+                            Icons.close_rounded,
+                            color: colorScheme.onSurface,
+                          ),
+                          onPressed: () {
+                            _textController.clear();
+                            context.read<SearchCubit>().clearQuery();
+                          },
+                        ),
+                    ],
+                    onChanged: (v) => context.read<SearchCubit>().updateQuery(v),
+                    onSubmitted: (v) {
+                      if (v.isNotEmpty) {
+                        context.read<SearchCubit>().addRecentSearch(v);
+                      }
+                    },
+                    elevation: const WidgetStatePropertyAll(0),
+                    backgroundColor: WidgetStatePropertyAll(
+                      colorScheme.onSurface.withAlpha(20),
+                    ),
+                    shape: WidgetStatePropertyAll(
+                      RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ),
 
-          // ── Content ────────────────────
-          BlocBuilder<SearchCubit, SearchState>(
-            builder: (context, state) {
-              if (state.isLoading) {
-                return SliverList(
+              // ── Content ────────────────────
+              if (state.isLoading)
+                SliverList(
                   delegate: SliverChildBuilderDelegate(
                     (context, i) => const SkeletonSongTile(),
                     childCount: 10,
                   ),
-                );
-              }
-
-              if (state.hasQuery) {
-                if (state.results.isNotEmpty) {
-                  return SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, i) => SongTile(
-                        song: state.results[i],
-                        queue: state.results,
-                        index: i,
-                        startRadio: true,
-                        skipPlayerScreen: true,
+                )
+              else if (state.hasQuery)
+                () {
+                  if (state.results.isNotEmpty) {
+                    return SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, i) => SongTile(
+                          song: state.results[i],
+                          queue: state.results,
+                          index: i,
+                          startRadio: true,
+                          skipPlayerScreen: true,
+                        ),
+                        childCount: state.results.length,
                       ),
-                      childCount: state.results.length,
-                    ),
-                  );
-                } else if (!state.error) {
-                  return _buildNoResults(state.query);
-                } else {
-                  return SliverFillRemaining(
-                    child: InlineErrorView(
-                      errorType: state.errorType,
-                      onRetry: () =>
-                          context.read<SearchCubit>().updateQuery(state.query),
-                    ),
-                  );
-                }
-              }
-
-              // Idle state: Recent History + Categories
-              return SliverMainAxisGroup(
-                slivers: [
-                  if (state.recentSearches.isNotEmpty) ...[
-                    _buildHistoryHeader(context),
-                    _buildHistoryList(state),
+                    );
+                  } else if (!state.error) {
+                    return _buildNoResults(state.query);
+                  } else {
+                    return SliverFillRemaining(
+                      child: InlineErrorView(
+                        errorType: state.errorType,
+                        onRetry: () => context
+                            .read<SearchCubit>()
+                            .updateQuery(state.query),
+                      ),
+                    );
+                  }
+                }()
+              else
+                // Idle state: Recent History + Categories
+                SliverMainAxisGroup(
+                  slivers: [
+                    if (state.recentSearches.isNotEmpty) ...[
+                      _buildHistoryHeader(context),
+                      _buildHistoryList(state),
+                    ],
+                    _buildCategoryHeader(),
+                    _buildCategoryGrid(state),
                   ],
-                  _buildCategoryHeader(),
-                  _buildCategoryGrid(state),
-                ],
-              );
-            },
-          ),
-          const SliverToBoxAdapter(child: SizedBox(height: 140)),
-        ],
+                ),
+              const SliverToBoxAdapter(child: SizedBox(height: 140)),
+            ],
+          );
+        },
       ),
     );
   }

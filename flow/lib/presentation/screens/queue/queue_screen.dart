@@ -6,8 +6,6 @@ import 'package:flow/core/storage/local_storage.dart';
 import '../../../domain/entities/song.dart';
 import '../../blocs/player/player_bloc.dart';
 
-import '../../widgets/text_carousel.dart';
-
 class QueueScreen extends StatefulWidget {
   const QueueScreen({super.key});
 
@@ -241,28 +239,6 @@ class _QueueScreenState extends State<QueueScreen> {
             ),
           );
         },
-      ),
-    );
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  final String title;
-  final Color color;
-  const _SectionHeader({required this.title, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 24, 16, 12),
-      child: Text(
-        title,
-        style: GoogleFonts.outfit(
-          fontSize: 15,
-          fontWeight: FontWeight.w700,
-          color: color.withAlpha(180),
-          letterSpacing: 0.5,
-        ),
       ),
     );
   }

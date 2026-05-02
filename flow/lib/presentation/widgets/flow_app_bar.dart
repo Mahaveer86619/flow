@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../screens/settings/settings_screen.dart';
 import '../screens/list/list_screen.dart';
-import '../../core/storage/local_storage.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/player/player_bloc.dart';
 
@@ -32,23 +31,13 @@ class FlowAppBar extends StatelessWidget {
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       centerTitle: false,
-      title: LayoutBuilder(
-        builder: (context, constraints) {
-          final top = constraints.biggest.height;
-          final isCollapsed = top < (expandedHeight - 10);
-          return AnimatedOpacity(
-            duration: const Duration(milliseconds: 200),
-            opacity: isCollapsed ? 1.0 : 0.0,
-            child: Text(
-              title,
-              style: GoogleFonts.spaceGrotesk(
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.5,
-              ),
-            ),
-          );
-        },
+      title: Text(
+        title,
+        style: GoogleFonts.spaceGrotesk(
+          fontSize: 22,
+          fontWeight: FontWeight.w800,
+          letterSpacing: -0.5,
+        ),
       ),
       flexibleSpace: FlexibleSpaceBar(
         background: Padding(

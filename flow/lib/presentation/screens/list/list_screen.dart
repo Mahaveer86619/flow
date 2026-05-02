@@ -7,7 +7,7 @@ import '../../blocs/player/player_bloc.dart';
 import '../../cubits/library/library_cubit.dart';
 import '../../widgets/song_tile.dart';
 
-enum ListCategory { none, downloaded, favourites, youtubeLikes }
+enum ListCategory { none, downloaded, favourites, youtubeLikes, recentlyPlayed }
 
 class ListScreen extends StatelessWidget {
   final String title;
@@ -39,6 +39,7 @@ class ListScreen extends StatelessWidget {
           case ListCategory.youtubeLikes:
             songsToShow = state.remoteLikedSongs;
             break;
+          case ListCategory.recentlyPlayed:
           case ListCategory.none:
             songsToShow = initialSongs;
             break;

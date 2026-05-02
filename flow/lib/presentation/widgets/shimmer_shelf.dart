@@ -26,7 +26,7 @@ class ShimmerShelf extends StatelessWidget {
             crossAxisSpacing: 12,
           ),
           itemCount: itemCount,
-          itemBuilder: (_, __) => const _ShimmerSongTile(),
+          itemBuilder: (_, _) => const _ShimmerSongTile(),
         ),
       );
     }
@@ -38,8 +38,8 @@ class ShimmerShelf extends StatelessWidget {
         physics: const NeverScrollableScrollPhysics(),
         padding: const EdgeInsets.symmetric(horizontal: 4),
         itemCount: itemCount,
-        separatorBuilder: (_, __) => const SizedBox(width: 16),
-        itemBuilder: (_, __) => const _ShimmerCard(),
+        separatorBuilder: (_, _) => const SizedBox(width: 16),
+        itemBuilder: (_, _) => const _ShimmerCard(),
       ),
     );
   }

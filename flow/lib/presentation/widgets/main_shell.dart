@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/platform/desktop_controller.dart';
 import '../../core/app_event_bus.dart';
+import '../blocs/player/player_bloc.dart';
 import '../screens/home/home_screen.dart';
 import '../screens/search/search_screen.dart';
 import '../screens/library/library_screen.dart';
@@ -54,7 +56,6 @@ class _MainShellState extends State<MainShell> {
           builder: (context, isMini, _) {
             if (isMini) return const DesktopMiniPlayer();
 
-            final cs = Theme.of(context).colorScheme;
             final padding = MediaQuery.paddingOf(context);
 
             return Scaffold(
