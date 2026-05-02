@@ -2,50 +2,29 @@ import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/platform/desktop_controller.dart';
-import '../../core/app_event_bus.dart';
 import '../blocs/player/player_bloc.dart';
-import '../screens/home/home_screen.dart';
-import '../screens/search/search_screen.dart';
-import '../screens/library/library_screen.dart';
 import 'mini_player.dart';
-import 'desktop_mini_player.dart';
 
 class MainShell extends StatefulWidget {
-  const MainShell({super.key});
+  final Widget child;
+
+  const MainShell({
+    super.key,
+    required this.child,
+  });
 
   @override
   State<MainShell> createState() => _MainShellState();
 }
 
 class _MainShellState extends State<MainShell> {
-  int _currentIndex = 0;
-  StreamSubscription? _eventSub;
-
-  @override
-  void initState() {
-    super.initState();
-    _eventSub = AppEventBus.instance.events.listen((event) {
-      if (event is SwitchTabEvent) {
-        setState(() => _currentIndex = event.index);
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _eventSub?.cancel();
-    super.dispose();
-  }
-
-  void _onTabTapped(int index) {
-    if (_currentIndex == index) return;
-    setState(() => _currentIndex = index);
-  }
-
   @override
   Widget build(BuildContext context) {
+    final location = GoRouterState.of(context).uri.path;
+    final int currentIndex = _calculateSelectedIndex(location);
+
     return BlocBuilder<PlayerBloc, PlayerState>(
       buildWhen: (prev, curr) => prev.isPlayerOpen != curr.isPlayerOpen,
       builder: (context, state) {
@@ -54,7 +33,7 @@ class _MainShellState extends State<MainShell> {
         return ValueListenableBuilder<bool>(
           valueListenable: DesktopController.instance.isMiniNotifier,
           builder: (context, isMini, _) {
-            if (isMini) return const DesktopMiniPlayer();
+            if (isMini) return widget.child; // Desktop mini player handled elsewhere
 
             final padding = MediaQuery.paddingOf(context);
 
@@ -62,19 +41,10 @@ class _MainShellState extends State<MainShell> {
               backgroundColor: Colors.black,
               body: Stack(
                 children: [
-                  // Content with Nested Navigators
                   Positioned.fill(
-                    child: IndexedStack(
-                      index: _currentIndex,
-                      children: [
-                        _buildTabNav(0, const HomeScreen()),
-                        _buildTabNav(1, const SearchScreen()),
-                        _buildTabNav(2, const LibraryScreen()),
-                      ],
-                    ),
+                    child: widget.child,
                   ),
 
-                  // Persistent Bottom UI
                   if (showBottomUI)
                     Positioned(
                       left: 0,
@@ -105,20 +75,20 @@ class _MainShellState extends State<MainShell> {
                                     _BottomTabItem(
                                       icon: Icons.home_rounded,
                                       label: 'Home',
-                                      isActive: _currentIndex == 0,
-                                      onTap: () => _onTabTapped(0),
+                                      isActive: currentIndex == 0,
+                                      onTap: () => context.go('/'),
                                     ),
                                     _BottomTabItem(
                                       icon: Icons.search_rounded,
                                       label: 'Search',
-                                      isActive: _currentIndex == 1,
-                                      onTap: () => _onTabTapped(1),
+                                      isActive: currentIndex == 1,
+                                      onTap: () => context.go('/search'),
                                     ),
                                     _BottomTabItem(
                                       icon: Icons.library_music_rounded,
                                       label: 'Library',
-                                      isActive: _currentIndex == 2,
-                                      onTap: () => _onTabTapped(2),
+                                      isActive: currentIndex == 2,
+                                      onTap: () => context.go('/library'),
                                     ),
                                   ],
                                 ),
@@ -137,14 +107,10 @@ class _MainShellState extends State<MainShell> {
     );
   }
 
-  Widget _buildTabNav(int index, Widget root) {
-    return Navigator(
-      key: PageStorageKey('tab_$index'),
-      onGenerateRoute: (settings) => MaterialPageRoute(
-        builder: (_) => root,
-        settings: settings,
-      ),
-    );
+  int _calculateSelectedIndex(String location) {
+    if (location.startsWith('/search')) return 1;
+    if (location.startsWith('/library')) return 2;
+    return 0;
   }
 }
 
@@ -164,9 +130,10 @@ class _BottomTabItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return GestureDetector(
+
+    return InkWell(
       onTap: onTap,
-      behavior: HitTestBehavior.opaque,
+      borderRadius: BorderRadius.circular(16),
       child: SizedBox(
         width: 80,
         child: Column(

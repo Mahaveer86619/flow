@@ -36,8 +36,7 @@ import 'presentation/cubits/home/home_cubit.dart';
 import 'presentation/cubits/library/library_cubit.dart';
 import 'presentation/cubits/search/search_cubit.dart';
 import 'presentation/cubits/song_details/song_details_cubit.dart';
-import 'presentation/screens/auth/login_screen.dart';
-import 'presentation/screens/splash/splash_screen.dart';
+import 'core/app_router.dart';
 import 'core/intelligence/app_intelligence.dart';
 import 'data/workers/pre_cache_worker.dart';
 import 'core/platform/desktop_controller.dart';
@@ -214,8 +213,6 @@ void main() async {
   );
 }
 
-final navigatorKey = GlobalKey<NavigatorState>();
-
 class FlowApp extends StatelessWidget {
   const FlowApp({super.key});
 
@@ -223,27 +220,13 @@ class FlowApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final themeMode = context.select<SettingsCubit, ThemeMode>((c) => c.state.themeMode);
 
-    return MaterialApp(
+    return MaterialApp.router(
       title: 'flow',
-      navigatorKey: navigatorKey,
+      routerConfig: appRouter,
       debugShowCheckedModeBanner: false,
       themeMode: themeMode,
       theme: _buildTheme(Brightness.light),
       darkTheme: _buildTheme(Brightness.dark),
-      home: const SplashScreen(),
-      builder: (context, child) {
-        return BlocListener<AuthCubit, AuthState>(
-          listener: (context, state) {
-            if (!state.isAuthenticated && !state.isLoading) {
-              navigatorKey.currentState?.pushAndRemoveUntil(
-                MaterialPageRoute(builder: (_) => const LoginScreen()),
-                (route) => false,
-              );
-            }
-          },
-          child: child!,
-        );
-      },
     );
   }
 

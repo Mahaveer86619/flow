@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../../core/responsive/responsive_layout.dart';
-import '../main/desktop_shell.dart';
-import '../../widgets/main_shell.dart';
+import 'package:go_router/go_router.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -46,17 +44,7 @@ class _SplashScreenState extends State<SplashScreen>
     _controller.forward().then((_) async {
       await Future.delayed(const Duration(milliseconds: 700));
       if (!mounted) return;
-      // Always navigate to the shell. The screens themselves will handle
-      // the unauthenticated/no-source state.
-      const Widget destination = _RootShell();
-      Navigator.of(context).pushReplacement(
-        PageRouteBuilder(
-          pageBuilder: (context, animation, secondary) => destination,
-          transitionsBuilder: (context, anim, secondary, child) =>
-              FadeTransition(opacity: anim, child: child),
-          transitionDuration: const Duration(milliseconds: 500),
-        ),
-      );
+      context.go('/');
     });
   }
 
@@ -111,22 +99,6 @@ class _SplashScreenState extends State<SplashScreen>
           },
         ),
       ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// RootShell — picks the correct layout shell based on screen size.
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _RootShell extends StatelessWidget {
-  const _RootShell();
-
-  @override
-  Widget build(BuildContext context) {
-    return ResponsiveLayout(
-      mobile: (_) => const MainShell(),
-      desktop: (_) => const DesktopShell(),
     );
   }
 }

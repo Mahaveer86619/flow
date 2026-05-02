@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../screens/settings/settings_screen.dart';
-import '../screens/list/list_screen.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import '../blocs/player/player_bloc.dart';
+import 'package:go_router/go_router.dart';
 
 class FlowAppBar extends StatelessWidget {
   final String title;
@@ -69,30 +66,12 @@ class FlowAppBar extends StatelessWidget {
               ),
               IconButton(
                 icon: const Icon(Icons.history_rounded),
-                onPressed: () {
-                  final recent = context.read<PlayerBloc>().state.recentlyPlayed;
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ListScreen(
-                        title: 'Recently Played',
-                        initialSongs: recent,
-                        category: ListCategory.recentlyPlayed,
-                      ),
-                    ),
-                  );
-                },
+                onPressed: () => context.push('/history'),
                 tooltip: 'Recently Played',
               ),
               IconButton(
                 icon: const Icon(Icons.settings_outlined),
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const SettingsScreen(),
-                    ),
-                  );
-                },
+                onPressed: () => context.push('/settings'),
                 tooltip: 'Settings',
               ),
             ],
