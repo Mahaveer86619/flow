@@ -6,6 +6,7 @@ import '../presentation/screens/library/library_screen.dart';
 import '../presentation/screens/settings/settings_screen.dart';
 import '../presentation/screens/history/recently_played_screen.dart';
 import '../presentation/screens/auth/login_screen.dart';
+import '../presentation/screens/auth/signup_screen.dart';
 import '../presentation/screens/splash/splash_screen.dart';
 import '../presentation/widgets/main_shell.dart';
 import '../core/auth/auth_cubit.dart';
