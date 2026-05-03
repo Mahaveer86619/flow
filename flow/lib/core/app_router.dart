@@ -25,6 +25,10 @@ final GoRouter appRouter = GoRouter(
       path: '/login',
       builder: (context, state) => const LoginScreen(),
     ),
+    GoRoute(
+      path: '/signup',
+      builder: (context, state) => const SignupScreen(),
+    ),
     ShellRoute(
       navigatorKey: shellNavigatorKey,
       builder: (context, state, child) {

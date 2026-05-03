@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/auth/auth_cubit.dart';
-import '../../../core/storage/local_storage.dart';
 import '../../cubits/home/home_cubit.dart';
-import '../../widgets/main_shell.dart';
-import 'signup_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -27,9 +25,7 @@ class _LoginScreenState extends State<LoginScreen> {
       listener: (context, state) {
         if (state.isAuthenticated) {
           context.read<HomeCubit>().refresh();
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const MainShell()),
-          );
+          context.go('/');
         }
         if (state.error != null) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -100,9 +96,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       style: GoogleFonts.outfit(color: cs.onSurface.withAlpha(140)),
                     ),
                     TextButton(
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const SignupScreen()),
-                      ),
+                      onPressed: () => context.push('/signup'),
                       child: const Text('Sign Up'),
                     ),
                   ],
