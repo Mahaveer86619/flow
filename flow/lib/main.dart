@@ -45,16 +45,29 @@ import 'data/sources/remote/spotify_service.dart';
 import 'core/network/peer_manager.dart';
 
 void main() async {
+  print('MAIN: Entry point reached');
   const String tag = 'Main';
   WidgetsFlutterBinding.ensureInitialized();
-  
+  print('MAIN: WidgetsFlutterBinding initialized');
+
   // 1. Core Config & Logger
-  await dotenv.load(fileName: '.env');
+  try {
+    print('MAIN: Loading .env...');
+    await dotenv.load(fileName: '.env');
+    print('MAIN: .env loaded: ${dotenv.env.keys.take(5).toList()}');
+  } catch (e) {
+    print('MAIN: .env load failed: $e');
+  }
+
+  print('MAIN: Initializing AppLogger...');
   AppLogger.init();
+  AppLogger.i(tag, 'AppLogger verification log');
 
   // 2. Storage
   try {
+    print('MAIN: Initializing LocalStorage...');
     await LocalStorage.instance.init();
+    print('MAIN: LocalStorage ready');
   } catch (e) {
     AppLogger.e(tag, 'LocalStorage init failed', e);
   }
@@ -166,27 +179,37 @@ void main() async {
     AppLogger.e(tag, 'PermissionService init failed', e);
   }
 
-  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-    statusBarColor: Colors.transparent,
-    statusBarIconBrightness: Brightness.light,
-    systemNavigationBarColor: Colors.transparent,
-  ));
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.light,
+      systemNavigationBarColor: Colors.transparent,
+    ),
+  );
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
   // 8. Repository & Usecase Setup
   final useMock = dotenv.env['USE_MOCK'] == 'true';
-  final rawDataSource = useMock ? MockSongDataSource() : YoutubeMusicDataSource();
+  final rawDataSource = useMock
+      ? MockSongDataSource()
+      : YoutubeMusicDataSource();
   final ytRemoteRepo = YoutubeMusicRepository(rawDataSource);
-  
+
   final database = LocalDatabase();
   final localRepo = LocalMusicRepository(database);
 
   final repository = CompositeMusicRepository(
     adapters: [
-      YoutubeMusicAdapter(dataSource: rawDataSource, resolver: StreamResolver.instance),
-      LocalFilesAdapter(libraryPaths: [
-        if (LocalStorage.instance.downloadPath != null) LocalStorage.instance.downloadPath!,
-      ]),
+      YoutubeMusicAdapter(
+        dataSource: rawDataSource,
+        resolver: StreamResolver.instance,
+      ),
+      LocalFilesAdapter(
+        libraryPaths: [
+          if (LocalStorage.instance.downloadPath != null)
+            LocalStorage.instance.downloadPath!,
+        ],
+      ),
       SpotifyAdapter(),
     ],
     primaryRemote: ytRemoteRepo,
@@ -206,16 +229,40 @@ void main() async {
       child: MultiBlocProvider(
         providers: [
           BlocProvider(create: (_) => AuthCubit()),
-          BlocProvider(create: (_) => NetworkCubit(ConnectivityService.instance)),
-          BlocProvider(create: (context) => SettingsCubit(authCubit: context.read<AuthCubit>())),
-          BlocProvider(create: (context) => PlayerBloc(
-            musicRepository: repository,
-            settingsCubit: context.read<SettingsCubit>(),
-          )),
-          BlocProvider(create: (_) => HomeCubit(getHomeData: getHomeData, musicRepository: repository)),
-          BlocProvider(create: (_) => SearchCubit(searchSongs: searchSongs, getCategories: getCategories)),
-          BlocProvider(create: (_) => LibraryCubit(getPlaylists: getPlaylists, musicRepository: repository)),
-          BlocProvider(create: (_) => SongDetailsCubit(musicRepository: repository)),
+          BlocProvider(
+            create: (_) => NetworkCubit(ConnectivityService.instance),
+          ),
+          BlocProvider(
+            create: (context) =>
+                SettingsCubit(authCubit: context.read<AuthCubit>()),
+          ),
+          BlocProvider(
+            create: (context) => PlayerBloc(
+              musicRepository: repository,
+              settingsCubit: context.read<SettingsCubit>(),
+            ),
+          ),
+          BlocProvider(
+            create: (_) => HomeCubit(
+              getHomeData: getHomeData,
+              musicRepository: repository,
+            ),
+          ),
+          BlocProvider(
+            create: (_) => SearchCubit(
+              searchSongs: searchSongs,
+              getCategories: getCategories,
+            ),
+          ),
+          BlocProvider(
+            create: (_) => LibraryCubit(
+              getPlaylists: getPlaylists,
+              musicRepository: repository,
+            ),
+          ),
+          BlocProvider(
+            create: (_) => SongDetailsCubit(musicRepository: repository),
+          ),
         ],
         child: const FlowApp(),
       ),
@@ -228,7 +275,9 @@ class FlowApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final themeMode = context.select<SettingsCubit, ThemeMode>((c) => c.state.themeMode);
+    final themeMode = context.select<SettingsCubit, ThemeMode>(
+      (c) => c.state.themeMode,
+    );
 
     return MaterialApp.router(
       title: 'flow',
@@ -249,17 +298,26 @@ class FlowApp extends StatelessWidget {
       surface: isDark ? const Color(0xFF000000) : const Color(0xFFFBFBFF),
       onSurface: isDark ? Colors.white : const Color(0xFF07070F),
     );
-    final base = isDark ? ThemeData.dark(useMaterial3: true) : ThemeData.light(useMaterial3: true);
+    final base = isDark
+        ? ThemeData.dark(useMaterial3: true)
+        : ThemeData.light(useMaterial3: true);
     return base.copyWith(
       colorScheme: colorScheme,
       scaffoldBackgroundColor: colorScheme.surface,
-      textTheme: GoogleFonts.outfitTextTheme(base.textTheme).apply(bodyColor: colorScheme.onSurface, displayColor: colorScheme.onSurface),
+      textTheme: GoogleFonts.outfitTextTheme(base.textTheme).apply(
+        bodyColor: colorScheme.onSurface,
+        displayColor: colorScheme.onSurface,
+      ),
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         centerTitle: false,
-        titleTextStyle: GoogleFonts.spaceGrotesk(fontSize: 22, fontWeight: FontWeight.w700, color: colorScheme.onSurface),
+        titleTextStyle: GoogleFonts.spaceGrotesk(
+          fontSize: 22,
+          fontWeight: FontWeight.w700,
+          color: colorScheme.onSurface,
+        ),
       ),
     );
   }

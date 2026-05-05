@@ -1,4 +1,5 @@
 import '../../core/config/app_constants.dart';
+import '../../core/logger/app_logger.dart';
 import '../entities/home_data.dart';
 import '../repositories/music_repository.dart';
 
@@ -15,6 +16,10 @@ class GetHomeDataUseCase {
     final data = await _repository.getHomeData(limit: limit);
 
     if (!AppConfig.intelligenceActive) {
+      AppLogger.i(
+        'GetHomeDataUseCase',
+        'Intelligence inactive, returning ${data.shelves.length} shelves',
+      );
       return data;
     }
 
@@ -39,6 +44,11 @@ class GetHomeDataUseCase {
         sectionType = 'flowIntelligence';
       }
 
+      AppLogger.d(
+        'GetHomeDataUseCase',
+        'Classified shelf: "${shelf.title}" -> $sectionType',
+      );
+
       return HomeShelf(
         title: shelf.title,
         items: shelf.items,
@@ -46,6 +56,10 @@ class GetHomeDataUseCase {
       );
     }).toList();
 
+    AppLogger.i(
+      'GetHomeDataUseCase',
+      'Returning ${intelligentShelves.length} intelligent shelves',
+    );
     return HomeData(
       shelves: intelligentShelves,
       trending: data.trending,

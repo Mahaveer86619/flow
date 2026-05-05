@@ -132,6 +132,17 @@ class HomeCubit extends Cubit<HomeState> {
       final deduplicatedShelves = _deduplicateShelves(finalShelves);
       final allSongs = _extractAllSongs(deduplicatedShelves);
 
+      AppLogger.i(
+        _tag,
+        'Emitting HomeState with ${deduplicatedShelves.length} shelves',
+      );
+      for (final shelf in deduplicatedShelves) {
+        AppLogger.d(
+          _tag,
+          'Final Shelf: "${shelf.title}" (section: ${shelf.section}) - ${shelf.items.length} items',
+        );
+      }
+
       emit(
         HomeState(
           shelves: deduplicatedShelves,

@@ -76,8 +76,8 @@ For in-depth details on the standalone architecture, direct source extraction lo
 Flow App follows a strict **Clean Architecture** pattern to ensure maintainability as a standalone entity:
 
 - `lib/core/`: Foundation logic, local storage, unified cache/download services, logger, and network clients.
-- `lib/domain/`: Business logic, pure entities, and repository interfaces.
-- `lib/data/`: Data sources (YouTube Music direct scrapers, local storage) and repository implementations.
+- `lib/domain/`: Business logic, pure entities, and repository interfaces. See [Domain Layer Docs](./docs/domain_layer.md).
+- `lib/data/`: Data sources (YouTube Music direct scrapers, local storage) and repository implementations. See [Data Layer Docs](./docs/data_layer.md).
 - `lib/presentation/`: UI layer containing Screens, reusable Widgets, and BLoC/Cubit state management.
 
 ---

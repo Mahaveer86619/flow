@@ -12,36 +12,37 @@ Direct interfaces with external APIs or local storage.
 - **`StreamResolver`**: Specialized component for extracting direct audio URLs. It rotates between different client types (e.g., `ANDROID_VR`, `WEB`) to ensure reliable playback.
 - **`LocalStorage`**: Wrapper around **Hive** for ultra-fast metadata caching, settings, and user preferences.
 
-### B. Models (`lib/data/models`)
-Data Transfer Objects (DTOs) that represent the raw JSON structure.
+### B. Models & Mappers (`lib/data/models`)
+Data Transfer Objects (DTOs) that represent the raw JSON structure and the logic to parse them.
+- **`YtmMapper`**: The "Swiss Army Knife" of InnerTube parsing. It identifies and extracts data from various renderers (`musicTwoRowItemRenderer`, `musicResponsiveListItemRenderer`, etc.). It extracts:
+    - **IDs**: Maps `videoId` for playback and `browseId` for navigation.
+    - **Types**: Automatically classifies items as `song`, `video`, `artist`, `album`, or `playlist` based on ID prefixes and available fields.
+    - **Thumbnails**: Upgrades low-resolution YouTube thumbnails to high-quality versions (e.g., `=w512-h512`).
 - **`SongModel`**: Represents a track from any source. Includes serialization logic (`fromJson`, `toJson`) and a `toEntity()` method to map to the domain's `Song` entity.
-- **`HomeDataModel`**: Represents the structured home screen with multiple sections (shelves).
-- **`PlaylistModel`**: Represents user or system-generated playlists.
+- **`HomeDataModel`**: Orchestrates the parsing of the entire home screen. It takes the list of raw shelves provided by the source and uses `toEntity()` to map them into domain-level `HomeShelf` objects.
 
 ### C. Repositories (`lib/data/repositories`)
 Concrete implementations of the `MusicRepository` interface defined in the Domain layer.
-- **`YoutubeMusicRepository`**: The primary remote implementation.
+- **`YoutubeMusicRepository`**: The primary remote implementation. It uses `YtmMapper` to transform raw InnerTube responses into Models and then Entities.
 - **`LocalMusicRepository`**: Handles offline data and local file management.
-- **`CompositeMusicRepository`**: Orchestrates between local and remote sources (e.g., returning cached data while fetching fresh data from the network).
+- **`CompositeMusicRepository`**: The central coordinator. It implements the "Cache-Then-Network" pattern, returning local data immediately while fetching fresh data in the background.
 
 ### D. Workers (`lib/data/workers`)
 Background processes for tasks like audio pre-fetching or sync operations.
 
 ---
 
-## 2. Intelligence & Classification Logic
+## 2. InnerTube Parsing Strategy
 
-The application supports a toggle-based intelligence system governed by the `INTELLIGENCE_ACTIVE` environment variable.
+YouTube Music's API (InnerTube) returns deeply nested and highly variable JSON. The Data Layer handles this via a multi-stage process:
 
-### Intelligence Active (`true`)
-- **Domain Layer**: The `GetHomeDataUseCase` performs heuristic string matching on raw section titles (e.g., "Quick picks") to assign `section` types (e.g., `quickPicks`).
-- **Presentation Layer**: `HomeCubit` adds synthetic shelves like "Flow Intelligence" (recommendations) and "Daily Rotation" (history-based).
-- **UI**: The `HomeScreen` uses specialized layouts (grids, hero cards) for known section types and displays personalized greetings/mood chips.
-
-### Intelligence Inactive (`false`)
-- **Domain Layer**: Data is passed through exactly as it arrived from the source. No classification is performed.
-- **Presentation Layer**: No synthetic shelves are added. Only the raw source feed is emitted.
-- **UI**: The `HomeScreen` renders a generic vertical list of horizontal shelves. Personalized elements (greetings, mood chips) are hidden to provide a "pure" source experience.
+1.  **Extraction**: `YoutubeMusicDataSource` fetches raw JSON from endpoints like `/browse` or `/search`.
+2.  **Item Identification**: `YtmMapper.parseItemRenderer` scans for known renderer keys (e.g., `musicItemRenderer`).
+3.  **Heuristic Mapping**: 
+    - Titles are extracted from `runs` or `simpleText`.
+    - Artists are extracted from `subtitle` or `byline` fields.
+    - Types are inferred: `MPREb...` (Album), `UC...` (Artist), `VLRD...` (Radio).
+4.  **Normalization**: All items are normalized into `YtmItem` (internal DTO) before being converted to `SongModel` or `PlaylistModel`.
 
 ---
 
@@ -49,35 +50,15 @@ The application supports a toggle-based intelligence system governed by the `INT
 
 1.  **Request**: A Use Case calls a method on the `MusicRepository`.
 2.  **Fetch**: The `Repository` implementation calls a `Source` (e.g., `YoutubeMusicDataSource`).
-3.  **Parse**: The `Source` receives raw JSON and passes it to a `Model` factory (e.g., `SongModel.fromJson`).
-4.  **Transform**: The `Repository` calls `model.toEntity()` to convert the DTO into a pure Domain Entity.
+3.  **Parse**: The `Source` receives raw JSON. `YtmMapper` is used to identify and normalize items into Models.
+4.  **Transform**: The `Repository` (via `Model.toEntity()`) converts the DTO into a pure Domain Entity.
 5.  **Deliver**: The Domain layer receives a clean `Entity`, completely decoupled from the original JSON structure or source.
 
 ---
 
-## 4. Domain Use Cases & Parameters
+## 4. Playback & Stream Resolution
 
-The Domain layer provides specific Use Cases that the Presentation layer (Cubits/Blocs) consumes. Each Use Case wraps a specific repository function.
-
-| Use Case | Parameters | Return Type | Description |
-| :--- | :--- | :--- | :--- |
-| **`GetHomeDataUseCase`** | `int limit` (default: 25) | `Future<HomeData>` | Fetches structured home screen data. Applies classification if intelligence is active. |
-| **`SearchSongsUseCase`** | `String query`, `int limit` (default: 25) | `Future<List<Song>>` | Searches for songs matching the query. Filters for "Songs" on YouTube Music. |
-| **`GetPlaylistsUseCase`** | None | `Future<List<Playlist>>` | Retrieves the user's library playlists. |
-| **`GetPlaylistTracksUseCase`**| `String playlistId` | `Future<List<Song>>` | Fetches all tracks contained within a specific playlist. |
-| **`GetCategoriesUseCase`** | None | `List<Map<String, dynamic>>` | Returns static browse categories (Sync). |
-| **`GetSongsUseCase`** | None | `Future<List<Song>>` | Compatibility use case; flattens home data into a song list. |
-
----
-
-## 5. Key Implementation Details
-
-### InnerTube Integration
-The `YoutubeMusicDataSource` uses POST requests to `https://www.youtube.com/youtubei/v1/browse` and `/search`.
-- **Context**: Every request includes a `_context` map defining the client as `ANDROID_TESTSUITE`.
-- **Visitor Data**: Persisted in `LocalStorage` to maintain session consistency and improve recommendation quality.
-
-### Consistency Rules
-As per `GEMINI.md`:
-- **Headers**: `X-YouTube-Client-Name` and `X-YouTube-Client-Version` must match the `context` to avoid `400 Bad Request`.
-- **JIT Resolution**: Stream URLs are resolved "Just-In-Time" during playback to prevent expiration.
+The `StreamResolver` handles the complexity of obtaining playable URLs:
+- **Client Rotation**: If one client (e.g., `ANDROID`) returns a `403`, it automatically tries another (e.g., `WEB_REMIX`).
+- **Just-In-Time (JIT)**: URLs are resolved only when a track is about to play to avoid expiration.
+- **Interceptor**: `YoutubeInterceptor` ensures all requests include the necessary headers and visitor data to pass YouTube's security checks.

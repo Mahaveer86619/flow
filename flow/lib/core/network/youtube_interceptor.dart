@@ -30,6 +30,10 @@ class YoutubeInterceptor extends Interceptor {
           'YoutubeInterceptor',
           'Injected cookies for ${options.path}',
         );
+        AppLogger.d(
+          'YoutubeInterceptor',
+          'Cookies: $cookies',
+        );
 
         // Generate SAPISIDHASH for Authorization header if SAPISID exists
         final sapisid = _extractCookie(cookies, 'SAPISID');

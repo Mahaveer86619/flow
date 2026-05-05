@@ -24,10 +24,20 @@ class YoutubeMusicRepository implements MusicRepository {
     AppLogger.i(_tag, 'getHomeData(limit: $limit)');
     try {
       final model = await _source.fetchHomeData(limit: limit);
+      final mappedShelves = _mapShelves(model.rawShelves);
+
       final entity = HomeData(
-        shelves: _mapShelves(model.rawShelves),
+        shelves: mappedShelves,
         trending: model.trending.map((m) => m.toEntity()).toList(),
       );
+
+      AppLogger.i(_tag, 'Repository: mapped ${mappedShelves.length} shelves');
+      for (final shelf in mappedShelves) {
+        AppLogger.d(
+          _tag,
+          'Mapped shelf: "${shelf.title}" with ${shelf.items.length} items',
+        );
+      }
 
       AppLogger.d(_tag, 'getHomeData: allSongs=${entity.allSongs.length}');
       return entity;
@@ -50,11 +60,15 @@ class YoutubeMusicRepository implements MusicRepository {
         switch (type) {
           case 'song':
             itemType = HomeItemType.song;
-            mappedData = SongModel.fromJson(data as Map<String, dynamic>).toEntity();
+            mappedData = SongModel.fromJson(
+              data as Map<String, dynamic>,
+            ).toEntity();
             break;
           case 'playlist':
             itemType = HomeItemType.playlist;
-            mappedData = PlaylistModel.fromJson(data as Map<String, dynamic>).toEntity();
+            mappedData = PlaylistModel.fromJson(
+              data as Map<String, dynamic>,
+            ).toEntity();
             break;
           default:
             itemType = HomeItemType.song; // Fallback
@@ -105,9 +119,15 @@ class YoutubeMusicRepository implements MusicRepository {
   }
 
   @override
-  Future<List<Song>> getPlaylistTracks(String playlistId, {int limit = 100}) async {
+  Future<List<Song>> getPlaylistTracks(
+    String playlistId, {
+    int limit = 100,
+  }) async {
     try {
-      final models = await _source.fetchPlaylistTracks(playlistId, limit: limit);
+      final models = await _source.fetchPlaylistTracks(
+        playlistId,
+        limit: limit,
+      );
       return models.map((m) => m.toEntity()).toList();
     } catch (e) {
       throw toAppException(e);
@@ -208,9 +228,15 @@ class YoutubeMusicRepository implements MusicRepository {
   }
 
   @override
-  Future<List<Song>> getBlendedRecommendations(String friendId, {int limit = 20}) async {
+  Future<List<Song>> getBlendedRecommendations(
+    String friendId, {
+    int limit = 20,
+  }) async {
     try {
-      final models = await _source.fetchBlendedRecommendations(friendId, limit: limit);
+      final models = await _source.fetchBlendedRecommendations(
+        friendId,
+        limit: limit,
+      );
       return models.map((m) => m.toEntity()).toList();
     } catch (e) {
       throw toAppException(e);
@@ -218,14 +244,32 @@ class YoutubeMusicRepository implements MusicRepository {
   }
 
   @override
-  Future<Playlist> createFlowPlaylist({required String title, String description = '', bool isPublic = false}) async {
-    final model = await _source.createFlowPlaylist(title: title, description: description, isPublic: isPublic);
+  Future<Playlist> createFlowPlaylist({
+    required String title,
+    String description = '',
+    bool isPublic = false,
+  }) async {
+    final model = await _source.createFlowPlaylist(
+      title: title,
+      description: description,
+      isPublic: isPublic,
+    );
     return model.toEntity();
   }
 
   @override
-  Future<Playlist> updateFlowPlaylist(String playlistId, {String? title, String? description, bool? isPublic}) async {
-    final model = await _source.updateFlowPlaylist(playlistId, title: title, description: description, isPublic: isPublic);
+  Future<Playlist> updateFlowPlaylist(
+    String playlistId, {
+    String? title,
+    String? description,
+    bool? isPublic,
+  }) async {
+    final model = await _source.updateFlowPlaylist(
+      playlistId,
+      title: title,
+      description: description,
+      isPublic: isPublic,
+    );
     return model.toEntity();
   }
 
@@ -241,7 +285,10 @@ class YoutubeMusicRepository implements MusicRepository {
   }
 
   @override
-  Future<void> removeTrackFromFlowPlaylist(String playlistId, int trackId) async {
+  Future<void> removeTrackFromFlowPlaylist(
+    String playlistId,
+    int trackId,
+  ) async {
     await _source.removeTrackFromFlowPlaylist(playlistId, trackId);
   }
 

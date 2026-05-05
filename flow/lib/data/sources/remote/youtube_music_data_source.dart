@@ -167,8 +167,12 @@ class YoutubeMusicDataSource implements MusicDataSource {
         if (mapped != null) items.add(mapped);
       }
 
-      if (items.isEmpty) continue;
+      if (items.isEmpty) {
+        AppLogger.d(_tag, 'Shelf "$title" skipped: items is empty');
+        continue;
+      }
 
+      AppLogger.i(_tag, 'Parsed shelf: "$title" with ${items.length} items');
       shelves.add({
         'title': title,
         'section': null,
@@ -177,6 +181,7 @@ class YoutubeMusicDataSource implements MusicDataSource {
       });
     }
 
+    AppLogger.i(_tag, 'Total shelves parsed in DataSource: ${shelves.length}');
     return shelves;
   }
 
