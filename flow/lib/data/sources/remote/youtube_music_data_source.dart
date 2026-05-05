@@ -13,12 +13,18 @@ class YoutubeMusicDataSource implements MusicDataSource {
   final Dio _dio = DioClient.instance.dio;
   static const _tag = 'YoutubeMusicDataSource';
 
-  static const _baseUrl = 'https://www.youtube.com/youtubei/v1';
+  static const _baseUrl = 'https://music.youtube.com/youtubei/v1';
+
+  // ── InnerTube client context ────────────────────────────────────────────────
+  // FIX: ANDROID_TESTSUITE returns 404. WEB_REMIX is the official YTM web
+  // client and is the most stable choice for authenticated home-feed requests.
+  // The API key is required for WEB_REMIX calls on the music subdomain.
+  static const _apiKey = 'AIzaSyC9XL3ZjWddXya6X74dJoCTL-WEYFDNX30';
 
   final Map<String, dynamic> _context = {
     "client": {
-      "clientName": "ANDROID_TESTSUITE",
-      "clientVersion": "1.9.31.1",
+      "clientName": "WEB_REMIX",
+      "clientVersion": "1.20250101.01.00",
       "hl": "en",
       "gl": "US",
       "utcOffsetMinutes": 0,
@@ -35,8 +41,10 @@ class YoutubeMusicDataSource implements MusicDataSource {
       final visitorData =
           LocalStorage.instance.getCachedMetadata('yt_visitor_data') as String?;
 
+      // FIX: WEB_REMIX calls go to music.youtube.com/youtubei/v1 (not www.youtube.com)
+      // and require the API key as a query parameter.
       final response = await _dio.post(
-        '$_baseUrl/browse?prettyPrint=false',
+        '$_baseUrl/browse?prettyPrint=false&key=$_apiKey',
         data: {
           "browseId": "FEmusic_home",
           "context": {
@@ -44,6 +52,15 @@ class YoutubeMusicDataSource implements MusicDataSource {
             if (visitorData != null) "visitorData": visitorData,
           },
         },
+        options: Options(
+          headers: {
+            // Required for WEB_REMIX authenticated requests
+            'X-Youtube-Client-Name': '67',
+            'X-Youtube-Client-Version': '1.20250101.01.00',
+            'Origin': 'https://music.youtube.com',
+            'Referer': 'https://music.youtube.com/',
+          },
+        ),
       );
 
       if (response.statusCode != 200) {
@@ -87,13 +104,20 @@ class YoutubeMusicDataSource implements MusicDataSource {
     try {
       AppLogger.i(_tag, 'searchSongs("$query")');
       final response = await _dio.post(
-        '$_baseUrl/search?prettyPrint=false',
+        '$_baseUrl/search?prettyPrint=false&key=$_apiKey',
         data: {
           "query": query,
-          // Songs filter param
           "params": "EgWKAQIIAWoQEAMQBBAJEAoQCxAEEAoQAA==",
           "context": _context,
         },
+        options: Options(
+          headers: {
+            'X-Youtube-Client-Name': '67',
+            'X-Youtube-Client-Version': '1.20250101.01.00',
+            'Origin': 'https://music.youtube.com',
+            'Referer': 'https://music.youtube.com/',
+          },
+        ),
       );
       if (response.statusCode != 200) return [];
 
@@ -112,8 +136,6 @@ class YoutubeMusicDataSource implements MusicDataSource {
 
   // ── Shelf Parsing ───────────────────────────────────────────────────────────
 
-  /// Walks the InnerTube section list and converts each shelf into a raw map
-  /// that [HomeDataModel] / [YtmMapper] can consume.
   List<Map<String, dynamic>> _parseShelves(Map<String, dynamic> data) {
     final contents =
         data['contents']?['singleColumnBrowseResultsRenderer']?['tabs']?[0]?['tabRenderer']?['content']?['sectionListRenderer']?['contents'];
@@ -126,7 +148,6 @@ class YoutubeMusicDataSource implements MusicDataSource {
     final shelves = <Map<String, dynamic>>[];
 
     for (final section in contents as List) {
-      // ── Skip non-music shelves ──────────────────────────────────────────────
       if (section.containsKey('musicTastebuilderShelfRenderer')) {
         AppLogger.d(_tag, 'Skipping musicTastebuilderShelfRenderer');
         continue;
@@ -150,8 +171,8 @@ class YoutubeMusicDataSource implements MusicDataSource {
 
       shelves.add({
         'title': title,
-        'section': null, // domain layer classifies this
-        'itemSize': itemSize, // forwarded for layout hints
+        'section': null,
+        'itemSize': itemSize,
         'items': items,
       });
     }
@@ -161,16 +182,13 @@ class YoutubeMusicDataSource implements MusicDataSource {
 
   // ── Header title extraction ─────────────────────────────────────────────────
 
-  /// Correct path: header → musicCarouselShelfBasicHeaderRenderer → title
   String _shelfTitle(Map<String, dynamic> shelf) {
-    // Primary path (musicCarouselShelfRenderer)
     final basic = shelf['header']?['musicCarouselShelfBasicHeaderRenderer'];
     if (basic != null) {
       final fromRuns = basic['title']?['runs']?[0]?['text'] as String?;
       if (fromRuns != null && fromRuns.isNotEmpty) return fromRuns;
     }
 
-    // Fallback: musicShelfRenderer uses a top-level title node
     final legacyRuns = shelf['title']?['runs']?[0]?['text'] as String?;
     if (legacyRuns != null && legacyRuns.isNotEmpty) return legacyRuns;
 
@@ -181,58 +199,41 @@ class YoutubeMusicDataSource implements MusicDataSource {
 
   Map<String, dynamic>? _parseItem(Map<String, dynamic> item) {
     try {
-      // Only musicTwoRowItemRenderer and musicResponsiveListItemRenderer appear
-      // in home-feed shelves; musicItemRenderer is rare but guard it too.
       final renderer =
           item['musicTwoRowItemRenderer'] ??
           item['musicResponsiveListItemRenderer'] ??
           item['musicItemRenderer'];
       if (renderer == null) return null;
 
-      // ── 1. Title ────────────────────────────────────────────────────────────
       final title = _titleText(renderer);
       if (title == null || title.isEmpty) return null;
 
-      // ── 2. Navigation endpoints ─────────────────────────────────────────────
       final nav = renderer['navigationEndpoint'] as Map<String, dynamic>? ?? {};
       final watchEp = nav['watchEndpoint'] as Map<String, dynamic>?;
       final browseEp = nav['browseEndpoint'] as Map<String, dynamic>?;
 
       final videoId = watchEp?['videoId'] as String?;
       final browseId = browseEp?['browseId'] as String?;
-
-      // Also check inner playlistItemData (some list renderers put it here)
       final fallbackVideoId =
           renderer['playlistItemData']?['videoId'] as String?;
-
       final effectiveVideoId = videoId ?? fallbackVideoId;
 
-      // ── 3. Thumbnail ────────────────────────────────────────────────────────
-      // Correct path: thumbnailRenderer → musicThumbnailRenderer → thumbnail → thumbnails
-      // (NOT renderer['thumbnail']['musicThumbnailRenderer'] — that path doesn't exist)
       final thumb = _extractThumbnail(renderer, effectiveVideoId);
-
-      // ── 4. Subtitle / artist ────────────────────────────────────────────────
       final subtitle = _subtitleText(renderer);
 
-      // ── 5. Aspect ratio — discriminates songs vs music-videos ───────────────
       final aspectRatio = renderer['aspectRatio'] as String? ?? '';
       final isWidescreen =
           aspectRatio.contains('16_9') || aspectRatio.contains('RECTANGLE');
 
-      // ── 6. Music video type (UGC, ATV, OMV, etc.) ──────────────────────────
       final musicVideoType =
           watchEp?['watchEndpointMusicSupportedConfigs']?['watchEndpointMusicConfig']?['musicVideoType']
               as String?;
 
-      // ── 7. Browse page type for albums / playlists ──────────────────────────
       final pageType =
           browseEp?['browseEndpointContextSupportedConfigs']?['browseEndpointContextMusicConfig']?['pageType']
               as String?;
 
-      // ── 8. Classify item ────────────────────────────────────────────────────
       if (effectiveVideoId != null) {
-        // Has a videoId → playable media
         final isMusicVideo =
             isWidescreen ||
             (musicVideoType != null &&
@@ -253,7 +254,6 @@ class YoutubeMusicDataSource implements MusicDataSource {
           },
         };
       } else if (browseId != null) {
-        // No videoId → navigable entity (playlist / album / artist)
         return _classifyBrowsable(
           browseId: browseId,
           pageType: pageType,
@@ -268,13 +268,8 @@ class YoutubeMusicDataSource implements MusicDataSource {
     return null;
   }
 
-  // ── Thumbnail extraction (the fixed critical path) ──────────────────────────
+  // ── Thumbnail extraction ────────────────────────────────────────────────────
 
-  /// Correct thumbnail path:
-  ///   renderer['thumbnailRenderer']['musicThumbnailRenderer']['thumbnail']['thumbnails']
-  ///
-  /// The old code tried `renderer['thumbnail']['musicThumbnailRenderer']` which
-  /// is wrong — `thumbnail` (without "Renderer") is absent on home-feed items.
   String? _extractThumbnail(Map<String, dynamic> renderer, String? videoId) {
     final thumbnails =
         (renderer['thumbnailRenderer']?['musicThumbnailRenderer']?['thumbnail']?['thumbnails']
@@ -282,7 +277,6 @@ class YoutubeMusicDataSource implements MusicDataSource {
             ?.cast<Map<String, dynamic>>();
 
     if (thumbnails != null && thumbnails.isNotEmpty) {
-      // Pick the largest available thumbnail
       var best = thumbnails.last;
       for (final t in thumbnails) {
         if ((t['width'] as int? ?? 0) > (best['width'] as int? ?? 0)) {
@@ -291,7 +285,6 @@ class YoutubeMusicDataSource implements MusicDataSource {
       }
       var url = best['url'] as String?;
       if (url != null) {
-        // Normalise Google image server URLs to a fixed 512×512 size
         if (url.contains('googleusercontent.com') &&
             url.contains('=w') &&
             url.contains('-h')) {
@@ -301,7 +294,6 @@ class YoutubeMusicDataSource implements MusicDataSource {
       }
     }
 
-    // Fallback: for video items the thumbnail can be inferred from the videoId
     if (videoId != null) {
       return 'https://i.ytimg.com/vi/$videoId/hqdefault.jpg';
     }
@@ -311,11 +303,9 @@ class YoutubeMusicDataSource implements MusicDataSource {
   // ── Title extraction ────────────────────────────────────────────────────────
 
   String? _titleText(Map<String, dynamic> renderer) {
-    // musicTwoRowItemRenderer: title.runs[0].text
     final fromTitle = renderer['title']?['runs']?[0]?['text'] as String?;
     if (fromTitle != null) return fromTitle;
 
-    // musicResponsiveListItemRenderer: flexColumns[0].text.runs[0].text
     final flexCols = renderer['flexColumns'] as List?;
     if (flexCols != null && flexCols.isNotEmpty) {
       return flexCols[0]?['musicResponsiveListItemFlexColumnRenderer']?['text']?['runs']?[0]?['text']
@@ -327,7 +317,6 @@ class YoutubeMusicDataSource implements MusicDataSource {
   // ── Subtitle / artist extraction ────────────────────────────────────────────
 
   String? _subtitleText(Map<String, dynamic> renderer) {
-    // musicTwoRowItemRenderer: subtitle.runs[*].text (skip bullet separators)
     final subtitleRuns =
         renderer['subtitle']?['runs'] as List? ??
         renderer['longBylineText']?['runs'] as List? ??
@@ -344,7 +333,6 @@ class YoutubeMusicDataSource implements MusicDataSource {
       if (parts.isNotEmpty) return parts.first;
     }
 
-    // musicResponsiveListItemRenderer: flexColumns[1]
     final flexCols = renderer['flexColumns'] as List?;
     if (flexCols != null && flexCols.length > 1) {
       final runs =
@@ -360,7 +348,7 @@ class YoutubeMusicDataSource implements MusicDataSource {
     return null;
   }
 
-  // ── Browsable classification (playlist / album / artist) ───────────────────
+  // ── Browsable classification ────────────────────────────────────────────────
 
   Map<String, dynamic> _classifyBrowsable({
     required String browseId,
@@ -369,8 +357,6 @@ class YoutubeMusicDataSource implements MusicDataSource {
     required String? subtitle,
     required String? thumb,
   }) {
-    // ── Artist ────────────────────────────────────────────────────────────────
-    // UC* = YouTube channel, FBA* = YTM artist
     if (browseId.startsWith('UC') || browseId.startsWith('FBA')) {
       return {
         'type': 'artist',
@@ -378,9 +364,6 @@ class YoutubeMusicDataSource implements MusicDataSource {
       };
     }
 
-    // ── Album ─────────────────────────────────────────────────────────────────
-    // MPRE* = YTM album browseId
-    // MUSIC_PAGE_TYPE_ALBUM / MUSIC_PAGE_TYPE_SINGLE signals from InnerTube
     final isAlbum =
         browseId.startsWith('MPRE') ||
         browseId.startsWith('FEmusic_album') ||
@@ -402,9 +385,6 @@ class YoutubeMusicDataSource implements MusicDataSource {
       };
     }
 
-    // ── Playlist ──────────────────────────────────────────────────────────────
-    // VL* = watch-list variant of a playlist browseId (strip "VL" to get the
-    // raw playlistId used by /browse and /next endpoints)
     final playlistId = browseId.startsWith('VL')
         ? browseId.substring(2)
         : browseId;
@@ -412,8 +392,8 @@ class YoutubeMusicDataSource implements MusicDataSource {
     return {
       'type': 'playlist',
       'data': {
-        'id': playlistId, // canonical playlistId without VL prefix
-        'browseId': browseId, // original browseId for /browse calls
+        'id': playlistId,
+        'browseId': browseId,
         'name': title,
         'description': subtitle ?? '',
         'thumbnailUrl': thumb,
@@ -450,8 +430,16 @@ class YoutubeMusicDataSource implements MusicDataSource {
   Future<List<SongModel>> _searchGeneral(String query, {int limit = 25}) async {
     try {
       final response = await _dio.post(
-        '$_baseUrl/search?prettyPrint=false',
+        '$_baseUrl/search?prettyPrint=false&key=$_apiKey',
         data: {"query": query, "context": _context},
+        options: Options(
+          headers: {
+            'X-Youtube-Client-Name': '67',
+            'X-Youtube-Client-Version': '1.20250101.01.00',
+            'Origin': 'https://music.youtube.com',
+            'Referer': 'https://music.youtube.com/',
+          },
+        ),
       );
       if (response.statusCode != 200) return [];
       return _extractSongsFromSearch(
@@ -462,7 +450,7 @@ class YoutubeMusicDataSource implements MusicDataSource {
     }
   }
 
-  // ── Unimplemented stubs (unchanged from original) ──────────────────────────
+  // ── Unimplemented stubs ─────────────────────────────────────────────────────
 
   @override
   Future<List<SongModel>> fetchPlaylistTracks(
@@ -569,7 +557,7 @@ class YoutubeMusicDataSource implements MusicDataSource {
     String playlistId, {
     String? title,
     String? description,
-    bool? isPublic,
+    bool? isPublic = false,
   }) async => PlaylistModel(
     id: playlistId,
     name: title ?? '',
