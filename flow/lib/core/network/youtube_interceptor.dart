@@ -44,18 +44,19 @@ class YoutubeInterceptor extends Interceptor {
       if (userAgent != null && userAgent.isNotEmpty) {
         options.headers['User-Agent'] = userAgent;
       } else {
-        // Default modern user agent if not set
+        // Default modern user agent for Android YouTube Music
         options.headers['User-Agent'] =
             'com.google.android.apps.youtube.music/7.05.52 (Linux; U; Android 14; en_US) gzip';
       }
 
-      // Mandatory headers for YouTube Music API
+      // Mandatory headers for YouTube Music InnerTube API
       options.headers['Origin'] = 'https://music.youtube.com';
       options.headers['Referer'] = 'https://music.youtube.com/';
       options.headers['X-Goog-AuthUser'] = '0';
-      options.headers['X-YouTube-Client-Name'] = '67'; // ANDROID_MUSIC
-      options.headers['X-YouTube-Client-Version'] = '7.05.52';
 
+      // Use ANDROID_TESTSUITE client for consistency across the app
+      options.headers['X-YouTube-Client-Name'] = '1';
+      options.headers['X-YouTube-Client-Version'] = '1.9.31.1';
     }
 
     return handler.next(options);

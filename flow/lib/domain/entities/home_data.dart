@@ -3,20 +3,40 @@ import 'song.dart';
 class HomeShelf {
   final String title;
   final String? section;
+
+  /// Raw InnerTube itemSize string (e.g. COLLECTION_STYLE_ITEM_SIZE_MEDIUM).
+  /// The presentation layer can use this as a layout hint.
+  final String? itemSize;
   final List<HomeItem> items;
 
   const HomeShelf({
     required this.title,
     required this.items,
     this.section,
+    this.itemSize,
   });
 }
 
-enum HomeItemType { song, artist, album, playlist }
+enum HomeItemType {
+  song,
+
+  /// A music video / livestream / UGC video — has 16:9 thumbnail, same Song
+  /// entity underneath but the UI should render it with a widescreen card.
+  video,
+  artist,
+  album,
+  playlist,
+}
 
 class HomeItem {
   final HomeItemType type;
-  final dynamic data; // Can be Song, Artist (Map), or Playlist
+
+  /// Concrete type depends on [type]:
+  ///  - song / video → [Song]
+  ///  - artist       → Map<String, dynamic> {name, thumbnailUrl, colorPrimary, colorSecondary}
+  ///  - album        → [Playlist] (isAlbum == true)
+  ///  - playlist     → [Playlist] (isAlbum == false)
+  final dynamic data;
 
   const HomeItem({required this.type, required this.data});
 }
@@ -38,39 +58,28 @@ class HomeData {
     this.favArtistsSongs = const [],
   });
 
-  /// Deduplicated union of all songs in all shelves — used as the player queue.
+  /// Deduplicated union of all playable songs across all shelves (songs +
+  /// videos) plus the supplementary lists — used as the player queue.
   List<Song> get allSongs {
     final seen = <String>{};
     final songs = <Song>[];
 
+    void add(Song s) {
+      if (seen.add(s.id)) songs.add(s);
+    }
+
     for (final shelf in shelves) {
       for (final item in shelf.items) {
-        if (item.type == HomeItemType.song && item.data is Song) {
-          final s = item.data as Song;
-          if (seen.add(s.id)) {
-            songs.add(s);
-          }
+        if ((item.type == HomeItemType.song ||
+                item.type == HomeItemType.video) &&
+            item.data is Song) {
+          add(item.data as Song);
         }
       }
     }
-
-    for (final s in trending) {
-      if (seen.add(s.id)) {
-        songs.add(s);
-      }
-    }
-
-    for (final s in musicVideos) {
-      if (seen.add(s.id)) {
-        songs.add(s);
-      }
-    }
-
-    for (final s in favArtistsSongs) {
-      if (seen.add(s.id)) {
-        songs.add(s);
-      }
-    }
+    trending.forEach(add);
+    musicVideos.forEach(add);
+    favArtistsSongs.forEach(add);
 
     return songs;
   }

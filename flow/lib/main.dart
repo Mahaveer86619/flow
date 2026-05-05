@@ -47,9 +47,19 @@ import 'core/network/peer_manager.dart';
 void main() async {
   const String tag = 'Main';
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // 1. Core Config & Logger
   await dotenv.load(fileName: '.env');
   AppLogger.init();
 
+  // 2. Storage
+  try {
+    await LocalStorage.instance.init();
+  } catch (e) {
+    AppLogger.e(tag, 'LocalStorage init failed', e);
+  }
+
+  // 3. Independent Services
   try {
     await DesktopController.instance.init();
   } catch (e) {
@@ -71,17 +81,20 @@ void main() async {
   try {
     await MetadataGod.initialize();
   } catch (e) {
-    AppLogger.e(tag, 'MetadataGod initialization failed. Local metadata parsing will be disabled.', e);
+    AppLogger.e(tag, 'MetadataGod initialization failed', e);
   }
 
+  // 4. Network bridges (Depends on PeerManager and LocalStorage)
   if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
     try {
+      // ignore: unawaited_futures
       LanStreamBridge.instance.startServer();
     } catch (e) {
       AppLogger.e(tag, 'LanStreamBridge failed to start', e);
     }
   }
 
+  // 5. Audio & Media Services
   if (!kIsWeb && (Platform.isAndroid || Platform.isIOS || Platform.isMacOS)) {
     try {
       await JustAudioBackground.init(
@@ -99,18 +112,7 @@ void main() async {
     }
   }
 
-  try {
-    await LocalStorage.instance.init();
-  } catch (e) {
-    AppLogger.e(tag, 'LocalStorage init failed', e);
-  }
-
-  try {
-    await AppIntelligence.instance.init();
-  } catch (e) {
-    AppLogger.e(tag, 'AppIntelligence init failed', e);
-  }
-
+  // 6. Data Persistence & Intelligence
   try {
     await DownloadService.instance.init();
   } catch (e) {
@@ -121,6 +123,12 @@ void main() async {
     await CacheService.instance.init();
   } catch (e) {
     AppLogger.e(tag, 'CacheService init failed', e);
+  }
+
+  try {
+    await AppIntelligence.instance.init();
+  } catch (e) {
+    AppLogger.e(tag, 'AppIntelligence init failed', e);
   }
 
   try {
@@ -145,6 +153,7 @@ void main() async {
     }
   }
 
+  // 7. System Services
   try {
     await ConnectivityService.instance.init();
   } catch (e) {
@@ -164,6 +173,7 @@ void main() async {
   ));
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
+  // 8. Repository & Usecase Setup
   final useMock = dotenv.env['USE_MOCK'] == 'true';
   final rawDataSource = useMock ? MockSongDataSource() : YoutubeMusicDataSource();
   final ytRemoteRepo = YoutubeMusicRepository(rawDataSource);

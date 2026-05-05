@@ -14,12 +14,14 @@ class FlowAppBar extends StatelessWidget {
     required this.title,
     this.pinned = true,
     this.floating = false,
-    this.expandedHeight = 100,
+    this.expandedHeight = 110,
     this.additionalActions,
   });
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return SliverAppBar(
       expandedHeight: expandedHeight,
       floating: floating,
@@ -28,53 +30,42 @@ class FlowAppBar extends StatelessWidget {
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       centerTitle: false,
-      title: Text(
-        title,
-        style: GoogleFonts.spaceGrotesk(
-          fontSize: 22,
-          fontWeight: FontWeight.w800,
-          letterSpacing: -0.5,
+      automaticallyImplyLeading: false,
+      actions: [
+        if (additionalActions != null) ...additionalActions!,
+        IconButton(
+          icon: const Icon(Icons.notifications_none_rounded),
+          onPressed: () {
+            // TODO: Implement notifications screen
+          },
+          tooltip: 'Notifications',
         ),
-      ),
+        IconButton(
+          icon: const Icon(Icons.history_rounded),
+          onPressed: () => context.push('/history'),
+          tooltip: 'Recently Played',
+        ),
+        IconButton(
+          icon: const Icon(Icons.settings_outlined),
+          onPressed: () => context.push('/settings'),
+          tooltip: 'Settings',
+        ),
+        const SizedBox(width: 8),
+      ],
       flexibleSpace: FlexibleSpaceBar(
-        background: Padding(
-          padding: EdgeInsets.fromLTRB(
-            16,
-            MediaQuery.paddingOf(context).top + 12,
-            16,
-            0,
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Text(
-                title,
-                style: GoogleFonts.spaceGrotesk(
-                  fontSize: 32,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -1.2,
-                ),
-              ),
-              const Spacer(),
-              if (additionalActions != null) ...additionalActions!,
-              IconButton(
-                icon: const Icon(Icons.notifications_none_rounded),
-                onPressed: () {
-                  // TODO: Implement notifications screen
-                },
-                tooltip: 'Notifications',
-              ),
-              IconButton(
-                icon: const Icon(Icons.history_rounded),
-                onPressed: () => context.push('/history'),
-                tooltip: 'Recently Played',
-              ),
-              IconButton(
-                icon: const Icon(Icons.settings_outlined),
-                onPressed: () => context.push('/settings'),
-                tooltip: 'Settings',
-              ),
-            ],
+        titlePadding: const EdgeInsetsDirectional.only(
+          start: 16,
+          bottom: 16,
+        ),
+        centerTitle: false,
+        expandedTitleScale: 1.6,
+        title: Text(
+          title,
+          style: GoogleFonts.spaceGrotesk(
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.5,
+            color: colorScheme.onSurface,
           ),
         ),
       ),

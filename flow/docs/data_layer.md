@@ -1,65 +1,83 @@
-# Flow Data Layer & YouTube Music Integration
+# Data Layer Documentation
 
-This document explains how Flow fetches, parses, and manages music data from YouTube Music.
+The **Data Layer** in Flow is responsible for all external communications, data persistence, and the translation of raw data into domain-level entities. It follows a strict separation between data structures (Models) and business logic interfaces (Repositories).
 
-## 1. The Source: YouTube InnerTube API
+## 1. Architecture Overview
 
-Flow does not use the public YouTube Data API (v3). Instead, it communicates with **InnerTube**, YouTube's internal private API used by their official applications.
+The layer is organized into four main pillars:
 
-### Key Characteristics:
-- **Endpoints**: `https://music.youtube.com/youtubei/v1/browse`, `/search`, `/next`, etc.
-- **Payloads**: Requests and responses are in JSON format, but are extremely deeply nested and complex.
-- **Context**: Every request includes a `context` object specifying the client (e.g., `WEB_REMIX` for web-like behavior, `ANDROID_VR` for stable stream URLs).
-- **Authentication**: Uses `visitorData` (for anonymous sessions) and cookies (for authenticated sessions) passed in the headers.
+### A. Sources (`lib/data/sources`)
+Direct interfaces with external APIs or local storage.
+- **`YoutubeMusicDataSource`**: Communicates with YouTube Music's InnerTube API. It returns a **streamlined feed** of raw sections (titles and items) without performing internal classification. This ensures the data layer remains "dumb" and resilient to API title changes.
+- **`StreamResolver`**: Specialized component for extracting direct audio URLs. It rotates between different client types (e.g., `ANDROID_VR`, `WEB`) to ensure reliable playback.
+- **`LocalStorage`**: Wrapper around **Hive** for ultra-fast metadata caching, settings, and user preferences.
 
----
+### B. Models (`lib/data/models`)
+Data Transfer Objects (DTOs) that represent the raw JSON structure.
+- **`SongModel`**: Represents a track from any source. Includes serialization logic (`fromJson`, `toJson`) and a `toEntity()` method to map to the domain's `Song` entity.
+- **`HomeDataModel`**: Represents the structured home screen with multiple sections (shelves).
+- **`PlaylistModel`**: Represents user or system-generated playlists.
 
-## 2. Data Fetching Architecture
+### C. Repositories (`lib/data/repositories`)
+Concrete implementations of the `MusicRepository` interface defined in the Domain layer.
+- **`YoutubeMusicRepository`**: The primary remote implementation.
+- **`LocalMusicRepository`**: Handles offline data and local file management.
+- **`CompositeMusicRepository`**: Orchestrates between local and remote sources (e.g., returning cached data while fetching fresh data from the network).
 
-The data layer is divided into three main components: **Data Sources**, **Models**, and **Repositories**.
-
-### A. Data Sources (`YoutubeMusicDataSource`)
-This is the lowest level of the data layer. It handles the "dirty work" of networking and raw JSON traversal.
-
-1.  **Networking**: Uses the `Dio` library to make HTTP POST requests to InnerTube endpoints.
-2.  **JSON Traversal**: InnerTube responses often have 10-15 levels of nesting. The Data Source safely navigates these (e.g., `data['contents']['singleColumnBrowseResultsRenderer']['tabs'][0]...`) to find relevant music items.
-3.  **Heuristics & Fallbacks**: 
-    *   Since InnerTube is undocumented, Flow uses heuristics (like checking if a title contains "Listen Again") to categorize sections.
-    *   If the primary Home Feed is missing personalized sections, it automatically triggers "sub-feed" requests to dedicated endpoints like `FEmusic_listen_again`.
-4.  **Thumbnail Optimization**: Flow processes thumbnail URLs to ensure high quality and square aspect ratios by manipulating URL parameters (e.g., replacing size tokens with `=w512-h512-p`).
-
-### B. Data Models (`SongModel`, `HomeDataModel`)
-Models are Dart classes that represent the structure of the data as it comes from the source. They include `fromJson` and `toJson` methods for easy serialization and persistence.
-
-### C. Repositories (`YoutubeMusicRepository`)
-The Repository acts as a bridge between the Data Layer and the Domain Layer.
-
-1.  **Abstraction**: It implements an interface defined in the Domain layer, meaning the rest of the app doesn't know *where* the music comes from (it could be YouTube, Spotify, or local files).
-2.  **Entity Mapping**: It converts **Data Models** into **Domain Entities** (`Song`, `HomeData`). Entities are "clean" objects optimized for the UI.
-3.  **Persistence & Caching**: It interacts with `LocalStorage` (Hive) to save listening history, cache home screen data, and manage liked songs.
+### D. Workers (`lib/data/workers`)
+Background processes for tasks like audio pre-fetching or sync operations.
 
 ---
 
-## 3. Data Flow Example: Loading the Home Screen
+## 2. Intelligence & Classification Logic
 
-1.  **Presentation**: `HomeCubit` calls `repository.getHomeData()`.
-2.  **Repository**: 
-    *   Checks if there's a fresh cache in Hive.
-    *   If not, calls `dataSource.fetchHomeData()`.
-3.  **Data Source**: 
-    *   Fetches raw JSON from the InnerTube `/browse` endpoint.
-    *   Parses the "shelves" (horizontal rows).
-    *   If "Quick Picks" is missing, fetches the sub-feed.
-    *   Maps raw items into `SongModel` or `PlaylistModel`.
-4.  **Repository**: 
-    *   Converts models into `Song` and `HomeData` entities.
-    *   Saves the result to local cache.
-5.  **Presentation**: Receives the clean `HomeData` and updates the UI.
+The application supports a toggle-based intelligence system governed by the `INTELLIGENCE_ACTIVE` environment variable.
+
+### Intelligence Active (`true`)
+- **Domain Layer**: The `GetHomeDataUseCase` performs heuristic string matching on raw section titles (e.g., "Quick picks") to assign `section` types (e.g., `quickPicks`).
+- **Presentation Layer**: `HomeCubit` adds synthetic shelves like "Flow Intelligence" (recommendations) and "Daily Rotation" (history-based).
+- **UI**: The `HomeScreen` uses specialized layouts (grids, hero cards) for known section types and displays personalized greetings/mood chips.
+
+### Intelligence Inactive (`false`)
+- **Domain Layer**: Data is passed through exactly as it arrived from the source. No classification is performed.
+- **Presentation Layer**: No synthetic shelves are added. Only the raw source feed is emitted.
+- **UI**: The `HomeScreen` renders a generic vertical list of horizontal shelves. Personalized elements (greetings, mood chips) are hidden to provide a "pure" source experience.
 
 ---
 
-## 4. Other Layers (Simplified)
+## 3. Data Mapping Flow
 
-*   **Domain Layer**: Defines the "What". It contains the core business logic, entity definitions, and repository interfaces. It is pure Dart and has no dependencies on Flutter or external APIs.
-*   **Core Layer**: Contains infrastructure code like the `AudioPlayer` wrapper, `LocalStorage` setup, and logging utilities.
-*   **Presentation Layer**: The Flutter UI. It uses the BLoC/Cubit pattern to manage state and react to user interactions.
+1.  **Request**: A Use Case calls a method on the `MusicRepository`.
+2.  **Fetch**: The `Repository` implementation calls a `Source` (e.g., `YoutubeMusicDataSource`).
+3.  **Parse**: The `Source` receives raw JSON and passes it to a `Model` factory (e.g., `SongModel.fromJson`).
+4.  **Transform**: The `Repository` calls `model.toEntity()` to convert the DTO into a pure Domain Entity.
+5.  **Deliver**: The Domain layer receives a clean `Entity`, completely decoupled from the original JSON structure or source.
+
+---
+
+## 4. Domain Use Cases & Parameters
+
+The Domain layer provides specific Use Cases that the Presentation layer (Cubits/Blocs) consumes. Each Use Case wraps a specific repository function.
+
+| Use Case | Parameters | Return Type | Description |
+| :--- | :--- | :--- | :--- |
+| **`GetHomeDataUseCase`** | `int limit` (default: 25) | `Future<HomeData>` | Fetches structured home screen data. Applies classification if intelligence is active. |
+| **`SearchSongsUseCase`** | `String query`, `int limit` (default: 25) | `Future<List<Song>>` | Searches for songs matching the query. Filters for "Songs" on YouTube Music. |
+| **`GetPlaylistsUseCase`** | None | `Future<List<Playlist>>` | Retrieves the user's library playlists. |
+| **`GetPlaylistTracksUseCase`**| `String playlistId` | `Future<List<Song>>` | Fetches all tracks contained within a specific playlist. |
+| **`GetCategoriesUseCase`** | None | `List<Map<String, dynamic>>` | Returns static browse categories (Sync). |
+| **`GetSongsUseCase`** | None | `Future<List<Song>>` | Compatibility use case; flattens home data into a song list. |
+
+---
+
+## 5. Key Implementation Details
+
+### InnerTube Integration
+The `YoutubeMusicDataSource` uses POST requests to `https://www.youtube.com/youtubei/v1/browse` and `/search`.
+- **Context**: Every request includes a `_context` map defining the client as `ANDROID_TESTSUITE`.
+- **Visitor Data**: Persisted in `LocalStorage` to maintain session consistency and improve recommendation quality.
+
+### Consistency Rules
+As per `GEMINI.md`:
+- **Headers**: `X-YouTube-Client-Name` and `X-YouTube-Client-Version` must match the `context` to avoid `400 Bad Request`.
+- **JIT Resolution**: Stream URLs are resolved "Just-In-Time" during playback to prevent expiration.

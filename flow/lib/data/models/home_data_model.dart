@@ -60,6 +60,9 @@ class HomeDataModel {
     final shelves = rawShelves.map((shelfJson) {
       final title = shelfJson['title'] as String? ?? 'Recommended';
       final section = shelfJson['section'] as String?;
+      // itemSize hint forwarded so the UI can pick horizontal vs grid layout
+      final itemSize = shelfJson['itemSize'] as String?;
+
       final items = (shelfJson['items'] as List<dynamic>? ?? []).map((
         itemJson,
       ) {
@@ -70,10 +73,28 @@ class HomeDataModel {
         dynamic mappedData;
 
         switch (typeStr) {
+          // ── Song (audio-only, square art) ───────────────────────────────────
           case 'song':
             type = HomeItemType.song;
             mappedData = SongModel.fromJson(data).toEntity();
             break;
+
+          // ── Music Video (16:9 widescreen, UGC/ATV/OMV) ─────────────────────
+          case 'video':
+            type = HomeItemType.video;
+            mappedData = SongModel.fromJson({
+              ...data,
+              // Preserve widescreen flag inside extras so the player/UI knows
+              'extras': {
+                ...(data['extras'] as Map<String, dynamic>? ?? {}),
+                'isWidescreen': data['isWidescreen'] ?? true,
+                if (data['musicVideoType'] != null)
+                  'musicVideoType': data['musicVideoType'],
+              },
+            }).toEntity();
+            break;
+
+          // ── Artist ──────────────────────────────────────────────────────────
           case 'artist':
             type = HomeItemType.artist;
             final name = data['name'] as String? ?? 'Unknown';
@@ -85,14 +106,26 @@ class HomeDataModel {
               'colorSecondary': colors.$2,
             };
             break;
+
+          // ── Album ───────────────────────────────────────────────────────────
           case 'album':
             type = HomeItemType.album;
-            mappedData = PlaylistModel.fromJson(data).toEntity();
+            mappedData = PlaylistModel.fromJson({
+              // Ensure required fields have defaults before parsing
+              'color': 0xFF7C3AED,
+              ...data,
+            }).toEntity();
             break;
+
+          // ── Playlist (including VLRD* radio/auto playlists) ─────────────────
           case 'playlist':
             type = HomeItemType.playlist;
-            mappedData = PlaylistModel.fromJson(data).toEntity();
+            mappedData = PlaylistModel.fromJson({
+              'color': 0xFF7C3AED,
+              ...data,
+            }).toEntity();
             break;
+
           default:
             type = HomeItemType.song;
             mappedData = SongModel.fromJson(data).toEntity();
@@ -101,7 +134,12 @@ class HomeDataModel {
         return HomeItem(type: type, data: mappedData);
       }).toList();
 
-      return HomeShelf(title: title, section: section, items: items);
+      return HomeShelf(
+        title: title,
+        section: section,
+        itemSize: itemSize,
+        items: items,
+      );
     }).toList();
 
     return HomeData(

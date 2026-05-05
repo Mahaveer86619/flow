@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:go_router/go_router.dart';
 import '../../cubits/home/home_cubit.dart';
 import '../../cubits/settings/settings_cubit.dart';
 import 'sub_screens/storage_screen.dart';
@@ -48,7 +49,7 @@ class SettingsScreen extends StatelessWidget {
                 connected: authState.hasYtAuth,
                 onTap: () => authState.hasYtAuth
                     ? _disconnectSource(context, 'YouTube Music')
-                    : _push(context, const YTConnectScreen()),
+                    : context.push('/settings/yt-connect'),
               ),
               _SourceTile(
                 name: 'Spotify',
@@ -106,7 +107,8 @@ class SettingsScreen extends StatelessWidget {
               _Tile(
                 icon: Icons.storage_rounded,
                 title: 'Storage & Downloads',
-                subtitle: '${settings.cacheBudgetMB ?? "Unlimited"} MB Cache · ${settings.downloadFormat.toUpperCase()}',
+                subtitle:
+                    '${settings.cacheBudgetMB ?? "Unlimited"} MB Cache · ${settings.downloadFormat.toUpperCase()}',
                 onTap: () => _push(context, const StorageScreen()),
               ),
             ],
@@ -120,14 +122,23 @@ class SettingsScreen extends StatelessWidget {
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
   }
 
+  // Note: We are migrating to GoRouter, so we should eventually remove _push
+  // and use context.push(path) everywhere. For now, we'll keep it for screens
+  // that haven't been added to the router yet.
+
   void _disconnectSource(BuildContext context, String source) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Disconnect $source?'),
-        content: Text('Are you sure you want to disconnect your $source account?'),
+        content: Text(
+          'Are you sure you want to disconnect your $source account?',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
@@ -190,7 +201,12 @@ class _Tile extends StatelessWidget {
   final String title;
   final String subtitle;
   final VoidCallback onTap;
-  const _Tile({required this.icon, required this.title, required this.subtitle, required this.onTap});
+  const _Tile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -198,7 +214,10 @@ class _Tile extends StatelessWidget {
     return ListTile(
       leading: Icon(icon, color: cs.onSurface.withAlpha(200)),
       title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
-      subtitle: Text(subtitle, style: TextStyle(color: cs.onSurface.withAlpha(140), fontSize: 13)),
+      subtitle: Text(
+        subtitle,
+        style: TextStyle(color: cs.onSurface.withAlpha(140), fontSize: 13),
+      ),
       trailing: const Icon(Icons.chevron_right_rounded, size: 20),
       onTap: onTap,
     );
@@ -211,7 +230,13 @@ class _SourceTile extends StatelessWidget {
   final IconData icon;
   final bool connected;
   final VoidCallback onTap;
-  const _SourceTile({required this.name, required this.color, required this.icon, required this.connected, required this.onTap});
+  const _SourceTile({
+    required this.name,
+    required this.color,
+    required this.icon,
+    required this.connected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -219,7 +244,10 @@ class _SourceTile extends StatelessWidget {
     return ListTile(
       leading: Container(
         padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(color: color.withAlpha(30), borderRadius: BorderRadius.circular(10)),
+        decoration: BoxDecoration(
+          color: color.withAlpha(30),
+          borderRadius: BorderRadius.circular(10),
+        ),
         child: Icon(icon, color: color, size: 20),
       ),
       title: Text(name, style: const TextStyle(fontWeight: FontWeight.w500)),
@@ -228,7 +256,10 @@ class _SourceTile extends StatelessWidget {
           Container(
             width: 6,
             height: 6,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: connected ? Colors.green : cs.onSurface.withAlpha(60)),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: connected ? Colors.green : cs.onSurface.withAlpha(60),
+            ),
           ),
           const SizedBox(width: 6),
           Text(
@@ -240,7 +271,9 @@ class _SourceTile extends StatelessWidget {
           ),
         ],
       ),
-      trailing: Icon(connected ? Icons.link_off_rounded : Icons.chevron_right_rounded),
+      trailing: Icon(
+        connected ? Icons.link_off_rounded : Icons.chevron_right_rounded,
+      ),
       onTap: onTap,
     );
   }

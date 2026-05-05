@@ -3,12 +3,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flow/presentation/screens/player/player_screen.dart';
+import 'package:flow/presentation/cubits/song_details/song_details_state.dart';
 import 'package:flow/presentation/blocs/player/player_bloc.dart';
 import 'mocks.dart';
 import 'widget_test_utils.dart';
 
 void main() {
   late MockPlayerBloc mockPlayerBloc;
+  late MockSongDetailsCubit mockSongDetailsCubit;
 
   setUpAll(() {
     GoogleFonts.config.allowRuntimeFetching = false;
@@ -17,12 +19,17 @@ void main() {
   setUp(() {
     setupMocks();
     mockPlayerBloc = MockPlayerBloc();
+    mockSongDetailsCubit = MockSongDetailsCubit();
     
     when(() => mockPlayerBloc.state).thenReturn(PlayerState(
       currentSong: testSong,
       isPlaying: true,
     ));
     when(() => mockPlayerBloc.stream).thenAnswer((_) => const Stream.empty());
+
+    when(() => mockSongDetailsCubit.state).thenReturn(const SongDetailsState());
+    when(() => mockSongDetailsCubit.stream).thenAnswer((_) => const Stream.empty());
+    when(() => mockSongDetailsCubit.fetchDetails(any(), any())).thenAnswer((_) async {});
   });
 
   testWidgets('PlayerScreen has "Start radio" option in bottom sheet', (tester) async {
@@ -34,6 +41,7 @@ void main() {
         ),
       ),
       playerBloc: mockPlayerBloc,
+      songDetailsCubit: mockSongDetailsCubit,
     ));
 
     await tester.tap(find.text('Show Player'));

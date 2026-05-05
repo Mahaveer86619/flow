@@ -133,32 +133,39 @@ class _TextCarouselState extends State<TextCarousel> {
           softWrap: false,
         );
 
-        return ShaderMask(
-          shaderCallback: (Rect bounds) {
-            return LinearGradient(
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-              colors: [
-                Colors.black.withValues(alpha: 0),
-                Colors.black,
-                Colors.black,
-                Colors.black.withValues(alpha: 0),
-              ],
-              stops: const [0.0, 0.05, 0.95, 1.0],
-            ).createShader(bounds);
-          },
-          blendMode: BlendMode.dstIn,
-          child: SingleChildScrollView(
-            controller: _scrollController,
-            scrollDirection: Axis.horizontal,
-            physics: const NeverScrollableScrollPhysics(),
-            child: Row(
-              children: [
-                widgetText,
-                SizedBox(width: widget.gap),
-                widgetText,
-                SizedBox(width: widget.gap),
-              ],
+        return RepaintBoundary(
+          child: Semantics(
+            label: widget.text,
+            child: ExcludeSemantics(
+              child: ShaderMask(
+                shaderCallback: (Rect bounds) {
+                  return LinearGradient(
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                    colors: [
+                      Colors.black.withValues(alpha: 0),
+                      Colors.black,
+                      Colors.black,
+                      Colors.black.withValues(alpha: 0),
+                    ],
+                    stops: const [0.0, 0.05, 0.95, 1.0],
+                  ).createShader(bounds);
+                },
+                blendMode: BlendMode.dstIn,
+                child: SingleChildScrollView(
+                  controller: _scrollController,
+                  scrollDirection: Axis.horizontal,
+                  physics: const NeverScrollableScrollPhysics(),
+                  child: Row(
+                    children: [
+                      widgetText,
+                      const SizedBox(width: 40),
+                      widgetText,
+                      const SizedBox(width: 40),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ),
         );

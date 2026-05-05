@@ -15,6 +15,9 @@ class PlaylistModel {
   final String? artistName;
   final String? ownerCode;
 
+  /// Original browseId (may have VL prefix). Used for /browse API calls.
+  final String? browseId;
+
   const PlaylistModel({
     required this.id,
     required this.name,
@@ -27,12 +30,14 @@ class PlaylistModel {
     this.isAlbum = false,
     this.artistName,
     this.ownerCode,
+    this.browseId,
   });
 
   factory PlaylistModel.fromJson(Map<String, dynamic> json) {
     return PlaylistModel(
-      id: json['id'] as String,
-      name: json['name'] as String,
+      id: json['id'] as String? ?? '',
+      // Support both 'name' and legacy 'title' keys
+      name: (json['name'] ?? json['title'] ?? 'Unknown') as String,
       description: json['description'] as String? ?? '',
       songs: (json['songs'] as List<dynamic>?)
           ?.map((s) => SongModel.fromJson(s as Map<String, dynamic>))
@@ -44,6 +49,7 @@ class PlaylistModel {
       isAlbum: json['isAlbum'] as bool? ?? false,
       artistName: json['artistName'] as String?,
       ownerCode: json['ownerCode'] as String?,
+      browseId: json['browseId'] as String?,
     );
   }
 
@@ -75,6 +81,7 @@ class PlaylistModel {
     'isAlbum': isAlbum,
     'artistName': artistName,
     'ownerCode': ownerCode,
+    if (browseId != null) 'browseId': browseId,
   };
 
   Playlist toEntity() {

@@ -19,6 +19,8 @@ class AppIntelligence {
   final domain.ScoringGraph _graph = domain.ScoringGraph();
   late final SyncEngine _syncEngine;
 
+  db.LocalDatabase get database => _database;
+
   Future<void> init() async {
     _syncEngine = SyncEngine(graph: _graph);
     
@@ -39,15 +41,6 @@ class AppIntelligence {
     for (final e in edges) {
       final adjacency = _graph.adjacency[e.fromId] ??= [];
       adjacency.add(domain.GraphEdge(fromId: e.fromId, toId: e.toId, weight: e.weight));
-    }
-
-    // Check for weekly digest (Sunday only)
-    final now = DateTime.now();
-    final todayStr = '${now.year}-${now.month}-${now.day}';
-    final lastGen = LocalStorage.instance.lastDigestGeneration;
-
-    if (now.weekday == DateTime.sunday && lastGen != todayStr) {
-      // Repository injection will happen via a trigger in HomeCubit
     }
   }
 
