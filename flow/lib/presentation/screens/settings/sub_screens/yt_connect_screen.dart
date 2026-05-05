@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/auth/auth_cubit.dart';
-import '../../../../core/ui/app_snack_bar.dart';
+import '../../../../core/storage/secure_storage_service.dart';
+import '../../../../core/logger/app_logger.dart';
 import '../../../cubits/home/home_cubit.dart';
-import '../../../cubits/yt_connect/yt_connect_cubit.dart';
 
 class YTConnectScreen extends StatefulWidget {
   const YTConnectScreen({super.key});
@@ -15,187 +14,178 @@ class YTConnectScreen extends StatefulWidget {
 }
 
 class _YTConnectScreenState extends State<YTConnectScreen> {
-  InAppWebViewController? _webCtrl;
-  bool _pageLoaded = false;
-  bool _extracting = false;
+  InAppWebViewController? _webViewController;
+  bool _isLoading = true;
+  final CookieManager _cookieManager = CookieManager.instance();
+  static const _tag = 'YTConnectScreen';
 
-  static const _userAgent =
-      'Mozilla/5.0 (Linux; Android 13; Pixel 7) '
-      'AppleWebKit/537.36 (KHTML, like Gecko) '
-      'Chrome/120.0.0.0 Mobile Safari/537.36';
-
-  // Must be present to confirm the user is signed in.
-  static const _requiredCookies = [
-    '__Secure-3PAPISID',
-    '__Secure-3PSID',
-    'HSID',
-    'SSID',
-    'APISID',
-    'SAPISID',
-  ];
-
-  // All YouTube/Google cookies that help bypass bot detection.
-  static const _ytCookieNames = {
-    'SID', 'HSID', 'SSID', 'APISID', 'SAPISID', 'LOGIN_INFO',
-    '__Secure-1PSID', '__Secure-1PAPISID',
-    '__Secure-3PSID', '__Secure-3PAPISID',
-    'VISITOR_INFO1_LIVE', 'YSC', 'PREF', '__Secure-YEC',
-  };
+  @override
+  void initState() {
+    super.initState();
+    AppLogger.i(_tag, 'YTConnectScreen initialized');
+  }
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return BlocProvider(
-      create: (_) => YTConnectCubit(),
-      child: BlocConsumer<YTConnectCubit, YTConnectState>(
-        listener: (ctx, state) async {
-          if (state.isSuccess) {
-            // Update local auth state and reload home
-            ctx.read<AuthCubit>().setYtAuth(true);
-            ctx.read<HomeCubit>().reload();
-            
-            if (!mounted) return;
-            ScaffoldMessenger.of(ctx).showSnackBar(
-              const SnackBar(
-                content: Text('YouTube Music connected locally!'),
-                behavior: SnackBarBehavior.floating,
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        title: const Text('YT Music'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded),
+            onPressed: () => _webViewController?.reload(),
+          ),
+          IconButton(
+            icon: const Icon(Icons.check_rounded),
+            onPressed: _extractCookies,
+          ),
+        ],
+      ),
+      // Use Column so the WebView gets a bounded height
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Loading progress bar at top — doesn't fight with WebView layout
+            if (_isLoading)
+              const LinearProgressIndicator(
+                color: Colors.red,
+                backgroundColor: Colors.black26,
               ),
-            );
-            await Future.delayed(const Duration(milliseconds: 600));
-            if (mounted) Navigator.of(ctx).pop(true);
-          } else if (state.isError) {
-            setState(() => _extracting = false);
-            ScaffoldMessenger.of(ctx).showSnackBar(
-              SnackBar(
-                content: Text(state.errorMessage ?? 'Connection failed'),
-                backgroundColor: cs.error,
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
-          }
-        },
-        builder: (ctx, state) {
-          return Scaffold(
-            appBar: AppBar(
-              title: Text(
-                'Connect YT Music',
-                style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
-              ),
-              actions: [
-                if (state.isLoading || _extracting)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16),
-                    child: Center(
-                      child: SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                    ),
-                  )
-                else
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: TextButton(
-                      onPressed: _pageLoaded ? () => _onDone(ctx) : null,
-                      child: const Text('Done'),
-                    ),
-                  ),
-              ],
-            ),
-            body: Column(
-              children: [
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  color: cs.primaryContainer.withAlpha(80),
-                  child: Row(
-                    children: [
-                      Icon(Icons.security_rounded, size: 18, color: cs.primary),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'Sign in to YouTube Music below. Once the page loads and you are signed in, tap "Done" to extract session cookies locally.',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            color: cs.onSurface.withAlpha(180),
-                          ),
-                        ),
-                      ),
-                    ],
+            Expanded(
+              child: InAppWebView(
+                initialUrlRequest: URLRequest(
+                  url: WebUri(
+                    'https://accounts.google.com/ServiceLogin?hl=en&passive=true&continue=https://music.youtube.com/',
                   ),
                 ),
-                Expanded(
-                  child: InAppWebView(
-                    initialUrlRequest: URLRequest(
-                      url: WebUri('https://music.youtube.com'),
-                    ),
-                    initialSettings: InAppWebViewSettings(
-                      userAgent: _userAgent,
-                      javaScriptEnabled: true,
-                      domStorageEnabled: true,
-                      cacheEnabled: true,
-                    ),
-                    onWebViewCreated: (c) => _webCtrl = c,
-                    onLoadStop: (_, __) => setState(() => _pageLoaded = true),
-                  ),
+                initialSettings: InAppWebViewSettings(
+                  javaScriptEnabled: true,
+                  // FIX: was true but no handler was provided — this blocks
+                  // all navigation on Android. Set to false unless you need
+                  // custom URL interception.
+                  useShouldOverrideUrlLoading: false,
+                  isInspectable: true,
+                  useHybridComposition: true,
+                  domStorageEnabled: true,
+                  databaseEnabled: true,
+                  thirdPartyCookiesEnabled: true,
+                  verticalScrollBarEnabled: true,
+                  horizontalScrollBarEnabled: true,
+                  // Helps with Google login UA checks
+                  userAgent:
+                      'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 '
+                      '(KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36',
                 ),
-              ],
+                onWebViewCreated: (controller) {
+                  _webViewController = controller;
+                  AppLogger.i(_tag, 'WebView created');
+                },
+                onLoadStart: (controller, url) {
+                  AppLogger.i(_tag, 'Page load start: $url');
+                  if (mounted) setState(() => _isLoading = true);
+                },
+                onLoadStop: (controller, url) async {
+                  AppLogger.i(_tag, 'Page load stop: $url');
+                  if (mounted) setState(() => _isLoading = false);
+                },
+                onReceivedError: (controller, request, error) {
+                  AppLogger.e(_tag, 'WebView error: ${error.description}');
+                  if (mounted) setState(() => _isLoading = false);
+                },
+                onConsoleMessage: (controller, consoleMessage) {
+                  AppLogger.d(_tag, 'JS: ${consoleMessage.message}');
+                },
+              ),
             ),
-          );
-        },
+          ],
+        ),
       ),
     );
   }
 
-  Future<void> _onDone(BuildContext context) async {
-    setState(() => _extracting = true);
+  Future<void> _extractCookies() async {
     try {
-      final cookies = await CookieManager.instance().getCookies(
-        webViewController: _webCtrl,
-        url: WebUri('https://music.youtube.com'),
+      AppLogger.i(_tag, 'Extracting cookies...');
+
+      final currentUrl = await _webViewController?.getUrl();
+      AppLogger.d(_tag, 'Current URL at extraction: $currentUrl');
+
+      // Collect cookies from all relevant Google/YT domains
+      final results = await Future.wait([
+        _cookieManager.getCookies(url: WebUri('https://music.youtube.com/')),
+        _cookieManager.getCookies(url: WebUri('https://www.youtube.com/')),
+        _cookieManager.getCookies(url: WebUri('https://accounts.google.com/')),
+      ]);
+
+      final Map<String, String> allCookies = {};
+      for (final cookieList in results) {
+        for (final c in cookieList) {
+          // Later entries (more specific domains) win
+          allCookies[c.name] = c.value;
+        }
+      }
+
+      AppLogger.d(
+        _tag,
+        'Found ${allCookies.length} cookies: ${allCookies.keys.toList()}',
       );
 
-      final cookieMap = <String, String>{
-        for (final c in cookies) c.name: c.value.toString(),
-      };
+      final cookieString = allCookies.entries
+          .map((e) => '${e.key}=${e.value}')
+          .join('; ');
 
-      final missing = _requiredCookies
-          .where((n) => !cookieMap.containsKey(n))
-          .toList();
+      final hasValidAuth =
+          allCookies.containsKey('LOGIN_INFO') ||
+          allCookies.containsKey('__Secure-3PAPISID') ||
+          allCookies.containsKey('SAPISID') ||
+          allCookies.containsKey('__Secure-1PSID') ||
+          allCookies.containsKey('HSID');
 
-      if (missing.isNotEmpty) {
-        setState(() => _extracting = false);
+      if (hasValidAuth) {
+        await SecureStorageService.instance.saveYoutubeCookies(cookieString);
+
+        // FIX: evaluateJavascript can return dynamic; cast safely
+        final dynamic uaResult = await _webViewController?.evaluateJavascript(
+          source: 'navigator.userAgent',
+        );
+        if (uaResult != null) {
+          final userAgent = uaResult.toString().replaceAll('"', '').trim();
+          if (userAgent.isNotEmpty) {
+            await SecureStorageService.instance.saveYoutubeUserAgent(userAgent);
+            AppLogger.d(_tag, 'Saved user agent: $userAgent');
+          }
+        }
+
+        AppLogger.i(_tag, 'Success: Auth cookies captured');
+
+        if (mounted) {
+          context.read<AuthCubit>().setYtAuth(true);
+          context.read<HomeCubit>().refresh();
+          Navigator.pop(context);
+        }
+      } else {
+        AppLogger.w(
+          _tag,
+          'Auth cookies not found. Present keys: ${allCookies.keys.toList()}',
+        );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text(
-                'Not signed in yet — please log in to YouTube Music first.',
+            const SnackBar(
+              content: Text(
+                'Login not detected. Please complete the sign-in process first.',
               ),
-              backgroundColor: Theme.of(context).colorScheme.error,
-              behavior: SnackBarBehavior.floating,
             ),
           );
         }
-        return;
       }
-
-      final allCookies = <String, String>{
-        for (final entry in cookieMap.entries)
-          if (_ytCookieNames.contains(entry.key)) entry.key: entry.value,
-      };
-      // Always include required cookies
-      for (final k in _requiredCookies) {
-        allCookies[k] = cookieMap[k]!;
-      }
-
-      if (mounted) context.read<YTConnectCubit>().connect(allCookies, _userAgent);
-    } catch (e, st) {
-      setState(() => _extracting = false);
+    } catch (e, stack) {
+      AppLogger.e(_tag, 'Cookie extraction error', e);
+      AppLogger.e(_tag, 'Stack: $stack');
       if (mounted) {
-        AppSnackBar.showError(context, e, stackTrace: st, logTag: 'YTConnectScreen');
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error extracting cookies: $e')));
       }
     }
   }

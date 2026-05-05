@@ -1,118 +1,102 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' show Color;
 import '../../domain/entities/song.dart';
-
-// ── Data Transfer Object ──────────────────────────────────────────────────────
-//
-// PlaylistModel handles the normalised playlist shape from the backend:
-//   { id, name, description, thumbnailUrl, trackCount }
-//
-// Songs are NOT embedded in library listings — they are fetched separately
-// when the user opens a playlist (/api/playlists/{id}/tracks).
-// ─────────────────────────────────────────────────────────────────────────────
+import 'song_model.dart';
 
 class PlaylistModel {
   final String id;
   final String name;
   final String description;
-  final String? thumbnailUrl;
-  final int trackCount;
+  final List<SongModel>? songs;
+  final int? trackCount;
   final Color color;
+  final String? thumbnailUrl;
   final String type;
   final bool isAlbum;
   final String? artistName;
   final String? ownerCode;
 
+  /// Original browseId (may have VL prefix). Used for /browse API calls.
+  final String? browseId;
+
   const PlaylistModel({
     required this.id,
     required this.name,
     required this.description,
-    this.thumbnailUrl,
-    this.trackCount = 0,
+    this.songs,
+    this.trackCount,
     required this.color,
+    this.thumbnailUrl,
     this.type = 'yt',
     this.isAlbum = false,
     this.artistName,
     this.ownerCode,
+    this.browseId,
   });
 
-  // ── JSON ─────────────────────────────────────────────────────────────────────
-
-  factory PlaylistModel.fromEntity(Playlist playlist) {
-    return PlaylistModel(
-      id: playlist.id,
-      name: playlist.name,
-      description: playlist.description,
-      thumbnailUrl: playlist.thumbnailUrl,
-      trackCount: playlist.songs.length,
-      color: playlist.color,
-      type: playlist.type,
-      isAlbum: playlist.isAlbum,
-      artistName: playlist.artistName,
-      ownerCode: playlist.ownerCode,
-    );
-  }
-
   factory PlaylistModel.fromJson(Map<String, dynamic> json) {
-    final id = json['id'] as String? ?? '';
     return PlaylistModel(
-      id: id,
-      name: json['name'] as String? ?? 'Unknown',
+      id: json['id'] as String? ?? '',
+      // Support both 'name' and legacy 'title' keys
+      name: (json['name'] ?? json['title'] ?? 'Unknown') as String,
       description: json['description'] as String? ?? '',
+      songs: (json['songs'] as List<dynamic>?)
+          ?.map((s) => SongModel.fromJson(s as Map<String, dynamic>))
+          .toList(),
+      trackCount: json['trackCount'] as int?,
+      color: Color(json['color'] as int? ?? 0xFF7C3AED),
       thumbnailUrl: json['thumbnailUrl'] as String?,
-      trackCount: (json['trackCount'] as num?)?.toInt() ?? 0,
-      color: json['color'] != null
-          ? Color(json['color'] as int)
-          : _colorForId(id),
       type: json['type'] as String? ?? 'yt',
       isAlbum: json['isAlbum'] as bool? ?? false,
       artistName: json['artistName'] as String?,
       ownerCode: json['ownerCode'] as String?,
+      browseId: json['browseId'] as String?,
+    );
+  }
+
+  factory PlaylistModel.fromEntity(Playlist p) {
+    return PlaylistModel(
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      songs: p.songs?.map((s) => SongModel.fromEntity(s)).toList(),
+      trackCount: p.trackCount,
+      color: p.color,
+      thumbnailUrl: p.thumbnailUrl,
+      type: p.type,
+      isAlbum: p.isAlbum,
+      artistName: p.artistName,
+      ownerCode: p.ownerCode,
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'description': description,
-        'thumbnailUrl': thumbnailUrl,
-        'trackCount': trackCount,
-        'color': color.value,
-        'type': type,
-        'isAlbum': isAlbum,
-        'artistName': artistName,
-        'ownerCode': ownerCode,
-      };
+    'id': id,
+    'name': name,
+    'description': description,
+    'songs': songs?.map((s) => s.toJson()).toList(),
+    'trackCount': trackCount,
+    'color': color.toARGB32(),
+    'thumbnailUrl': thumbnailUrl,
+    'type': type,
+    'isAlbum': isAlbum,
+    'artistName': artistName,
+    'ownerCode': ownerCode,
+    if (browseId != null) 'browseId': browseId,
+  };
 
-  // ── Domain mapping ────────────────────────────────────────────────────────────
-
-  Playlist toEntity() => Playlist(
-        id: id,
-        name: name,
-        description: description,
-        songs: const [],
-        color: color,
-        thumbnailUrl: thumbnailUrl,
-        type: type,
-        isAlbum: isAlbum,
-        artistName: artistName,
-        ownerCode: ownerCode,
-      );
-
-  // ── Color derivation ──────────────────────────────────────────────────────────
-
-  static const _colors = [
-    Color(0xFF1E40AF),
-    Color(0xFF059669),
-    Color(0xFFDC2626),
-    Color(0xFF7C3AED),
-    Color(0xFF0891B2),
-    Color(0xFFD97706),
-    Color(0xFF9333EA),
-    Color(0xFF0F766E),
-  ];
-
-  static Color _colorForId(String id) {
-    final hash = id.codeUnits.fold(0, (a, b) => a + b);
-    return _colors[hash % _colors.length];
+  Playlist toEntity() {
+    return Playlist(
+      id: id,
+      name: name,
+      description: description,
+      songs: songs?.map((m) => m.toEntity()).toList(),
+      trackCount: trackCount,
+      color: color,
+      thumbnailUrl: thumbnailUrl,
+      type: type,
+      isAlbum: isAlbum,
+      artistName: artistName,
+      ownerCode: ownerCode,
+    );
   }
 }

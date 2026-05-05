@@ -114,6 +114,7 @@ class SearchCubit extends Cubit<SearchState> {
     ].take(8).toList();
     AppLogger.d(_tag, 'addRecentSearch: "$query"');
     _storage.saveRecentSearches(updated);
+    _storage.recordArtistSearch(query); // Track for Home recommendations
     emit(state.copyWith(recentSearches: updated));
   }
 

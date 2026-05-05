@@ -11,7 +11,28 @@ class AppEventBus {
   void fire(AppEvent event) => _controller.add(event);
 }
 
-abstract class AppEvent {}
+abstract class AppEvent {
+  const AppEvent();
+}
 
 /// Fired when the user wants to retry all failed sections.
-class GlobalRetryEvent extends AppEvent {}
+class GlobalRetryEvent extends AppEvent {
+  const GlobalRetryEvent();
+}
+
+/// Fired to refresh the home feed.
+class RefreshHomeEvent extends AppEvent {
+  const RefreshHomeEvent();
+}
+
+/// Fired to switch to a specific tab.
+class SwitchTabEvent extends AppEvent {
+  final int index;
+  const SwitchTabEvent(this.index);
+}
+
+/// Fired when a peer sync is completed.
+class PeerSyncEvent extends AppEvent {
+  final String peerId;
+  const PeerSyncEvent(this.peerId);
+}

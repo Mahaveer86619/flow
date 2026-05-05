@@ -135,10 +135,36 @@ class SetVolumeEvent extends PlayerEvent {
   const SetVolumeEvent(this.volume);
 }
 
+/// Set playback speed (0.5 - 2.0).
+class SetPlaybackSpeedEvent extends PlayerEvent {
+  final double speed;
+  const SetPlaybackSpeedEvent(this.speed);
+}
+
+/// Set crossfade duration.
+class SetCrossfadeDurationEvent extends PlayerEvent {
+  final Duration duration;
+  const SetCrossfadeDurationEvent(this.duration);
+}
+
+/// Filter the current queue based on a mood target.
+
+class FilterByMoodEvent extends PlayerEvent {
+  final String mood;
+  const FilterByMoodEvent(this.mood);
+}
+
 /// Reset the player state, stop playback, and clear queue.
+
 /// Useful when the player gets stuck or for a "state clean" functionality.
 class ResetPlayerEvent extends PlayerEvent {
   const ResetPlayerEvent();
+}
+
+/// Set whether the full-screen player is currently visible.
+class SetPlayerVisibilityEvent extends PlayerEvent {
+  final bool visible;
+  const SetPlayerVisibilityEvent(this.visible);
 }
 
 // ── Internal events ─────────────────────────────────────────────────────────────

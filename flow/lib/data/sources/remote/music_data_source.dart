@@ -1,6 +1,6 @@
-import '../models/home_data_model.dart';
-import '../models/playlist_model.dart';
-import '../models/song_model.dart';
+import '../../models/home_data_model.dart';
+import '../../models/playlist_model.dart';
+import '../../models/song_model.dart';
 
 // ── Data Source Interface ─────────────────────────────────────────────────────
 //
@@ -36,7 +36,7 @@ abstract class MusicDataSource {
   /// Get multiple songs by their IDs.
   Future<List<SongModel>> fetchSongsByIds(List<String> ids);
 
-  /// Proactively trigger background extraction.
+  /// Trigger background extraction for a track.
   Future<void> prefetchAudio(String videoId);
 
   /// Record a song play in persistent history.
@@ -45,67 +45,31 @@ abstract class MusicDataSource {
   /// Fetch persistent play history with date segmentation.
   Future<Map<String, dynamic>> fetchPersistentHistory();
 
-  /// Get detailed metadata for a specific song.
+  /// Get detailed metadata for a specific song (biography, etc.)
   Future<Map<String, dynamic>> fetchSongDetails(String videoId);
 
-  /// Get detailed info for an artist.
+  /// Get detailed info for an artist (bio, image, etc.)
   Future<Map<String, dynamic>> fetchArtistDetails(String browseId);
 
-  /// Static browse categories — always synchronous, never needs the network.
+  /// Static browse categories.
   List<Map<String, dynamic>> fetchCategories();
 
-  // --- Playlist Management ---
+  /// Get personalized recommendations.
+  Future<List<SongModel>> fetchRecommendations({int limit = 20});
 
-  /// Create a new playlist.
-  Future<String> createPlaylist({
-    required String title,
-    String? description,
-    String? privacyStatus,
-    List<String>? videoIds,
-    String? sourcePlaylist,
-  });
+  /// Get blended recommendations.
+  Future<List<SongModel>> fetchBlendedRecommendations(String friendId, {int limit = 20});
 
-  /// Edit an existing playlist.
-  Future<void> editPlaylist({
-    required String playlistId,
-    String? title,
-    String? description,
-    String? privacyStatus,
-  });
+  // ── Flow Playlist CRUD ────────────────────────────────────────────────────────
 
-  /// Delete a playlist.
-  Future<void> deletePlaylist(String playlistId);
-
-  /// Add tracks to a playlist.
-  Future<void> addPlaylistItems({
-    required String playlistId,
-    required List<String> videoIds,
-    String? sourcePlaylist,
-    bool duplicates = false,
-  });
-
-  /// Remove tracks from a playlist.
-  Future<void> removePlaylistItems({
-    required String playlistId,
-    required List<Map<String, dynamic>> videos,
-  });
-
-  // --- Artist Management ---
-
-  /// Like/Subscribe to an artist.
-  Future<void> likeArtist(String channelId);
-
-  /// Unlike/Unsubscribe from an artist.
-  Future<void> unlikeArtist(String channelId);
-
-  // --- Flow Playlist CRUD ---
-
+  /// Create a new Flow playlist.
   Future<PlaylistModel> createFlowPlaylist({
     required String title,
     String description = '',
     bool isPublic = false,
   });
 
+  /// Update title/description/visibility of a Flow playlist.
   Future<PlaylistModel> updateFlowPlaylist(
     String playlistId, {
     String? title,
@@ -113,16 +77,27 @@ abstract class MusicDataSource {
     bool? isPublic,
   });
 
+  /// Permanently delete a Flow playlist.
   Future<void> deleteFlowPlaylist(String playlistId);
 
+  /// Add a song to a Flow playlist.
   Future<void> addTrackToFlowPlaylist(
     String playlistId,
-    Map<String, dynamic> songData,
+    SongModel song,
   );
 
+  /// Remove a track from a Flow playlist.
   Future<void> removeTrackFromFlowPlaylist(String playlistId, int trackId);
 
+  /// Add a collaborator by their user code.
   Future<void> addCollaborator(String playlistId, String userCode);
 
+  /// Remove a collaborator by their user code.
   Future<void> removeCollaborator(String playlistId, String userCode);
+
+  /// Like/Subscribe to an artist.
+  Future<void> likeArtist(String channelId);
+
+  /// Unlike/Unsubscribe from an artist.
+  Future<void> unlikeArtist(String channelId);
 }

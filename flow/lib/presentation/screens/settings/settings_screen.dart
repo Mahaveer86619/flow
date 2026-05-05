@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../../core/auth/auth_cubit.dart';
-import '../../../core/storage/secure_storage_service.dart';
+import 'package:go_router/go_router.dart';
 import '../../cubits/home/home_cubit.dart';
 import '../../cubits/settings/settings_cubit.dart';
-import 'sub_screens/about_screen.dart';
-import 'sub_screens/appearance_screen.dart';
-import 'sub_screens/downloads_screen.dart';
+import 'sub_screens/storage_screen.dart';
 import 'sub_screens/equalizer_screen.dart';
 import 'sub_screens/yt_connect_screen.dart';
+import 'sub_screens/connections_screen.dart';
+import 'sub_screens/playback_settings_screen.dart';
+import '../stats/stats_screen.dart';
+import '../../../core/auth/auth_cubit.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -48,7 +49,7 @@ class SettingsScreen extends StatelessWidget {
                 connected: authState.hasYtAuth,
                 onTap: () => authState.hasYtAuth
                     ? _disconnectSource(context, 'YouTube Music')
-                    : _push(context, const YTConnectScreen()),
+                    : context.push('/settings/yt-connect'),
               ),
               _SourceTile(
                 name: 'Spotify',
@@ -70,38 +71,45 @@ class SettingsScreen extends StatelessWidget {
                 subtitle: settings.eqPreset,
                 onTap: () => _push(context, const EqualizerScreen()),
               ),
+              _Tile(
+                icon: Icons.slow_motion_video_rounded,
+                title: 'Playback',
+                subtitle: 'Crossfade & speed',
+                onTap: () => _push(context, const PlaybackSettingsScreen()),
+              ),
+            ],
+          ),
+          _Section(
+            title: 'Insights',
+            children: [
+              _Tile(
+                icon: Icons.bar_chart_rounded,
+                title: 'Listening Insights',
+                subtitle: 'Top artists, genres & activity',
+                onTap: () => _push(context, const StatsScreen()),
+              ),
+            ],
+          ),
+          _Section(
+            title: 'Networking & Social',
+            children: [
+              _Tile(
+                icon: Icons.hub_outlined,
+                title: 'Connections',
+                subtitle: 'Link devices & friends',
+                onTap: () => _push(context, const ConnectionsScreen()),
+              ),
             ],
           ),
           _Section(
             title: 'Storage',
             children: [
               _Tile(
-                icon: Icons.download_outlined,
-                title: 'Downloads',
-                subtitle: '${settings.downloadQuality} quality',
-                onTap: () => _push(context, const DownloadsScreen()),
-              ),
-            ],
-          ),
-          _Section(
-            title: 'Display',
-            children: [
-              _Tile(
-                icon: Icons.palette_outlined,
-                title: 'Appearance',
-                subtitle: _themeLabel(settings.themeMode),
-                onTap: () => _push(context, const AppearanceScreen()),
-              ),
-            ],
-          ),
-          _Section(
-            title: 'Info',
-            children: [
-              _Tile(
-                icon: Icons.info_outline_rounded,
-                title: 'About Flow',
-                subtitle: 'v1.0.0 Standalone',
-                onTap: () => _push(context, const AboutScreen()),
+                icon: Icons.storage_rounded,
+                title: 'Storage & Downloads',
+                subtitle:
+                    '${settings.cacheBudgetMB ?? "Unlimited"} MB Cache · ${settings.downloadFormat.toUpperCase()}',
+                onTap: () => _push(context, const StorageScreen()),
               ),
             ],
           ),
@@ -111,76 +119,50 @@ class SettingsScreen extends StatelessWidget {
   }
 
   void _push(BuildContext context, Widget screen) {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
   }
 
-  String _themeLabel(ThemeMode mode) => switch (mode) {
-    ThemeMode.light => 'Light',
-    ThemeMode.system => 'System',
-    _ => 'Dark',
-  };
+  // Note: We are migrating to GoRouter, so we should eventually remove _push
+  // and use context.push(path) everywhere. For now, we'll keep it for screens
+  // that haven't been added to the router yet.
 
-  Future<void> _disconnectSource(BuildContext context, String source) async {
+  void _disconnectSource(BuildContext context, String source) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Disconnect $source'),
+        title: Text('Disconnect $source?'),
         content: Text(
-          'Are you sure you want to disconnect your $source account locally?',
+          'Are you sure you want to disconnect your $source account?',
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
+            onPressed: () => Navigator.pop(ctx, false),
             child: const Text('Cancel'),
           ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
             child: const Text('Disconnect'),
           ),
         ],
       ),
     );
-    if (confirmed != true || !context.mounted) return;
 
-    if (source == 'YouTube Music') {
-      await SecureStorageService.instance.saveYoutubeCookies('');
-      if (context.mounted) {
-        context.read<AuthCubit>().setYtAuth(false);
-        context.read<HomeCubit>().reload();
+    if (confirmed == true && context.mounted) {
+      if (source == 'YouTube Music') {
+        await context.read<AuthCubit>().disconnectYoutube();
+      } else {
+        await context.read<AuthCubit>().disconnectSpotify();
       }
-    } else if (source == 'Spotify') {
-      await SecureStorageService.instance.saveSpotifyCookies('');
       if (context.mounted) {
-        context.read<AuthCubit>().setSpotifyAuth(false);
-        context.read<HomeCubit>().reload();
+        context.read<HomeCubit>().refresh();
       }
-    }
-
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('$source disconnected'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
     }
   }
 
   void _showSpotifyComingSoon(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Spotify Support'),
-        content: const Text(
-          'Spotify integration is coming in Phase 3. Stay tuned!',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Spotify integration coming soon!')),
     );
   }
 }
@@ -197,7 +179,7 @@ class _Section extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
+          padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
           child: Text(
             title.toUpperCase(),
             style: GoogleFonts.outfit(
@@ -209,12 +191,6 @@ class _Section extends StatelessWidget {
           ),
         ),
         ...children,
-        Divider(
-          height: 1,
-          indent: 16,
-          endIndent: 16,
-          color: cs.outlineVariant.withAlpha(60),
-        ),
       ],
     );
   }
@@ -234,11 +210,15 @@ class _Tile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return ListTile(
-      leading: Icon(icon),
+      leading: Icon(icon, color: cs.onSurface.withAlpha(200)),
       title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
-      subtitle: Text(subtitle),
-      trailing: const Icon(Icons.chevron_right_rounded),
+      subtitle: Text(
+        subtitle,
+        style: TextStyle(color: cs.onSurface.withAlpha(140), fontSize: 13),
+      ),
+      trailing: const Icon(Icons.chevron_right_rounded, size: 20),
       onTap: onTap,
     );
   }
@@ -250,7 +230,6 @@ class _SourceTile extends StatelessWidget {
   final IconData icon;
   final bool connected;
   final VoidCallback onTap;
-
   const _SourceTile({
     required this.name,
     required this.color,
@@ -264,43 +243,30 @@ class _SourceTile extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     return ListTile(
       leading: Container(
-        width: 40,
-        height: 40,
+        padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: color.withAlpha(20),
-          borderRadius: BorderRadius.circular(8),
+          color: color.withAlpha(30),
+          borderRadius: BorderRadius.circular(10),
         ),
-        child: Icon(
-          icon,
-          color: color,
-          size: 22,
-        ),
+        child: Icon(icon, color: color, size: 20),
       ),
-      title: Text(
-        name,
-        style: const TextStyle(fontWeight: FontWeight.w500),
-      ),
+      title: Text(name, style: const TextStyle(fontWeight: FontWeight.w500)),
       subtitle: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 7,
-            height: 7,
+            width: 6,
+            height: 6,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: connected
-                  ? const Color(0xFF22C55E)
-                  : cs.onSurface.withAlpha(80),
+              color: connected ? Colors.green : cs.onSurface.withAlpha(60),
             ),
           ),
           const SizedBox(width: 6),
           Text(
-            connected ? 'Connected' : 'Not connected',
+            connected ? 'Connected' : 'Not linked',
             style: TextStyle(
-              fontSize: 13,
-              color: connected
-                  ? const Color(0xFF22C55E)
-                  : cs.onSurface.withAlpha(140),
+              fontSize: 12,
+              color: connected ? Colors.green : cs.onSurface.withAlpha(140),
             ),
           ),
         ],

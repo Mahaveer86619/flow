@@ -9,9 +9,14 @@ import 'package:flow/domain/entities/history_data.dart';
 import 'package:flutter/material.dart';
 import 'package:flow/presentation/blocs/player/player_bloc.dart';
 import 'package:flow/presentation/cubits/search/search_cubit.dart';
-import 'package:flow/core/network/download_service.dart';
+import 'package:flow/presentation/cubits/settings/settings_cubit.dart';
+import 'package:flow/presentation/cubits/settings/settings_state.dart';
+import 'package:flow/data/sources/local/download_service.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flow/core/logger/app_logger.dart';
+
+import 'package:flow/presentation/cubits/song_details/song_details_cubit.dart';
+import 'package:flow/presentation/cubits/song_details/song_details_state.dart';
 
 class MockAudioPlayer extends Mock implements AudioPlayer {
   @override
@@ -50,6 +55,10 @@ class MockPlayerBloc extends MockBloc<PlayerEvent, PlayerState>
 
 class MockSearchCubit extends MockCubit<SearchState> implements SearchCubit {}
 
+class MockSettingsCubit extends MockCubit<SettingsState> implements SettingsCubit {}
+
+class MockSongDetailsCubit extends MockCubit<SongDetailsState> implements SongDetailsCubit {}
+
 class FakePlayerState extends Fake implements PlayerState {}
 
 class FakePlayerEvent extends Fake implements PlayerEvent {}
@@ -57,6 +66,8 @@ class FakePlayerEvent extends Fake implements PlayerEvent {}
 class FakeSong extends Fake implements Song {}
 
 class FakeAudioSource extends Fake implements AudioSource {}
+
+class FakeSongDetailsState extends Fake implements SongDetailsState {}
 
 void setupMocks() {
   try {
@@ -81,6 +92,7 @@ void setupMocks() {
   registerFallbackValue(FakePlayerEvent());
   registerFallbackValue(FakeSong());
   registerFallbackValue(FakeAudioSource());
+  registerFallbackValue(FakeSongDetailsState());
   registerFallbackValue(Duration.zero);
 }
 

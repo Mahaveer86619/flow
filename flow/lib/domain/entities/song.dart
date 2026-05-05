@@ -1,13 +1,9 @@
 import 'dart:ui' show Color;
 
-// ── Domain Entities ───────────────────────────────────────────────────────────
+// ── Domain Entities ──────────────────────────────────────────────────────────
 //
-// Pure business objects. No Flutter widget dependencies — only dart:ui Color,
-// which is engine-level and safe in the domain layer.
-//
-// These are the canonical types passed between all three layers.
-// The data layer maps network/DB models TO these. The presentation layer
-// reads FROM these — never the other way around.
+// These are "pure" Dart objects representing the core business data.
+// They don't know about JSON, Hive, or InnerTube.
 // ─────────────────────────────────────────────────────────────────────────────
 
 class Song {
@@ -16,23 +12,15 @@ class Song {
   final String artist;
   final String album;
   final Duration duration;
-
-  /// Remote thumbnail URL from the backend. Null for mock / offline songs.
   final String? thumbnailUrl;
   final int? thumbnailWidth;
   final int? thumbnailHeight;
-
-  /// Gradient fallback colors used when [thumbnailUrl] is null or fails to load.
   final Color colorPrimary;
   final Color colorSecondary;
-
   final bool isDownloaded;
-
-  /// Timestamp when the song was last played (for history).
-  final DateTime? playedAt;
-
-  /// Additional metadata like artist biography, related info, etc.
   final Map<String, dynamic>? extras;
+  final String source; // 'yt' or 'ytm'
+  final DateTime? playedAt;
 
   const Song({
     required this.id,
@@ -43,54 +31,55 @@ class Song {
     this.thumbnailUrl,
     this.thumbnailWidth,
     this.thumbnailHeight,
-    required this.colorPrimary,
-    required this.colorSecondary,
+    this.colorPrimary = const Color(0xFF7C3AED),
+    this.colorSecondary = const Color(0xFFBC9AFF),
     this.isDownloaded = false,
-    this.playedAt,
     this.extras,
+    this.source = 'ytm',
+    this.playedAt,
   });
 
   Song copyWith({
-    bool? isDownloaded,
-    DateTime? playedAt,
-    Map<String, dynamic>? extras,
+    String? id,
+    String? title,
+    String? artist,
+    String? album,
+    Duration? duration,
+    String? thumbnailUrl,
     int? thumbnailWidth,
     int? thumbnailHeight,
+    Color? colorPrimary,
+    Color? colorSecondary,
+    bool? isDownloaded,
+    Map<String, dynamic>? extras,
+    String? source,
+    DateTime? playedAt,
   }) {
     return Song(
-      id: id,
-      title: title,
-      artist: artist,
-      album: album,
-      duration: duration,
-      thumbnailUrl: thumbnailUrl,
+      id: id ?? this.id,
+      title: title ?? this.title,
+      artist: artist ?? this.artist,
+      album: album ?? this.album,
+      duration: duration ?? this.duration,
+      thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
       thumbnailWidth: thumbnailWidth ?? this.thumbnailWidth,
       thumbnailHeight: thumbnailHeight ?? this.thumbnailHeight,
-      colorPrimary: colorPrimary,
-      colorSecondary: colorSecondary,
+      colorPrimary: colorPrimary ?? this.colorPrimary,
+      colorSecondary: colorSecondary ?? this.colorSecondary,
       isDownloaded: isDownloaded ?? this.isDownloaded,
-      playedAt: playedAt ?? this.playedAt,
       extras: extras ?? this.extras,
+      source: source ?? this.source,
+      playedAt: playedAt ?? this.playedAt,
     );
   }
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is Song && runtimeType == other.runtimeType && id == other.id;
-
-  @override
-  int get hashCode => id.hashCode;
-
-  @override
-  String toString() => 'Song(id: $id, title: $title, artist: $artist)';
 }
 
 class Playlist {
   final String id;
   final String name;
   final String description;
-  final List<Song> songs;
+  final List<Song>? songs;
+  final int? trackCount;
   final Color color;
 
   /// Remote thumbnail URL from the backend.
@@ -112,7 +101,8 @@ class Playlist {
     required this.id,
     required this.name,
     required this.description,
-    required this.songs,
+    this.songs,
+    this.trackCount,
     required this.color,
     this.thumbnailUrl,
     this.type = 'yt',

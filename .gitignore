@@ -1,3 +1,4 @@
 .env
 flow-source/
 .superpowers/
+.worktrees/

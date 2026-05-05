@@ -7,11 +7,10 @@ import '../../cubits/library/library_cubit.dart';
 import '../../widgets/error_view.dart';
 import '../../widgets/section_header.dart';
 import '../playlist/playlist_screen.dart';
-import '../settings/settings_screen.dart';
 import '../list/list_screen.dart';
 import '../../widgets/skeleton.dart';
-import '../../../core/logger/app_logger.dart';
 import '../../../core/ui/app_snack_bar.dart';
+import '../../widgets/flow_app_bar.dart';
 
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
@@ -27,299 +26,188 @@ class _LibraryScreenState extends State<LibraryScreen> {
     final columns = screenWidth > 1200 ? 5 : (screenWidth > 800 ? 3 : 2);
     final colorScheme = Theme.of(context).colorScheme;
 
-    return RefreshIndicator(
-      onRefresh: () => context.read<LibraryCubit>().refresh(),
-      backgroundColor: colorScheme.surfaceContainerHigh,
-      color: colorScheme.primary,
-      edgeOffset: 100, // Start below the app bar
-      child: CustomScrollView(
-        physics: const BouncingScrollPhysics(
-          parent: AlwaysScrollableScrollPhysics(),
-        ),
-        slivers: [
-          SliverAppBar(
-            expandedHeight: 100,
-            floating: false,
-            pinned: true,
-            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-            surfaceTintColor: Colors.transparent,
-            elevation: 0,
-            centerTitle: false,
-            title: LayoutBuilder(
-              builder: (context, constraints) {
-                final top = constraints.biggest.height;
-                final isCollapsed = top < 90;
-                return AnimatedOpacity(
-                  duration: const Duration(milliseconds: 200),
-                  opacity: isCollapsed ? 1.0 : 0.0,
-                  child: Text(
-                    'Library',
-                    style: GoogleFonts.spaceGrotesk(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.5,
-                    ),
+    return BlocBuilder<LibraryCubit, LibraryState>(
+      builder: (context, state) {
+        return RefreshIndicator(
+          onRefresh: () => context.read<LibraryCubit>().refresh(),
+          backgroundColor: colorScheme.surfaceContainerHigh,
+          color: colorScheme.primary,
+          edgeOffset: 100,
+          child: CustomScrollView(
+            physics: const BouncingScrollPhysics(
+              parent: AlwaysScrollableScrollPhysics(),
+            ),
+            slivers: [
+              FlowAppBar(
+                title: 'Library',
+                additionalActions: [
+                  IconButton(
+                    icon: const Icon(Icons.add_rounded),
+                    onPressed: () => _showCreatePlaylistDialog(context),
+                    tooltip: 'Create Playlist',
                   ),
-                );
-              },
-            ),
-            flexibleSpace: FlexibleSpaceBar(
-              background: Padding(
-                padding: EdgeInsets.fromLTRB(
-                  16,
-                  MediaQuery.paddingOf(context).top + 12,
-                  16,
-                  0,
-                ),
-                child: Row(
-                  children: [
-                    Text(
-                      'Library',
-                      style: GoogleFonts.spaceGrotesk(
-                        fontSize: 32,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -1.2,
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      icon: const Icon(Icons.add_rounded),
-                      onPressed: () async {
-                        final controller = TextEditingController();
-                        final name = await showDialog<String>(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            title: const Text('Create Playlist'),
-                            content: TextField(
-                              controller: controller,
-                              decoration: const InputDecoration(
-                                labelText: 'Playlist Name',
-                                border: OutlineInputBorder(),
-                              ),
-                              autofocus: true,
-                              onSubmitted: (value) => Navigator.pop(ctx, value),
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx),
-                                child: const Text('Cancel'),
-                              ),
-                              FilledButton(
-                                onPressed: () =>
-                                    Navigator.pop(ctx, controller.text),
-                                child: const Text('Create'),
-                              ),
-                            ],
-                          ),
-                        );
-                        if (name?.trim().isNotEmpty ?? false) {
-                          try {
-                            final repo = context.read<MusicRepository>();
-                            await repo.createFlowPlaylist(title: name!.trim());
-                            if (context.mounted) {
-                              context.read<LibraryCubit>().refresh();
-                            }
-                          } catch (e, st) {
-                            if (context.mounted) {
-                              AppSnackBar.showError(
-                                context,
-                                e,
-                                stackTrace: st,
-                                logTag: 'LibraryScreen',
-                              );
-                            }
-                          }
-                        }
-                      },
-                      tooltip: 'Create Playlist',
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.settings_outlined),
-                      onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const SettingsScreen(),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
+                ],
               ),
-            ),
-          ),
 
-          BlocBuilder<LibraryCubit, LibraryState>(
-            builder: (context, state) {
-              if (state.isLoading && state.playlists.isEmpty) {
-                return SliverMainAxisGroup(
-                  slivers: [
-                    const SliverToBoxAdapter(
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 16),
-                        child: Column(
-                          children: [
-                            Skeleton(height: 80, borderRadius: 20),
-                            SizedBox(height: 12),
-                            Skeleton(height: 80, borderRadius: 20),
-                            SizedBox(height: 12),
-                            Skeleton(height: 80, borderRadius: 20),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SliverToBoxAdapter(
-                      child: Padding(
-                        padding: EdgeInsets.fromLTRB(16, 32, 16, 16),
-                        child: SkeletonText(width: 140, height: 20),
-                      ),
-                    ),
-                    SliverPadding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      sliver: SliverGrid(
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: columns,
-                          mainAxisSpacing: 16,
-                          crossAxisSpacing: 16,
-                          childAspectRatio: 0.82,
-                        ),
-                        delegate: SliverChildBuilderDelegate(
-                          (context, i) => const SkeletonPlaylistCard(),
-                          childCount: 6,
-                        ),
-                      ),
-                    ),
-                  ],
-                );
-              }
-
-              if (state.error && state.playlists.isEmpty) {
-                return SliverFillRemaining(
+              if (state.isLoading && state.playlists.isEmpty)
+                _buildShimmerLoading(columns)
+              else if (state.error && state.playlists.isEmpty)
+                SliverFillRemaining(
                   child: ErrorView(
                     errorType: state.errorType,
                     onRetry: () => context.read<LibraryCubit>().reload(),
                   ),
-                );
-              }
-
-              return SliverToBoxAdapter(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _LibraryShortcuts(state: state),
-                    const SizedBox(height: 24),
-                    if (state.playlists.any((p) => p.type == 'flow'))
-                      const SectionHeader(title: 'My Playlists'),
-                  ],
-                ),
-              );
-            },
-          ),
-
-          BlocBuilder<LibraryCubit, LibraryState>(
-            builder: (context, state) {
-              if (state.playlists.isEmpty) {
-                return const SliverToBoxAdapter(child: SizedBox.shrink());
-              }
-
-              return SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                sliver: SliverGrid(
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: columns,
-                    mainAxisSpacing: 16,
-                    crossAxisSpacing: 16,
-                    childAspectRatio: 0.82,
-                  ),
-                  delegate: SliverChildBuilderDelegate((context, i) {
-                    final pl = state.playlists[i];
-                    return _LibraryPlaylistCard(
-                      title: pl.name,
-                      subtitle: pl.description,
-                      imageUrl: pl.thumbnailUrl,
-                      onTap: () => Navigator.push(
+                )
+              else ...[
+                // Shortcuts (Grid style)
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
+                  sliver: SliverGrid(
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      mainAxisSpacing: 12,
+                      crossAxisSpacing: 12,
+                      childAspectRatio: 2.2,
+                    ),
+                    delegate: SliverChildListDelegate([
+                      _buildQuickAction(
                         context,
-                        MaterialPageRoute(
-                          builder: (_) => PlaylistScreen(playlist: pl),
+                        'Favourites',
+                        Icons.favorite_rounded,
+                        const Color(0xFFEC4899),
+                        () => _openSongList(
+                          context,
+                          'Favourites',
+                          state.likedSongs,
+                          ListCategory.favourites,
                         ),
                       ),
-                    );
-                  }, childCount: state.playlists.length),
+                      _buildQuickAction(
+                        context,
+                        'Downloads',
+                        Icons.download_done_rounded,
+                        const Color(0xFF10B981),
+                        () => _openSongList(
+                          context,
+                          'Downloads',
+                          state.downloadedSongs,
+                          ListCategory.downloaded,
+                        ),
+                      ),
+                    ]),
+                  ),
                 ),
-              );
-            },
-          ),
 
-          // Remote Playlists section header
-          BlocBuilder<LibraryCubit, LibraryState>(
-            builder: (context, state) {
-              if (state.playlists.isEmpty ||
-                  !state.playlists.any((p) => p.type != 'flow')) {
-                return const SliverToBoxAdapter(child: SizedBox.shrink());
-              }
-              return const SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(16, 24, 16, 0),
-                  child: SectionHeader(title: 'Remote Playlists'),
-                ),
-              );
-            },
+                // Playlists
+                if (state.playlists.isNotEmpty) ...[
+                  const SliverToBoxAdapter(
+                    child: SectionHeader(
+                      title: 'Your Playlists',
+                    ),
+                  ),
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+                    sliver: SliverGrid(
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: columns,
+                        mainAxisSpacing: 16,
+                        crossAxisSpacing: 16,
+                        childAspectRatio: 0.78,
+                      ),
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          final pl = state.playlists[index];
+                          return _LibraryPlaylistCard(
+                            title: pl.name,
+                            subtitle: pl.description,
+                            imageUrl: pl.thumbnailUrl,
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => PlaylistScreen(playlist: pl),
+                              ),
+                            ),
+                          );
+                        },
+                        childCount: state.playlists.length,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ],
           ),
-
-          const SliverToBoxAdapter(child: SizedBox(height: 120)),
-        ],
-      ),
+        );
+      },
     );
   }
-}
 
-class _LibraryShortcuts extends StatelessWidget {
-  final LibraryState state;
-  const _LibraryShortcuts({required this.state});
+  Widget _buildShimmerLoading(int columns) {
+    return SliverMainAxisGroup(
+      slivers: [
+        const SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(16, 20, 16, 12),
+            child: Column(
+              children: [
+                Skeleton(height: 80, borderRadius: 20),
+                SizedBox(height: 12),
+                Skeleton(height: 80, borderRadius: 20),
+              ],
+            ),
+          ),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          sliver: SliverGrid(
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: columns,
+              mainAxisSpacing: 16,
+              crossAxisSpacing: 16,
+              childAspectRatio: 0.82,
+            ),
+            delegate: SliverChildBuilderDelegate(
+              (context, i) => const SkeletonPlaylistCard(),
+              childCount: 6,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: [
-          _LibraryChip(
-            title: 'Downloads',
-            icon: Icons.download_done_rounded,
-            color: const Color(0xFF10B981),
-            onTap: () => _openSongList(
-              context,
-              'Downloaded',
-              state.downloadedSongs,
-              ListCategory.downloaded,
+  Widget _buildQuickAction(
+    BuildContext context,
+    String title,
+    IconData icon,
+    Color color,
+    VoidCallback onTap,
+  ) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: color.withAlpha(20),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withAlpha(40), width: 1),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 24),
+            const SizedBox(width: 12),
+            Text(
+              title,
+              style: GoogleFonts.outfit(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: color.withAlpha(200),
+              ),
             ),
-          ),
-          const SizedBox(width: 12),
-          _LibraryChip(
-            title: 'Favorites',
-            icon: Icons.favorite_rounded,
-            color: const Color(0xFFEC4899),
-            onTap: () => _openSongList(
-              context,
-              'Flow Favourites',
-              state.likedSongs,
-              ListCategory.favourites,
-            ),
-          ),
-          const SizedBox(width: 12),
-          _LibraryChip(
-            title: 'YT Liked',
-            icon: Icons.subscriptions_rounded,
-            color: const Color(0xFFFF0000),
-            onTap: () => _openSongList(
-              context,
-              'YouTube Likes',
-              state.remoteLikedSongs,
-              ListCategory.youtubeLikes,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -333,56 +221,60 @@ class _LibraryShortcuts extends StatelessWidget {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-            ListScreen(title: title, initialSongs: songs, category: category),
+        builder: (_) => ListScreen(
+          title: title,
+          initialSongs: songs,
+          category: category,
+        ),
       ),
     );
   }
-}
 
-class _LibraryChip extends StatelessWidget {
-  final String title;
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _LibraryChip({
-    required this.title,
-    required this.icon,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          color: cs.surfaceContainerHigh.withAlpha(180),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: cs.outlineVariant.withAlpha(30)),
+  Future<void> _showCreatePlaylistDialog(BuildContext context) async {
+    final controller = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Create Playlist'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            labelText: 'Playlist Name',
+            border: OutlineInputBorder(),
+          ),
+          autofocus: true,
+          onSubmitted: (value) => Navigator.pop(ctx, value),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: color, size: 20),
-            const SizedBox(width: 10),
-            Text(
-              title,
-              style: GoogleFonts.outfit(
-                fontWeight: FontWeight.w700,
-                fontSize: 14,
-                letterSpacing: -0.2,
-              ),
-            ),
-          ],
-        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text),
+            child: const Text('Create'),
+          ),
+        ],
       ),
     );
+    if (name?.trim().isNotEmpty ?? false) {
+      try {
+        final repo = context.read<MusicRepository>();
+        await repo.createFlowPlaylist(title: name!.trim());
+        if (context.mounted) {
+          context.read<LibraryCubit>().refresh();
+        }
+      } catch (e, st) {
+        if (context.mounted) {
+          AppSnackBar.showError(
+            context,
+            e,
+            stackTrace: st,
+            logTag: 'LibraryScreen',
+          );
+        }
+      }
+    }
   }
 }
 
@@ -415,16 +307,9 @@ class _LibraryPlaylistCard extends StatelessWidget {
                 image: imageUrl != null
                     ? DecorationImage(
                         image: NetworkImage(imageUrl!),
-                        fit: BoxFit.fill,
+                        fit: BoxFit.cover,
                       )
                     : null,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withAlpha(20),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
               ),
               child: imageUrl == null
                   ? Center(

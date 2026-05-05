@@ -2,11 +2,15 @@ import 'dart:async';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
-import '../logger/app_logger.dart';
-import '../storage/local_storage.dart';
-import '../../data/models/song_model.dart';
-import '../../data/sources/stream_resolver.dart';
-import '../../domain/entities/song.dart';
+import 'package:ffmpeg_kit_flutter_new_full/ffmpeg_kit.dart';
+import 'package:ffmpeg_kit_flutter_new_full/return_code.dart';
+import '../../../core/logger/app_logger.dart';
+import '../../../core/storage/local_storage.dart';
+import '../../models/song_model.dart';
+import '../remote/stream_resolver.dart';
+import '../../../domain/entities/song.dart';
+
+enum DownloadFormat { mp3, flac, opus }
 
 class DownloadService {
   DownloadService._();
@@ -41,15 +45,18 @@ class DownloadService {
       int restored = 0;
 
       for (final entity in files) {
-        if (entity is File && entity.path.endsWith('.mp3')) {
-          final fileName = entity.path.split(Platform.pathSeparator).last;
-          final parts = fileName.replaceAll('.mp3', '').split('_');
-          if (parts.length >= 2) {
-            final id = parts.last;
-            if (!_downloadedIds.contains(id)) {
-              _downloadedIds.add(id);
-              LocalStorage.instance.saveDownloadMapping(id, entity.path);
-              restored++;
+        if (entity is File) {
+          final ext = entity.path.split('.').last;
+          if (['mp3', 'flac', 'opus'].contains(ext)) {
+            final fileName = entity.path.split(Platform.pathSeparator).last;
+            final parts = fileName.replaceAll('.$ext', '').split('_');
+            if (parts.length >= 2) {
+              final id = parts.last;
+              if (!_downloadedIds.contains(id)) {
+                _downloadedIds.add(id);
+                LocalStorage.instance.saveDownloadMapping(id, entity.path);
+                restored++;
+              }
             }
           }
         }
@@ -93,16 +100,18 @@ class DownloadService {
     return name.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_').trim();
   }
 
-  Future<void> downloadSong(Song song) async {
+  Future<void> downloadSong(Song song, {DownloadFormat format = DownloadFormat.mp3, int bitrate = 192}) async {
     if (_activeDownloads.containsKey(song.id)) return;
 
     try {
       final dirPath = await _localPath;
       final safeTitle = _sanitizeFileName(song.title);
-      final fileName = '${safeTitle}_${song.id}.mp3';
-      final file = File('$dirPath/downloads/$fileName');
+      final ext = format.name;
+      final fileName = '${safeTitle}_${song.id}.$ext';
+      final finalFile = File('$dirPath/downloads/$fileName');
+      final tempFile = File('$dirPath/downloads/${song.id}.tmp');
 
-      await file.parent.create(recursive: true);
+      await finalFile.parent.create(recursive: true);
 
       String? localThumbPath;
       if (song.thumbnailUrl != null) {
@@ -118,49 +127,55 @@ class DownloadService {
       final streamUrl = await StreamResolver.instance.resolveYoutubeStream(song.id);
       if (streamUrl == null) throw Exception('Could not resolve stream URL for ${song.id}');
 
-      int existingLength = 0;
-      if (await file.exists()) {
-        existingLength = await file.length();
-        AppLogger.i(_tag, 'Found existing file of $existingLength bytes, attempting resume');
-      }
+      // 1. Download temp file
+      final response = await _client.get(Uri.parse(streamUrl));
+      if (response.statusCode != 200) throw Exception('Failed to download stream: ${response.statusCode}');
+      await tempFile.writeAsBytes(response.bodyBytes);
 
-      final request = http.Request('GET', Uri.parse(streamUrl));
-      request.headers['User-Agent'] = 'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36';
-      if (existingLength > 0) request.headers['Range'] = 'bytes=$existingLength-';
-
-      final response = await _client.send(request);
-
-      if (response.statusCode != 200 && response.statusCode != 206) {
-        if (response.statusCode == 416) {
-          AppLogger.i(_tag, 'Range not satisfiable, assuming file complete');
-        } else {
-          throw Exception('Server returned ${response.statusCode}');
-        }
-      }
-
-      final contentLength = (response.contentLength ?? 0) + existingLength;
-      int downloaded = existingLength;
-
-      _activeDownloads[song.id] = existingLength > 0 ? (existingLength / contentLength) : 0.0;
+      _activeDownloads[song.id] = 0.5; // Downloading done, transcoding starts
       _progressController.add(Map.from(_activeDownloads));
 
-      final sink = file.openWrite(mode: FileMode.append);
+      // 2. Transcode and tag with FFmpeg
+      final artworkPath = localThumbPath ?? '';
+      final metadataArgs = [
+        '-metadata', 'title=${song.title}',
+        '-metadata', 'artist=${song.artist}',
+        '-metadata', 'album=${song.album}',
+        if (song.extras?['year'] != null) ...['-metadata', 'date=${song.extras!['year']}'],
+      ];
 
-      try {
-        await for (final chunk in response.stream) {
-          sink.add(chunk);
-          downloaded += chunk.length;
-          if (contentLength > 0) {
-            final progress = downloaded / contentLength;
-            _activeDownloads[song.id] = progress;
-            _progressController.add(Map.from(_activeDownloads));
-          }
-        }
-      } finally {
-        await sink.close();
+      String codecArgs = '';
+      if (format == DownloadFormat.mp3) {
+        codecArgs = '-codec:a libmp3lame -b:a ${bitrate}k';
+      } else if (format == DownloadFormat.flac) {
+        codecArgs = '-codec:a flac';
+      } else if (format == DownloadFormat.opus) {
+        codecArgs = '-codec:a libopus -b:a ${bitrate}k';
       }
 
-      LocalStorage.instance.saveDownloadMapping(song.id, file.path);
+      String artworkArgs = '';
+      if (artworkPath.isNotEmpty && await File(artworkPath).exists()) {
+        artworkArgs = '-i "$artworkPath" -map 0 -map 1 -disposition:v attached_pic';
+      }
+
+      final command = '-i "${tempFile.path}" $artworkArgs ${metadataArgs.join(' ')} $codecArgs "${finalFile.path}" -y';
+      
+      AppLogger.d(_tag, 'Running FFmpeg: $command');
+      final session = await FFmpegKit.execute(command);
+      final returnCode = await session.getReturnCode();
+
+      if (ReturnCode.isSuccess(returnCode)) {
+        AppLogger.i(_tag, 'Transcoding complete: ${song.title}');
+      } else {
+        final logs = await session.getLogs();
+        AppLogger.e(_tag, 'FFmpeg failed: ${logs.last.getMessage()}');
+        throw Exception('Transcoding failed');
+      }
+
+      // 3. Cleanup
+      if (await tempFile.exists()) await tempFile.delete();
+
+      LocalStorage.instance.saveDownloadMapping(song.id, finalFile.path);
 
       final model = SongModel(
         id: song.id,
@@ -180,11 +195,11 @@ class DownloadService {
       _activeDownloads.remove(song.id);
       _progressController.add(Map.from(_activeDownloads));
 
-      AppLogger.i(_tag, 'Download complete: ${song.title}');
+      AppLogger.i(_tag, 'Download & Transcoding complete: ${song.title}');
     } catch (e, st) {
       _activeDownloads.remove(song.id);
       _progressController.add(Map.from(_activeDownloads));
-      AppLogger.e(_tag, 'Download failed: ${song.title}', e, st);
+      AppLogger.e(_tag, 'Download process failed: ${song.title}', e, st);
       rethrow;
     }
   }
@@ -254,7 +269,9 @@ class DownloadService {
             try {
               await f.copy('$newFlowPath${Platform.pathSeparator}cache${Platform.pathSeparator}$name');
               await f.delete();
-            } catch (e) {}
+            } catch (e) {
+              AppLogger.w(_tag, 'Failed to move cache file: $name', e);
+            }
           }
         }
       }

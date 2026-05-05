@@ -92,7 +92,8 @@ class _SquigglyProgressBarState extends State<SquigglyProgressBar>
 
   void _handleSeek(Offset localPosition) {
     if (_isLoading) return;
-    final RenderBox renderBox = context.findRenderObject() as RenderBox;
+    final RenderBox? renderBox = context.findRenderObject() as RenderBox?;
+    if (renderBox == null) return;
     final width = renderBox.size.width;
     final fraction = (localPosition.dx / width).clamp(0.0, 1.0);
     widget.onSeek?.call(fraction);
@@ -106,36 +107,43 @@ class _SquigglyProgressBarState extends State<SquigglyProgressBar>
       onTapDown: (d) => _handleSeek(d.localPosition),
       onHorizontalDragUpdate: (d) => _handleSeek(d.localPosition),
       onHorizontalDragStart: (d) => _handleSeek(d.localPosition),
-      child: RepaintBoundary(
-        child: AnimatedBuilder(
-          animation: Listenable.merge([
-            _phaseController,
-            _loadingController,
-            _transitionController,
-          ]),
-          builder: (context, _) {
-            return SizedBox(
-              height: widget.height,
-              width: double.infinity,
-              child: CustomPaint(
-                painter: _SquigglyPainter(
-                  progress: widget.progress,
-                  bufferProgress: widget.bufferProgress,
-                  isInitialLoading: widget.isInitialLoading,
-                  isBuffering: widget.isBuffering,
-                  loadingValue: _loadingController.value,
-                  transitionValue: _transitionController.value,
-                  phase: _phaseController.value * 2 * math.pi,
-                  playedColor: colorScheme.primary,
-                  bufferedColor: const Color(0xFF808080),
-                  unplayedColor: colorScheme.surfaceContainerHighest,
-                  amplitude: widget.amplitude,
-                  strokeWidth: widget.strokeWidth,
-                  waveCount: widget.waveCount,
-                ),
-              ),
-            );
-          },
+      child: Semantics(
+        label: 'Progress bar',
+        value: '${(widget.progress * 100).toInt()}%',
+        slider: true,
+        child: ExcludeSemantics(
+          child: RepaintBoundary(
+            child: AnimatedBuilder(
+              animation: Listenable.merge([
+                _phaseController,
+                _loadingController,
+                _transitionController,
+              ]),
+              builder: (context, _) {
+                return SizedBox(
+                  height: widget.height,
+                  width: double.infinity,
+                  child: CustomPaint(
+                    painter: _SquigglyPainter(
+                      progress: widget.progress,
+                      bufferProgress: widget.bufferProgress,
+                      isInitialLoading: widget.isInitialLoading,
+                      isBuffering: widget.isBuffering,
+                      loadingValue: _loadingController.value,
+                      transitionValue: _transitionController.value,
+                      phase: _phaseController.value * 2 * math.pi,
+                      playedColor: colorScheme.primary,
+                      bufferedColor: const Color(0xFF808080),
+                      unplayedColor: colorScheme.surfaceContainerHighest,
+                      amplitude: widget.amplitude,
+                      strokeWidth: widget.strokeWidth,
+                      waveCount: widget.waveCount,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
         ),
       ),
     );
@@ -216,7 +224,7 @@ class _SquigglyPainter extends CustomPainter {
     canvas.drawPath(
       path,
       basePaint
-        ..color = unplayedColor.withOpacity(1.0)
+        ..color = unplayedColor.withValues(alpha: 1.0)
         ..strokeWidth = strokeWidth,
     );
 
@@ -226,7 +234,7 @@ class _SquigglyPainter extends CustomPainter {
       final start = (loadingValue * (size.width + segmentWidth)) - segmentWidth;
 
       final paint = Paint()
-        ..color = playedColor.withOpacity(transitionValue)
+        ..color = playedColor.withValues(alpha: transitionValue)
         ..style = PaintingStyle.stroke
         ..strokeWidth = strokeWidth * 1.5
         ..strokeCap = StrokeCap.round;
@@ -265,7 +273,7 @@ class _SquigglyPainter extends CustomPainter {
         canvas.drawPath(
           path,
           basePaint
-            ..color = bufferedColor.withOpacity(normalOpacity)
+            ..color = bufferedColor.withValues(alpha: normalOpacity)
             ..strokeWidth = strokeWidth * 1.2,
         );
         canvas.restore();
@@ -283,7 +291,7 @@ class _SquigglyPainter extends CustomPainter {
         canvas.drawPath(
           path,
           basePaint
-            ..color = playedColor.withOpacity(normalOpacity)
+            ..color = playedColor.withValues(alpha: normalOpacity)
             ..strokeWidth = strokeWidth * 1.8,
         );
         canvas.restore();
@@ -305,7 +313,7 @@ class _SquigglyPainter extends CustomPainter {
         canvas.drawCircle(
           Offset(progressX, dotY),
           size.height * 0.2,
-          Paint()..color = playedColor.withOpacity(normalOpacity),
+          Paint()..color = playedColor.withValues(alpha: normalOpacity),
         );
       }
     }
@@ -324,6 +332,3 @@ class _SquigglyPainter extends CustomPainter {
       old.strokeWidth != strokeWidth ||
       old.waveCount != waveCount;
 }
-
-
-

@@ -4,6 +4,7 @@ class AuthState {
   final String? token;
   final String? username;
   final String? email;
+  final String? error;
   final bool hasYtAuth;
   final bool hasSpotifyAuth;
   final String? ytName;
@@ -15,6 +16,7 @@ class AuthState {
     this.token,
     this.username,
     this.email,
+    this.error,
     this.hasYtAuth = false,
     this.hasSpotifyAuth = false,
     this.ytName,
@@ -27,6 +29,7 @@ class AuthState {
     String? token,
     String? username,
     String? email,
+    String? error,
     bool? hasYtAuth,
     bool? hasSpotifyAuth,
     String? ytName,
@@ -38,6 +41,7 @@ class AuthState {
         token: token ?? this.token,
         username: username ?? this.username,
         email: email ?? this.email,
+        error: error,
         hasYtAuth: hasYtAuth ?? this.hasYtAuth,
         hasSpotifyAuth: hasSpotifyAuth ?? this.hasSpotifyAuth,
         ytName: ytName ?? this.ytName,

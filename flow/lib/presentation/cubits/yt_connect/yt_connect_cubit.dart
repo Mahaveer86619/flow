@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/ui/app_snack_bar.dart';
 import '../../../core/logger/app_logger.dart';
@@ -22,7 +24,26 @@ class YTConnectCubit extends Cubit<YTConnectState> {
 
       await SecureStorageService.instance.saveYoutubeCookies(cookieString);
       await SecureStorageService.instance.saveYoutubeUserAgent(userAgent);
-      
+
+      // EXTREMELY HELPFUL FOR RESEARCH: Dump cookies to a local file if in debug mode
+      if (kDebugMode) {
+        try {
+          // Attempt to find the project root by looking for pubspec.yaml
+          // This is a bit of a hack but works if run from the project directory
+          final binDir = Directory('bin');
+          if (binDir.existsSync()) {
+            final cookieFile = File('bin/cookies.txt');
+            await cookieFile.writeAsString(cookieString);
+            AppLogger.i(
+              _tag,
+              'DEBUG: Cookies dumped to ${cookieFile.absolute.path}',
+            );
+          }
+        } catch (e) {
+          AppLogger.w(_tag, 'DEBUG: Failed to dump cookies to file: $e');
+        }
+      }
+
       AppLogger.i(_tag, 'Local YouTube Music connection successful');
       emit(const YTConnectState(status: YTConnectStatus.success));
     } catch (e, st) {

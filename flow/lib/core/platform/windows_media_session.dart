@@ -124,7 +124,7 @@ class WindowsMediaSession {
     if (!_isWindows || _smtc == null) return;
     try {
       await _smtc!.setPlaybackStatus(
-        isPlaying ? PlaybackStatus.Playing : PlaybackStatus.Paused,
+        isPlaying ? PlaybackStatus.playing : PlaybackStatus.paused,
       );
     } catch (e) {
       AppLogger.w(_tag, 'setPlaybackStatus failed: $e');
@@ -152,7 +152,7 @@ class WindowsMediaSession {
   Future<void> setStopped() async {
     if (!_isWindows || _smtc == null) return;
     try {
-      await _smtc!.setPlaybackStatus(PlaybackStatus.Stopped);
+      await _smtc!.setPlaybackStatus(PlaybackStatus.stopped);
     } catch (e) {
       AppLogger.w(_tag, 'setStopped failed: $e');
     }

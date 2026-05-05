@@ -48,6 +48,19 @@ abstract class MusicRepository {
   /// Fetch persistent play history with date segmentation.
   Future<HistoryData> getPersistentHistory();
 
+  /// Record a search query for behavior tracking.
+  Future<void> recordSearch(String query);
+
+  /// Get top artists from play history.
+  Future<List<String>> getTopArtists();
+
+
+  /// Record interest in a podcast artist.
+  void recordPodcastInterest(String artistName);
+
+  /// Record interest in a lofi artist.
+  void recordLofiInterest(String artistName);
+
   /// Get detailed metadata for a specific song (biography, etc.)
   Future<Map<String, dynamic>> getSongDetails(String videoId);
 
@@ -57,7 +70,15 @@ abstract class MusicRepository {
   /// Static browse categories — synchronous, never needs the network.
   List<Map<String, dynamic>> getCategories();
 
+  /// Get personalized recommendations based on user taste profile.
+  Future<List<Song>> getRecommendations({int limit = 20});
+
+  /// Get blended recommendations with a friend.
+  Future<List<Song>> getBlendedRecommendations(String friendId, {int limit = 20});
+
   // ── Flow Playlist CRUD ────────────────────────────────────────────────────────
+
+
 
   /// Create a new Flow playlist owned by the current user.
   Future<Playlist> createFlowPlaylist({

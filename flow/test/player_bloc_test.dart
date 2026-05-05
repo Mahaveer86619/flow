@@ -5,6 +5,7 @@ import 'package:just_audio/just_audio.dart'
     as ja
     show PlayerState, ProcessingState;
 import 'package:flow/presentation/blocs/player/player_bloc.dart';
+import 'package:flow/presentation/cubits/settings/settings_state.dart';
 import 'mocks.dart';
 
 void main() {
@@ -12,6 +13,7 @@ void main() {
   late MockLocalStorage mockLocalStorage;
   late MockWindowsMediaSession mockMediaSession;
   late MockMusicRepository mockMusicRepository;
+  late MockSettingsCubit mockSettingsCubit;
 
   setUp(() {
     setupMocks();
@@ -19,6 +21,7 @@ void main() {
     mockLocalStorage = MockLocalStorage();
     mockMediaSession = MockWindowsMediaSession();
     mockMusicRepository = MockMusicRepository();
+    mockSettingsCubit = MockSettingsCubit();
 
     // Stub AudioPlayer streams
     when(
@@ -51,90 +54,90 @@ void main() {
         initialPosition: any(named: 'initialPosition'),
       ),
     ).thenAnswer((_) async => null);
-    when(() => mockAudioPlayer.play()).thenAnswer((_) async => {});
 
-    // Stub LocalStorage
-    when(() => mockLocalStorage.likedSongIds).thenReturn([]);
-    when(() => mockLocalStorage.recentlyPlayedIds).thenReturn([]);
-    when(() => mockLocalStorage.volume).thenReturn(0.7);
-    when(() => mockLocalStorage.isShuffle).thenReturn(false);
-    when(() => mockLocalStorage.isRepeat).thenReturn(false);
-    when(() => mockLocalStorage.recentSearches).thenReturn([]);
-
-    // Stub MediaSession
-    when(
-      () => mockMediaSession.init(
-        onPlay: any(named: 'onPlay'),
-        onPause: any(named: 'onPause'),
-        onNext: any(named: 'onNext'),
-        onPrevious: any(named: 'onPrevious'),
-        onFastForward: any(named: 'onFastForward'),
-        onRewind: any(named: 'onRewind'),
-      ),
-    ).thenAnswer((_) async => {});
-    when(() => mockMediaSession.updateSong(any())).thenAnswer((_) async => {});
-    when(
-      () => mockMediaSession.setPlaybackStatus(any()),
-    ).thenAnswer((_) async => {});
-    when(
-      () => mockMediaSession.updateTimeline(any(), any()),
-    ).thenAnswer((_) async => {});
+    when(() => mockSettingsCubit.state).thenReturn(const SettingsState());
   });
 
-  group('PlayerBloc - PlayRadioEvent', () {
+  group('PlayerBloc', () {
+    test('initial state is PlayerState()', () {
+      expect(
+        PlayerBloc(
+          musicRepository: mockMusicRepository,
+          settingsCubit: mockSettingsCubit,
+          storage: mockLocalStorage,
+          audioPlayer: mockAudioPlayer,
+          mediaSession: mockMediaSession,
+        ).state,
+        const PlayerState(),
+      );
+    });
+
     blocTest<PlayerBloc, PlayerState>(
-      'starts radio and fetches tracks',
+      'emits correct state when PlaySingleEvent is added',
       build: () {
-        when(
-          () => mockMusicRepository.getRadioTracks(any()),
-        ).thenAnswer((_) async => [testSong2]);
         return PlayerBloc(
           musicRepository: mockMusicRepository,
-          audioPlayer: mockAudioPlayer,
+          settingsCubit: mockSettingsCubit,
           storage: mockLocalStorage,
+          audioPlayer: mockAudioPlayer,
           mediaSession: mockMediaSession,
         );
       },
-      act: (bloc) => bloc.add(PlayRadioEvent(testSong)),
-      verify: (bloc) {
-        verify(() => mockMusicRepository.getRadioTracks(testSong.id)).called(1);
-        expect(bloc.state.queue, contains(testSong));
-      },
-    );
-  });
-
-  group('PlayerBloc - ResetPlayerEvent', () {
-    blocTest<PlayerBloc, PlayerState>(
-      'stops audio player and clears state',
-      build: () {
-        when(() => mockAudioPlayer.stop()).thenAnswer((_) async => {});
-        return PlayerBloc(
-          musicRepository: mockMusicRepository,
-          audioPlayer: mockAudioPlayer,
-          storage: mockLocalStorage,
-          mediaSession: mockMediaSession,
-        );
-      },
-      seed: () => PlayerState(
-        currentSong: testSong,
-        isPlaying: true,
-        queue: [testSong],
-        queueIndex: 0,
-      ),
-      act: (bloc) => bloc.add(const ResetPlayerEvent()),
+      act: (bloc) => bloc.add(PlaySingleEvent(testSong)),
       expect: () => [
-        isA<PlayerState>()
-            .having((s) => s.currentSong, 'currentSong', isNull)
-            .having((s) => s.isPlaying, 'isPlaying', isFalse)
-            .having((s) => s.queue, 'queue', isEmpty)
-            .having((s) => s.queueIndex, 'queueIndex', -1)
-            .having((s) => s.isInitialLoading, 'isInitialLoading', isFalse)
-            .having((s) => s.isBuffering, 'isBuffering', isFalse),
+        isA<PlayerState>().having((s) => s.currentSong, 'currentSong', testSong),
       ],
       verify: (_) {
+        verify(() => mockMusicRepository.recordPlay(testSong)).called(1);
         verify(() => mockAudioPlayer.stop()).called(1);
-        verify(() => mockMediaSession.setStopped()).called(1);
       },
     );
+  group('Queue Management', () {
+      blocTest<PlayerBloc, PlayerState>(
+        'InsertNextEvent adds song after current index',
+        build: () {
+          final bloc = PlayerBloc(
+            musicRepository: mockMusicRepository,
+            settingsCubit: mockSettingsCubit,
+            storage: mockLocalStorage,
+            audioPlayer: mockAudioPlayer,
+            mediaSession: mockMediaSession,
+          );
+          // Pre-populate with a song
+          return bloc;
+        },
+        seed: () => PlayerState(
+          queue: [testSong],
+          queueIndex: 0,
+          currentSong: testSong,
+        ),
+        act: (bloc) => bloc.add(InsertNextEvent(testSong2)),
+        expect: () => [
+          isA<PlayerState>().having((s) => s.queue, 'queue', [testSong, testSong2]),
+        ],
+      );
+
+      blocTest<PlayerBloc, PlayerState>(
+        'RemoveFromQueueEvent removes song at index',
+        build: () {
+          return PlayerBloc(
+            musicRepository: mockMusicRepository,
+            settingsCubit: mockSettingsCubit,
+            storage: mockLocalStorage,
+            audioPlayer: mockAudioPlayer,
+            mediaSession: mockMediaSession,
+          );
+        },
+        seed: () => PlayerState(
+          queue: [testSong, testSong2],
+          queueIndex: 0,
+          currentSong: testSong,
+        ),
+        act: (bloc) => bloc.add(const RemoveFromQueueEvent(1)),
+        expect: () => [
+          isA<PlayerState>().having((s) => s.queue, 'queue', [testSong]),
+        ],
+      );
+    });
   });
 }

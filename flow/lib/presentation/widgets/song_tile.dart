@@ -19,6 +19,7 @@ class SongTile extends StatelessWidget {
   final String? heroTag;
   final VoidCallback? onTap;
   final bool startRadio;
+  final bool skipPlayerScreen;
 
   const SongTile({
     super.key,
@@ -28,6 +29,7 @@ class SongTile extends StatelessWidget {
     this.heroTag,
     this.onTap,
     this.startRadio = false,
+    this.skipPlayerScreen = false,
   });
 
   @override
@@ -45,24 +47,24 @@ class SongTile extends StatelessWidget {
               context.read<PlayerBloc>().add(PlayRadioEvent(song));
             } else {
               context.read<PlayerBloc>().add(
-                    PlayQueueEvent(
-                      songs: List<Song>.from(queue),
-                      startIndex: index,
-                    ),
-                  );
+                PlayQueueEvent(
+                  songs: List<Song>.from(queue),
+                  startIndex: index,
+                ),
+              );
             }
-            if (!isDesktop) {
+            if (!skipPlayerScreen && !isDesktop) {
               PlayerScreen.show(context);
             }
           },
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
       leading: Hero(
         tag: heroTag ?? 'tile_art_${song.id}_${song.hashCode}_$index',
         child: Container(
           width: 48,
           height: 48,
           decoration: BoxDecoration(
-            borderRadius: AppRadius.mediumBorderRadius,
+            borderRadius: BorderRadius.circular(4),
             gradient: LinearGradient(
               colors: [song.colorPrimary, song.colorSecondary],
               begin: Alignment.topLeft,
@@ -82,7 +84,7 @@ class SongTile extends StatelessWidget {
             if (thumbUrl.startsWith('http')) {
               return Image.network(
                 thumbUrl,
-                fit: BoxFit.fill,
+                fit: BoxFit.cover,
                 headers: const {
                   'User-Agent':
                       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
@@ -94,7 +96,7 @@ class SongTile extends StatelessWidget {
               if (file.existsSync()) {
                 return Image.file(
                   file,
-                  fit: BoxFit.fill,
+                  fit: BoxFit.cover,
                   errorBuilder: (_, __, ___) => _fallback(),
                 );
               }
@@ -103,7 +105,7 @@ class SongTile extends StatelessWidget {
                   song.thumbnailUrl!.startsWith('http')) {
                 return Image.network(
                   song.thumbnailUrl!,
-                  fit: BoxFit.fill,
+                  fit: BoxFit.cover,
                   headers: const {
                     'User-Agent':
                         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
@@ -152,7 +154,7 @@ class SongTile extends StatelessWidget {
         style: GoogleFonts.spaceGrotesk(
           fontSize: 24,
           fontWeight: FontWeight.w800,
-          color: Colors.white,
+          color: Colors.white.withAlpha(100),
           height: 1.0,
         ),
       ),
@@ -287,7 +289,7 @@ class _SongOptionsButton extends StatelessWidget {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.white24,
+                  color: Theme.of(context).colorScheme.onSurface.withAlpha(40),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),

@@ -1,13 +1,58 @@
+import '../../core/config/app_constants.dart';
 import '../entities/home_data.dart';
 import '../repositories/music_repository.dart';
 
 /// Returns structured home screen data from the repository.
 ///
-/// This replaces the old pattern of fetching a flat song list and manually
-/// splitting it into sections inside the Cubit. The backend now owns that
-/// logic; the Cubit just loads and emits.
+/// If [AppConfig.intelligenceActive] is true, it applies heuristic parsing
+/// to classify shelves into types (quickPicks, listeningAgain, etc.)
+/// so the UI can apply specialized layouts.
 class GetHomeDataUseCase {
   final MusicRepository _repository;
   const GetHomeDataUseCase(this._repository);
-  Future<HomeData> call({int limit = 25}) => _repository.getHomeData(limit: limit);
+
+  Future<HomeData> call({int limit = 25}) async {
+    final data = await _repository.getHomeData(limit: limit);
+
+    if (!AppConfig.intelligenceActive) {
+      return data;
+    }
+
+    // Apply "Internal App Logic" (Heuristics) to classify raw data
+    final intelligentShelves = data.shelves.map((shelf) {
+      String? sectionType;
+      final titleLower = shelf.title.toLowerCase();
+
+      if (titleLower.contains('quick picks')) {
+        sectionType = 'quickPicks';
+      } else if (titleLower.contains('listen again')) {
+        sectionType = 'listeningAgain';
+      } else if (titleLower.contains('video')) {
+        sectionType = 'musicVideos';
+      } else if (titleLower.contains('podcast')) {
+        sectionType = 'podcasts';
+      } else if (titleLower.contains('album')) {
+        sectionType = 'albums';
+      } else if (titleLower.contains('long listen')) {
+        sectionType = 'longListening';
+      } else if (titleLower.contains('flow')) {
+        sectionType = 'flowIntelligence';
+      }
+
+      return HomeShelf(
+        title: shelf.title,
+        items: shelf.items,
+        section: sectionType,
+      );
+    }).toList();
+
+    return HomeData(
+      shelves: intelligentShelves,
+      trending: data.trending,
+      profileUrl: data.profileUrl,
+      ytName: data.ytName,
+      musicVideos: data.musicVideos,
+      favArtistsSongs: data.favArtistsSongs,
+    );
+  }
 }

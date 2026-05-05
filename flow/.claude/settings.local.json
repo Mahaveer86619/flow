@@ -4,7 +4,8 @@
       "mcp__dart__list_devices",
       "mcp__dart__launch_app",
       "mcp__dart__get_app_logs",
-      "mcp__dart__stop_app"
+      "mcp__dart__stop_app",
+      "mcp__codebase-memory-mcp__search_graph"
     ]
   }
 }

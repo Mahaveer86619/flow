@@ -30,6 +30,7 @@ class LocalStorage {
   late final Box _metadata;
   late final Box _songMetadataCache;
   late final Box _homeCache;
+  late final Box _localPlaylists;
 
   final _likedSongsController = StreamController<List<String>>.broadcast();
   Stream<List<String>> get likedSongsStream => _likedSongsController.stream;
@@ -48,6 +49,7 @@ class LocalStorage {
     _metadata = await Hive.openBox(HiveKeys.metadataBox);
     _songMetadataCache = await Hive.openBox(HiveKeys.songMetadataBox);
     _homeCache = await Hive.openBox(HiveKeys.homeCacheBox);
+    _localPlaylists = await Hive.openBox('local_playlists');
     AppLogger.i(
       'LocalStorage',
       'Hive initialised. '
@@ -122,7 +124,40 @@ class LocalStorage {
   void saveDownloadQuality(String q) =>
       _settings.put(HiveKeys.downloadQuality, q);
 
+  int? get cacheBudgetMB => _settings.get(HiveKeys.cacheBudgetMB) as int?;
+  void saveCacheBudgetMB(int? mb) => _settings.put(HiveKeys.cacheBudgetMB, mb);
+
+  String get downloadFormat => _settings.get(HiveKeys.downloadFormat) as String? ?? 'mp3';
+  void saveDownloadFormat(String format) => _settings.put(HiveKeys.downloadFormat, format);
+
+  int get downloadBitrate => _settings.get(HiveKeys.downloadBitrate) as int? ?? 192;
+  void saveDownloadBitrate(int bitrate) => _settings.put(HiveKeys.downloadBitrate, bitrate);
+
+  String get streamingMode => _settings.get(HiveKeys.streamingMode) as String? ?? 'standalone';
+  void saveStreamingMode(String mode) => _settings.put(HiveKeys.streamingMode, mode);
+
+  int get lastSyncTime => _settings.get(HiveKeys.lastSyncTime) as int? ?? 0;
+  void saveLastSyncTime(int time) => _settings.put(HiveKeys.lastSyncTime, time);
+
+  int getPeerLastSync(String peerId) => _settings.get('sync_$peerId') as int? ?? 0;
+  void setPeerLastSync(String peerId, int time) => _settings.put('sync_$peerId', time);
+
+  String? get lastDigestGeneration => _settings.get(HiveKeys.lastDigestGeneration) as String?;
+  void saveLastDigestGeneration(String date) => _settings.put(HiveKeys.lastDigestGeneration, date);
+
+  double get playbackSpeed => _settings.get(HiveKeys.playbackSpeed) as double? ?? 1.0;
+  void savePlaybackSpeed(double speed) => _settings.put(HiveKeys.playbackSpeed, speed);
+
+  int get crossfadeDuration => _settings.get(HiveKeys.crossfadeDuration) as int? ?? 0;
+  void saveCrossfadeDuration(int seconds) => _settings.put(HiveKeys.crossfadeDuration, seconds);
+
   String get _platformDownloadPathKey {
+
+
+
+
+
+
     if (Platform.isWindows) return '${HiveKeys.downloadPath}_windows';
     if (Platform.isAndroid) return '${HiveKeys.downloadPath}_android';
     if (Platform.isIOS) return '${HiveKeys.downloadPath}_ios';
@@ -170,7 +205,7 @@ class LocalStorage {
     // We KEEP _player (contains liked IDs and preferences)
     // We KEEP _settings (contains download paths, quality, etc.)
     // We KEEP _auth (contains login state)
-    
+
     await _search.clear();
     await _songMetadataCache.clear();
     await _homeCache.clear();
@@ -261,5 +296,83 @@ class LocalStorage {
 
   dynamic getCachedMetadata(String key) {
     return _songMetadataCache.get(key);
+  }
+
+  // ── Local Playlists ─────────────────────────────────────────────────────────
+
+  List<Map<String, dynamic>> get localPlaylists => _localPlaylists.values
+      .map((v) => Map<String, dynamic>.from(v as Map))
+      .toList();
+
+  Future<void> saveLocalPlaylist(Map<String, dynamic> playlist) async {
+    await _localPlaylists.put(playlist['id'], playlist);
+  }
+
+  Future<void> deleteLocalPlaylist(String id) async {
+    await _localPlaylists.delete(id);
+  }
+
+  // ── Artist Affinity Tracking ──────────────────────────────────────────────
+
+  Map<String, int> get artistPlayCounts =>
+      _player.get('artist_play_counts')?.cast<String, int>() ?? {};
+
+  void incrementArtistPlayCount(String artistName) {
+    final counts = Map<String, int>.from(artistPlayCounts);
+    counts[artistName] = (counts[artistName] ?? 0) + 1;
+    _player.put('artist_play_counts', counts);
+  }
+
+  List<String> get searchArtistHistory =>
+      _search.get('search_artist_history')?.cast<String>() ?? [];
+
+  void recordArtistSearch(String artistName) {
+    final history = List<String>.from(searchArtistHistory);
+    history.remove(artistName);
+    history.insert(0, artistName);
+    if (history.length > 20) history.removeLast();
+    _search.put('search_artist_history', history);
+  }
+
+  List<String> get topArtists {
+    final counts = artistPlayCounts;
+    final sorted = counts.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return sorted.take(10).map((e) => e.key).toList();
+  }
+
+  List<String> get interestList =>
+      _player.get('interest_list')?.cast<String>() ?? [];
+
+  void addToInterestList(String artistName) {
+    final list = List<String>.from(interestList);
+    if (!list.contains(artistName)) {
+      list.add(artistName);
+      _player.put('interest_list', list);
+    }
+  }
+
+  // ── Podcast & Lofi Affinity ──────────────────────────────────────────────
+
+  List<String> get likedPodcastArtists =>
+      _player.get('liked_podcast_artists')?.cast<String>() ?? [];
+
+  void recordPodcastInterest(String artistName) {
+    final list = List<String>.from(likedPodcastArtists);
+    if (!list.contains(artistName)) {
+      list.add(artistName);
+      _player.put('liked_podcast_artists', list);
+    }
+  }
+
+  List<String> get likedLofiArtists =>
+      _player.get('liked_lofi_artists')?.cast<String>() ?? [];
+
+  void recordLofiInterest(String artistName) {
+    final list = List<String>.from(likedLofiArtists);
+    if (!list.contains(artistName)) {
+      list.add(artistName);
+      _player.put('liked_lofi_artists', list);
+    }
   }
 }
