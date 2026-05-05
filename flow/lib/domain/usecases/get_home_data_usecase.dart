@@ -25,23 +25,26 @@ class GetHomeDataUseCase {
 
     // Apply "Internal App Logic" (Heuristics) to classify raw data
     final intelligentShelves = data.shelves.map((shelf) {
-      String? sectionType;
+      String? sectionType = shelf.section;
       final titleLower = shelf.title.toLowerCase();
 
-      if (titleLower.contains('quick picks')) {
-        sectionType = 'quickPicks';
-      } else if (titleLower.contains('listen again')) {
-        sectionType = 'listeningAgain';
-      } else if (titleLower.contains('video')) {
-        sectionType = 'musicVideos';
-      } else if (titleLower.contains('podcast')) {
-        sectionType = 'podcasts';
-      } else if (titleLower.contains('album')) {
-        sectionType = 'albums';
-      } else if (titleLower.contains('long listen')) {
-        sectionType = 'longListening';
-      } else if (titleLower.contains('flow')) {
-        sectionType = 'flowIntelligence';
+      // If source didn't classify it (or for overrides), use heuristics
+      if (sectionType == null) {
+        if (titleLower.contains('quick picks')) {
+          sectionType = 'quickPicks';
+        } else if (titleLower.contains('listen again')) {
+          sectionType = 'listeningAgain';
+        } else if (titleLower.contains('video')) {
+          sectionType = 'musicVideos';
+        } else if (titleLower.contains('podcast')) {
+          sectionType = 'podcasts';
+        } else if (titleLower.contains('album')) {
+          sectionType = 'albums';
+        } else if (titleLower.contains('long listen')) {
+          sectionType = 'longListening';
+        } else if (titleLower.contains('flow')) {
+          sectionType = 'flowIntelligence';
+        }
       }
 
       AppLogger.d(
@@ -52,7 +55,7 @@ class GetHomeDataUseCase {
       return HomeShelf(
         title: shelf.title,
         items: shelf.items,
-        section: sectionType,
+        section: sectionType ?? 'generic_shelf',
       );
     }).toList();
 

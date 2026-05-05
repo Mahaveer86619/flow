@@ -111,19 +111,16 @@ class _YTConnectScreenState extends State<YTConnectScreen> {
       final currentUrl = await _webViewController?.getUrl();
       AppLogger.d(_tag, 'Current URL at extraction: $currentUrl');
 
-      // Collect cookies from all relevant Google/YT domains
-      final results = await Future.wait([
-        _cookieManager.getCookies(url: WebUri('https://music.youtube.com/')),
-        _cookieManager.getCookies(url: WebUri('https://www.youtube.com/')),
-        _cookieManager.getCookies(url: WebUri('https://accounts.google.com/')),
-      ]);
+      // Fetch only from music.youtube.com so the SAPISID is YouTube-scoped.
+      // Merging accounts.google.com cookies would overwrite the YouTube SAPISID
+      // with a Google-scoped one, causing the SAPISIDHASH to fail validation.
+      final cookies = await _cookieManager.getCookies(
+        url: WebUri('https://music.youtube.com/'),
+      );
 
       final Map<String, String> allCookies = {};
-      for (final cookieList in results) {
-        for (final c in cookieList) {
-          // Later entries (more specific domains) win
-          allCookies[c.name] = c.value;
-        }
+      for (final c in cookies) {
+        allCookies[c.name] = c.value;
       }
 
       AppLogger.d(

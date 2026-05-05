@@ -10,7 +10,8 @@ import '../../models/song_model.dart';
 
 abstract class MusicDataSource {
   /// Structured home screen data — maps to the five UI sections in one call.
-  Future<HomeDataModel> fetchHomeData({int limit = 25});
+  /// Pass [continuationToken] to fetch the next page of the home feed.
+  Future<HomeDataModel> fetchHomeData({int limit = 25, String? continuationToken});
 
   /// Song search results for the given query.
   Future<List<SongModel>> searchSongs(String query, {int limit = 25});

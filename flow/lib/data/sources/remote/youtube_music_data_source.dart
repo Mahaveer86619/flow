@@ -1,8 +1,8 @@
 import 'dart:ui';
 import 'package:dio/dio.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../../../core/error/app_exception.dart';
 import '../../../core/logger/app_logger.dart';
-import '../../../core/storage/local_storage.dart';
 import '../../../core/network/dio_client.dart';
 import '../../models/home_data_model.dart';
 import '../../models/playlist_model.dart';
@@ -26,8 +26,8 @@ class YoutubeMusicDataSource implements MusicDataSource {
       "clientName": "WEB_REMIX",
       "clientVersion": "1.20250101.01.00",
       "hl": "en",
-      "gl": "US",
-      "utcOffsetMinutes": 0,
+      "gl": "IN",
+      "utcOffsetMinutes": 330,
     },
     "user": {"lockedSafetyMode": false},
   };
@@ -35,23 +35,28 @@ class YoutubeMusicDataSource implements MusicDataSource {
   // ── Public API ──────────────────────────────────────────────────────────────
 
   @override
-  Future<HomeDataModel> fetchHomeData({int limit = 25}) async {
+  Future<HomeDataModel> fetchHomeData({
+    int limit = 25,
+    String? continuationToken,
+  }) async {
     try {
-      AppLogger.i(_tag, 'fetchHomeData starting');
-      final visitorData =
-          LocalStorage.instance.getCachedMetadata('yt_visitor_data') as String?;
+      AppLogger.i(_tag, 'fetchHomeData starting (continuation: ${continuationToken != null})');
 
-      // FIX: WEB_REMIX calls go to music.youtube.com/youtubei/v1 (not www.youtube.com)
-      // and require the API key as a query parameter.
+      // visitorData is intentionally omitted: a stale guest visitorData token
+      // causes an identity collision that causes the backend to ignore auth cookies.
+      final Map<String, dynamic> requestBody = continuationToken != null
+          ? {
+              "context": _context,
+              "continuation": continuationToken,
+            }
+          : {
+              "browseId": "FEmusic_home",
+              "context": _context,
+            };
+
       final response = await _dio.post(
         '$_baseUrl/browse?prettyPrint=false&key=$_apiKey',
-        data: {
-          "browseId": "FEmusic_home",
-          "context": {
-            ..._context,
-            if (visitorData != null) "visitorData": visitorData,
-          },
-        },
+        data: requestBody,
         options: Options(
           headers: {
             // Required for WEB_REMIX authenticated requests
@@ -65,14 +70,6 @@ class YoutubeMusicDataSource implements MusicDataSource {
 
       if (response.statusCode != 200) {
         AppLogger.w(_tag, 'fetchHomeData returned ${response.statusCode}');
-        if (response.statusCode == 400) {
-          LocalStorage.instance.saveCachedMetadata('yt_visitor_data', null);
-          throw const SourceException(
-            message:
-                'YouTube Music returned a 400 error. Your connection may be invalid.',
-            statusCode: 400,
-          );
-        }
         throw SourceException(
           message: 'Failed to fetch home data from YouTube Music.',
           statusCode: response.statusCode,
@@ -81,18 +78,9 @@ class YoutubeMusicDataSource implements MusicDataSource {
 
       final data = response.data as Map<String, dynamic>;
 
-      // Persist new visitor data for continuity
-      final newVisitorData = data['responseContext']?['visitorData'] as String?;
-      if (newVisitorData != null) {
-        LocalStorage.instance.saveCachedMetadata(
-          'yt_visitor_data',
-          newVisitorData,
-        );
-      }
-
-      final shelves = _parseShelves(data);
-      AppLogger.i(_tag, 'fetchHomeData succeeded: ${shelves.length} shelves');
-      return HomeDataModel(rawShelves: shelves);
+      final (shelves, nextToken) = _parseShelves(data);
+      AppLogger.i(_tag, 'fetchHomeData succeeded: ${shelves.length} shelves, hasNextPage: ${nextToken != null}');
+      return HomeDataModel(rawShelves: shelves, continuationToken: nextToken);
     } catch (e, st) {
       AppLogger.e(_tag, 'fetchHomeData failed', e, st);
       return const HomeDataModel(rawShelves: []);
@@ -136,34 +124,48 @@ class YoutubeMusicDataSource implements MusicDataSource {
 
   // ── Shelf Parsing ───────────────────────────────────────────────────────────
 
-  List<Map<String, dynamic>> _parseShelves(Map<String, dynamic> data) {
+  (List<Map<String, dynamic>>, String?) _parseShelves(Map<String, dynamic> data) {
     final contents =
         data['contents']?['singleColumnBrowseResultsRenderer']?['tabs']?[0]?['tabRenderer']?['content']?['sectionListRenderer']?['contents'];
 
     if (contents == null) {
       AppLogger.w(_tag, 'parseShelves: contents is null');
-      return [];
+      return ([], null);
     }
 
     final shelves = <Map<String, dynamic>>[];
+    String? continuationToken;
 
-    for (final section in contents as List) {
+    for (final sectionObj in contents as List) {
+      final section = sectionObj as Map<String, dynamic>;
       if (section.containsKey('musicTastebuilderShelfRenderer')) {
         AppLogger.d(_tag, 'Skipping musicTastebuilderShelfRenderer');
         continue;
       }
 
+      if (section.containsKey('continuationItemRenderer')) {
+        continuationToken = section['continuationItemRenderer']
+            ?['continuationEndpoint']
+            ?['continuationCommand']
+            ?['token'] as String?;
+        AppLogger.d(_tag, 'Found continuation token: ${continuationToken != null}');
+        continue;
+      }
+
       final shelf =
-          section['musicCarouselShelfRenderer'] ??
-          section['musicShelfRenderer'];
+          section['musicCarouselShelfRenderer'] as Map<String, dynamic>? ??
+          section['musicShelfRenderer'] as Map<String, dynamic>? ??
+          section['gridRenderer'] as Map<String, dynamic>? ??
+          section['musicDescriptionShelfRenderer'] as Map<String, dynamic>?;
       if (shelf == null) continue;
 
       final title = _shelfTitle(shelf);
       final itemSize = shelf['itemSize'] as String? ?? '';
       final items = <Map<String, dynamic>>[];
 
-      for (final item in shelf['contents'] as List? ?? []) {
-        final mapped = _parseItem(item);
+      final shelfContents = shelf['contents'] as List? ?? [];
+      for (final item in shelfContents) {
+        final mapped = _parseItem(item as Map<String, dynamic>);
         if (mapped != null) items.add(mapped);
       }
 
@@ -172,17 +174,46 @@ class YoutubeMusicDataSource implements MusicDataSource {
         continue;
       }
 
-      AppLogger.i(_tag, 'Parsed shelf: "$title" with ${items.length} items');
+      final titleLower = title.toLowerCase();
+      String? sectionType;
+
+      // Eager classification for UI consistency if Intelligence is inactive
+      final intelligenceActive =
+          dotenv.env['INTELLIGENCE_ACTIVE']?.toLowerCase() == 'true';
+
+      if (intelligenceActive) {
+        if (titleLower.contains('quick picks')) {
+          sectionType = 'quickPicks';
+        } else if (titleLower.contains('listen again')) {
+          sectionType = 'listeningAgain';
+        } else if (titleLower.contains('video')) {
+          sectionType = 'musicVideos';
+        } else if (titleLower.contains('podcast')) {
+          sectionType = 'podcasts';
+        } else if (titleLower.contains('album')) {
+          sectionType = 'albums';
+        } else if (titleLower.contains('long listen')) {
+          sectionType = 'longListening';
+        } else if (titleLower.contains('flow')) {
+          sectionType = 'flowIntelligence';
+        }
+      }
+
+      AppLogger.i(
+        _tag,
+        'Parsed shelf: "$title" (Intelligence: $intelligenceActive, Section: $sectionType) with ${items.length} items',
+      );
+
       shelves.add({
         'title': title,
-        'section': null,
+        'section': sectionType,
         'itemSize': itemSize,
         'items': items,
       });
     }
 
     AppLogger.i(_tag, 'Total shelves parsed in DataSource: ${shelves.length}');
-    return shelves;
+    return (shelves, continuationToken);
   }
 
   // ── Header title extraction ─────────────────────────────────────────────────
@@ -279,7 +310,8 @@ class YoutubeMusicDataSource implements MusicDataSource {
     final thumbnails =
         (renderer['thumbnailRenderer']?['musicThumbnailRenderer']?['thumbnail']?['thumbnails']
                 as List?)
-            ?.cast<Map<String, dynamic>>();
+            ?.map((e) => e as Map<String, dynamic>)
+            .toList();
 
     if (thumbnails != null && thumbnails.isNotEmpty) {
       var best = thumbnails.last;

@@ -10,6 +10,7 @@ class HomeDataModel {
   final String? ytName;
   final List<SongModel> musicVideos;
   final List<SongModel> favArtistsSongs;
+  final String? continuationToken;
 
   const HomeDataModel({
     required this.rawShelves,
@@ -18,6 +19,7 @@ class HomeDataModel {
     this.ytName,
     this.musicVideos = const [],
     this.favArtistsSongs = const [],
+    this.continuationToken,
   });
 
   factory HomeDataModel.fromJson(Map<String, dynamic> json) {

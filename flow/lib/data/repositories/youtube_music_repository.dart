@@ -51,36 +51,60 @@ class YoutubeMusicRepository implements MusicRepository {
 
   List<HomeShelf> _mapShelves(List<Map<String, dynamic>> raw) {
     return raw.map((shelf) {
-      final items = (shelf['items'] as List? ?? []).map((it) {
-        final type = it['type'] as String;
-        final data = it['data'];
-        HomeItemType itemType;
-        dynamic mappedData;
+      final rawItems = shelf['items'] as List? ?? [];
+      final items = <HomeItem>[];
 
-        switch (type) {
-          case 'song':
-            itemType = HomeItemType.song;
-            mappedData = SongModel.fromJson(
-              data as Map<String, dynamic>,
-            ).toEntity();
-            break;
-          case 'playlist':
-            itemType = HomeItemType.playlist;
-            mappedData = PlaylistModel.fromJson(
-              data as Map<String, dynamic>,
-            ).toEntity();
-            break;
-          default:
-            itemType = HomeItemType.song; // Fallback
-            mappedData = data;
+      for (final it in rawItems) {
+        try {
+          final type = (it['type'] as String?) ?? '';
+          final data = it['data'] as Map<String, dynamic>?;
+          if (data == null) continue;
+
+          HomeItemType itemType;
+          dynamic mappedData;
+
+          switch (type) {
+            case 'song':
+              itemType = HomeItemType.song;
+              mappedData = SongModel.fromJson(data).toEntity();
+              break;
+            case 'video':
+              itemType = HomeItemType.video;
+              mappedData = SongModel.fromJson(data).toEntity();
+              break;
+            case 'album':
+              itemType = HomeItemType.album;
+              mappedData = PlaylistModel.fromJson({
+                'color': 0xFF7C3AED,
+                ...data,
+              }).toEntity();
+              break;
+            case 'playlist':
+              itemType = HomeItemType.playlist;
+              mappedData = PlaylistModel.fromJson({
+                'color': 0xFF7C3AED,
+                ...data,
+              }).toEntity();
+              break;
+            case 'artist':
+              itemType = HomeItemType.artist;
+              mappedData = data; // UI reads this as Map<String, dynamic>
+              break;
+            default:
+              AppLogger.w(_tag, 'Unknown item type "$type"; skipping item');
+              continue;
+          }
+
+          items.add(HomeItem(type: itemType, data: mappedData));
+        } catch (e) {
+          AppLogger.w(_tag, '_mapShelves: failed to deserialize item: $e');
         }
-
-        return HomeItem(type: itemType, data: mappedData);
-      }).toList();
+      }
 
       return HomeShelf(
-        title: shelf['title'] ?? 'More',
-        section: shelf['section'],
+        title: shelf['title'] as String? ?? 'More',
+        section: shelf['section'] as String?,
+        itemSize: shelf['itemSize'] as String?,
         items: items,
       );
     }).toList();

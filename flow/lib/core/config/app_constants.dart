@@ -23,6 +23,7 @@ class AppConfig {
   static const String appStorageSubDir = 'flow';
 
   static bool get intelligenceActive =>
-      dotenv.get('INTELLIGENCE_ACTIVE', fallback: 'true').toLowerCase() ==
-      'true';
+      // dotenv.get('INTELLIGENCE_ACTIVE', fallback: 'true').toLowerCase() ==
+      // 'true';
+      false;
 }

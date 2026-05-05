@@ -38,7 +38,7 @@ class MockSongDataSource implements MusicDataSource {
   ];
 
   @override
-  Future<HomeDataModel> fetchHomeData({int limit = 25}) async {
+  Future<HomeDataModel> fetchHomeData({int limit = 25, String? continuationToken}) async {
     return HomeDataModel(
       rawShelves: [
         {
